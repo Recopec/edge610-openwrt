@@ -3,115 +3,231 @@ name: Build Edge 610 OpenWrt Image
 on:
   workflow_dispatch:
 
+concurrency:
+  group: edge610-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
     steps:
-      - name: 准备宿主编译依赖与工具链伪装
+      - name: Checkout build definition
+        uses: actions/checkout@v4
+
+      - name: Install host build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev gawk git gettext libssl-dev rsync wget unzip python3 jq zstd xz-utils which debianutils
-
-          # 建立通用 sha256 与 md5 兼容包装，确保索引脚本 100% 能够获取哈希值
-          sudo tee /usr/local/bin/sha256 > /dev/null << 'EOF'
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk gcc-multilib \
+            gettext git libncurses-dev libssl-dev libelf-dev libxml2-utils \
+            python3 python3-setuptools rsync unzip zlib1g-dev file wget \
+            time zip xz-utils zstd which debianutils jq
+          # Handoff-validated shims: harmless on GNU userland, kept as belt
+          # and suspenders for the OpenWrt host prechecks (install/sha256/md5).
+          sudo tee /usr/local/bin/sha256 >/dev/null <<'EOF'
           #!/bin/sh
           sha256sum "$1" | awk '{print $1}'
           EOF
           sudo chmod +x /usr/local/bin/sha256
-
-          sudo tee /usr/local/bin/md5 > /dev/null << 'EOF'
+          sudo tee /usr/local/bin/md5 >/dev/null <<'EOF'
           #!/bin/sh
           md5sum "$1" | awk '{print $1}'
           EOF
           sudo chmod +x /usr/local/bin/md5
-
-          # 包装 install 命令，绕过 OpenWrt 的 "install --version | grep GNU" 检查
-          sudo tee /usr/local/bin/install > /dev/null << 'EOF'
+          sudo tee /usr/local/bin/install >/dev/null <<'EOF'
           #!/bin/sh
           if [ "$1" = "--version" ]; then
-              echo "install (GNU coreutils) 9.4"
-              exit 0
+            echo "install (GNU coreutils) 9.4"
+            exit 0
           fi
           exec /usr/bin/install "$@"
           EOF
           sudo chmod +x /usr/local/bin/install
 
-      - name: 下载并解压 ImageBuilder
+      - name: Free disk space
         run: |
-          VERSION="23.05.5"
-          echo "Using OpenWrt version: $VERSION"
+          sudo rm -rf /opt/hostedtoolcache /opt/ghc /usr/local/lib/android \
+            /usr/share/dotnet /usr/local/.ghcup || true
+          df -h /
 
-          IB_FILE=$(curl -sL "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/" | grep -oE "openwrt-imagebuilder-${VERSION}-x86-64\.Linux-x86_64\.tar\.(xz|zst)" | head -n 1)
-          [ -z "$IB_FILE" ] && IB_FILE="openwrt-imagebuilder-23.05.5-x86-64.Linux-x86_64.tar.xz"
-          echo "Downloading: $IB_FILE"
+      - name: Clone OpenWrt v25.12.6 and add Edge 610 board package
+        run: |
+          git clone --depth 1 --branch v25.12.6 \
+            https://github.com/openwrt/openwrt.git openwrt
+          cp -r package/edge610-board openwrt/package/
+          test -f openwrt/package/edge610-board/Makefile
 
-          curl -fL -o ib-archive "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/${IB_FILE}"
-          mkdir -p imagebuilder
-          tar -xf ib-archive -C imagebuilder --strip-components=1
-          rm -f ib-archive
-
-      - name: 抓取 OpenClash 与 Mihomo amd64-v1 内核
+      - name: Configure feeds (official pinned commits + OpenClash)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd imagebuilder
-          mkdir -p packages files/etc/openclash/core files/etc
+          cd openwrt
+          # Official feed pins for this release, minus the redundant "base"
+          # line (that would clone the OpenWrt tree a second time).
+          curl -fsSL -o feeds.conf \
+            https://downloads.openwrt.org/releases/25.12.6/packages/x86_64/feeds.conf
+          sed -i '/^src-git base /d' feeds.conf
+          # OpenClash: latest stable release tag, master as fallback.
+          OC_TAG="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/vernesong/OpenClash/releases/latest \
+            | jq -r '.tag_name // empty')"
+          [ -n "$OC_TAG" ] || OC_TAG=master
+          echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
+          echo "--- feeds.conf ---"
+          cat feeds.conf
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
-          # 1. 下载 OpenClash 最新稳定 release ipk
-          CLASH_IPK_URL=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r '.assets[] | select(.name | endswith(".ipk") and contains("all")) | .browser_download_url' | head -n 1)
-          [ -z "$CLASH_IPK_URL" ] && CLASH_IPK_URL="https://github.com/vernesong/OpenClash/releases/download/v0.48.002/luci-app-openclash_0.48.002_all.ipk"
-          echo "Downloading OpenClash from: $CLASH_IPK_URL"
-          curl -sL -o packages/luci-app-openclash.ipk "$CLASH_IPK_URL"
+      - name: Build po2lmo host tool (needed by OpenClash translation build)
+        run: |
+          cd openwrt
+          make -C package/feeds/luci/luci-base/src po2lmo
+          mkdir -p staging_dir/host/bin
+          cp package/feeds/luci/luci-base/src/po2lmo staging_dir/host/bin/po2lmo
+          staging_dir/host/bin/po2lmo 2>&1 | head -n 3 || true
 
-          # 2. 下载适配 Atom C3338 的最新版 Mihomo (amd64-v1)
-          CORE_URL=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-v1") and (endswith(".gz"))) | .browser_download_url' | head -n 1)
-          [ -z "$CORE_URL" ] && CORE_URL="https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1-go120-v1.19.33.gz"
-          echo "Downloading Mihomo Core from: $CORE_URL"
-          curl -sL -o mihomo.gz "$CORE_URL"
-          gzip -d mihomo.gz
-          mv mihomo files/etc/openclash/core/clash_meta
-          chmod +x files/etc/openclash/core/clash_meta
+      - name: Download Mihomo core (linux-amd64-v1, no AVX2) into package files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd openwrt/package/edge610-board/files
+          mkdir -p etc/openclash/core
+          CORE_URL="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | jq -r '.assets[] | select(.name | contains("linux-amd64-v1") and (endswith(".gz"))) | .browser_download_url' | head -n 1)"
+          [ -n "$CORE_URL" ] || CORE_URL="https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1-go120-v1.19.33.gz"
+          echo "Downloading Mihomo core from: $CORE_URL"
+          # The Atom C3338 has no AVX2: the asset MUST be the v1 build.
+          echo "$CORE_URL" | grep -q "linux-amd64-v1"
+          curl -fL -o /tmp/mihomo.gz "$CORE_URL"
+          gzip -dc /tmp/mihomo.gz > etc/openclash/core/clash_meta
+          chmod 755 etc/openclash/core/clash_meta
+          file etc/openclash/core/clash_meta | grep -q "ELF 64-bit"
+          ./etc/openclash/core/clash_meta -v
+          ./etc/openclash/core/clash_meta -v | grep -qi mihomo
 
-          # 3. 预置关停硬件看门狗的开机自启脚本
-          cat << 'EOF' > files/etc/rc.local
-          i2cset -y 0 0x22 0 0 b 2>/dev/null || true
-          i2cset -y 0 0x24 0x0 0x0 b 2>/dev/null || true
-          i2cset -y 1 0x22 0 0 b 2>/dev/null || true
-          i2cset -y 1 0x24 0x0 0x0 b 2>/dev/null || true
-          exit 0
+      - name: Generate .config and verify package selection
+        run: |
+          cd openwrt
+          cat > .config <<'EOF'
+          CONFIG_TARGET_x86=y
+          CONFIG_TARGET_x86_64=y
+          CONFIG_TARGET_MULTI_PROFILE=y
+          CONFIG_TARGET_DEVICE_x86_64_DEVICE_generic=y
+          CONFIG_TARGET_ROOTFS_PARTSIZE=1024
+          CONFIG_TARGET_ROOTFS_EXT4FS=y
+          CONFIG_GRUB_IMAGES=y
+          CONFIG_GRUB_EFI_IMAGES=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-app-openclash=y
+          CONFIG_PACKAGE_edge610-board=y
+          CONFIG_PACKAGE_kmod-edge610-switch=y
+          CONFIG_PACKAGE_kmod-edge610-dsa=y
+          CONFIG_PACKAGE_kmod-i2c-ismt=y
+          CONFIG_PACKAGE_kmod-dsa=y
+          CONFIG_PACKAGE_kmod-dsa-mv88e6xxx=y
+          CONFIG_PACKAGE_kmod-ixgbe=y
+          CONFIG_PACKAGE_i2c-tools=y
+          CONFIG_PACKAGE_ip-full=y
+          CONFIG_PACKAGE_coreutils=y
+          CONFIG_PACKAGE_coreutils-nohup=y
+          CONFIG_PACKAGE_kmod-nft-tproxy=y
+          CONFIG_PACKAGE_ca-certificates=y
+          CONFIG_PACKAGE_dnsmasq-full=y
+          # CONFIG_PACKAGE_dnsmasq is not set
           EOF
-          chmod +x files/etc/rc.local
+          make defconfig
+          for sym in \
+            CONFIG_TARGET_x86_64=y \
+            CONFIG_TARGET_ROOTFS_PARTSIZE=1024 \
+            CONFIG_PACKAGE_edge610-board=y \
+            CONFIG_PACKAGE_kmod-edge610-switch=y \
+            CONFIG_PACKAGE_kmod-edge610-dsa=y \
+            CONFIG_PACKAGE_kmod-i2c-ismt=y \
+            CONFIG_PACKAGE_kmod-dsa-mv88e6xxx=y \
+            CONFIG_PACKAGE_kmod-ixgbe=y \
+            CONFIG_PACKAGE_luci-app-openclash=y \
+            CONFIG_PACKAGE_i2c-tools=y \
+            CONFIG_PACKAGE_ip-full=y \
+            CONFIG_PACKAGE_dnsmasq-full=y; do
+            grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
+          done
+          grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
+          echo "defconfig OK"
 
-      - name: 配置本地仓库源并生成索引
+      - name: Remove ixgbe autoload (probe order owned by /etc/init.d/edge610)
         run: |
-          cd imagebuilder
-          # 允许安装未签名第三方 ipk
-          sed -i 's/option check_signature/# option check_signature/' repositories.conf
-          # 注册本地 packages 目录
-          echo "src custom file:$PWD/packages" >> repositories.conf
-          # 预生成密钥，避免 make package_index 调用 usign 时报错
-          ./staging_dir/host/bin/usign -G -s key-build -p key-build.pub
-          make package_index
+          cd openwrt
+          MK=package/kernel/linux/modules/netdevices.mk
+          grep -q 'AutoLoad,35,ixgbe)' "$MK" || { echo "expected AutoLoad line not found - upstream changed"; exit 1; }
+          sed -i '/AutoLoad,35,ixgbe)/d' "$MK"
+          ! grep -q 'AutoLoad,35,ixgbe)' "$MK" || { echo "sed failed to remove ixgbe autoload"; exit 1; }
+          grep -q 'AutoLoad,35,ixgbevf)' "$MK" || { echo "unrelated ixgbevf line was damaged"; exit 1; }
+          echo "ixgbe autoload removed; probe order now: edge610 init script"
 
-      - name: 生成 Edge 610 定制镜像
+      - name: Build image (full source build)
         run: |
-          cd imagebuilder
-          # 扩容根分区至 1024MB，确保能容纳 50MB+ 的 Mihomo 内核与依赖
-          sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=1024/' .config || true
+          cd openwrt
+          if ! make -j"$(nproc)" > build.log 2>&1; then
+            echo "::error::make failed - last 400 lines of build.log:"
+            tail -n 400 build.log
+            exit 1
+          fi
+          tail -n 20 build.log
 
-          # 加 FORCE=1 确保绕过主机预检拦截
-          make image \
-            FORCE=1 \
-            PROFILE="generic" \
-            ROOTFS_PARTSIZE=1024 \
-            PACKAGES="kmod-switch-mv88e6xxx kmod-ixgbe kmod-i2c-core kmod-i2c-i801 kmod-i2c-smbus i2c-tools \
-                      luci luci-app-openclash -dnsmasq dnsmasq-full \
-                      kmod-nft-tproxy ip-full ca-certificates ca-bundle bash curl coreutils coreutils-nohup ipset kmod-tun" \
-            FILES="files"
+      - name: Verify image and rootfs contents
+        run: |
+          cd openwrt
+          IMG="$(ls bin/targets/x86/64/*-generic-ext4-combined-efi.img.gz 2>/dev/null | head -n1)"
+          [ -n "$IMG" ] || { echo "EFI combined image missing:"; ls -la bin/targets/x86/64/; exit 1; }
+          [ "$(stat -c%s "$IMG")" -gt 50000000 ] || { echo "image suspiciously small: $IMG"; exit 1; }
+          ls -la bin/targets/x86/64/
 
-      - name: 发布镜像构件
+          ROOTFS=build_dir/target-x86_64_musl/root-x86_64
+          [ -d "$ROOTFS" ] || { echo "rootfs dir missing"; exit 1; }
+
+          KCFG="$(find build_dir/target-x86_64_musl -maxdepth 3 -name '.config' -path '*linux*' | head -n1)"
+          [ -n "$KCFG" ] || { echo "kernel .config not found"; exit 1; }
+          for k in CONFIG_NET_DSA CONFIG_NET_DSA_MV88E6XXX CONFIG_IXGBE CONFIG_I2C_ISMT; do
+            grep -qE "^${k}=[ym]" "$KCFG" || { echo "kernel config missing $k"; exit 1; }
+          done
+
+          for m in edge610_switch_standalone.ko edge610_dsa.ko i2c-ismt.ko mv88e6xxx.ko ixgbe.ko; do
+            find "$ROOTFS/lib/modules" -name "$m" | grep -q . || { echo "rootfs module missing: $m"; exit 1; }
+          done
+          find "$ROOTFS/lib/modules" -name 'dsa*.ko' | grep -q . || { echo "dsa core module missing"; exit 1; }
+
+          [ -x "$ROOTFS/etc/init.d/edge610" ] || { echo "init.d/edge610 missing"; exit 1; }
+          [ -f "$ROOTFS/etc/modprobe.d/edge610.conf" ] || { echo "modprobe.d/edge610.conf missing"; exit 1; }
+          [ -f "$ROOTFS/etc/uci-defaults/zzz99-edge610-network" ] || { echo "uci-defaults network script missing"; exit 1; }
+          grep -q "lan6" "$ROOTFS/etc/uci-defaults/zzz99-edge610-network" || { echo "network defaults do not reference lan6"; exit 1; }
+          strings "$ROOTFS"/lib/modules/*/edge610_dsa.ko | grep -q 'lan6' || { echo "DSA port rename not baked into module"; exit 1; }
+
+          [ -x "$ROOTFS/etc/init.d/openclash" ] || { echo "OpenClash init script missing"; exit 1; }
+          [ -x "$ROOTFS/etc/openclash/core/clash_meta" ] || { echo "clash_meta missing from rootfs"; exit 1; }
+          file "$ROOTFS/etc/openclash/core/clash_meta" | grep -q "ELF 64-bit" || { echo "clash_meta not ELF64"; exit 1; }
+          "$ROOTFS/etc/openclash/core/clash_meta" -v
+          "$ROOTFS/etc/openclash/core/clash_meta" -v | grep -qi mihomo || { echo "clash_meta does not report Mihomo"; exit 1; }
+
+          { [ -x "$ROOTFS/usr/sbin/i2cset" ] || [ -x "$ROOTFS/usr/bin/i2cset" ]; } || { echo "i2cset missing"; exit 1; }
+          echo "verification OK"
+
+      - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
           name: Edge610-OpenWrt-Image
-          path: imagebuilder/bin/targets/x86/64/*-generic-ext4-combined-efi.img.gz
+          path: |
+            openwrt/bin/targets/x86/64/*-generic-ext4-combined-efi.img.gz
+            openwrt/bin/targets/x86/64/*.manifest
+            openwrt/bin/targets/x86/64/sha256sums
           if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: openwrt/build.log
+          if-no-files-found: ignore

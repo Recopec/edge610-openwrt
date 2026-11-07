@@ -1,0 +1,37 @@
+#!/bin/sh
+# First-boot network for the Edge 610: LAN is the DSA port bridge
+# (lan1..lan6) at 192.168.1.1. The zzz prefix runs after every other
+# uci-default (board.d eth0/eth1 defaults, ULA generation) and before
+# netifd starts (START=20). No WAN by default: assign an SFP port in LuCI.
+
+ula="$(uci -q get network.globals.ula_prefix)"
+
+cat > /etc/config/network <<EOF
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+${ula:+	option ula_prefix '$ula'}
+
+config device 'br-lan'
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'lan1'
+	list ports 'lan2'
+	list ports 'lan3'
+	list ports 'lan4'
+	list ports 'lan5'
+	list ports 'lan6'
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr '192.168.1.1'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+EOF
+
+exit 0
