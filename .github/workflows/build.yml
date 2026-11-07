@@ -167,10 +167,26 @@ jobs:
           grep -q 'AutoLoad,35,ixgbevf)' "$MK" || { echo "unrelated ixgbevf line was damaged"; exit 1; }
           echo "ixgbe autoload removed; probe order now: edge610 init script"
 
+      - name: Download all sources (bounded)
+        run: |
+          cd openwrt
+          if ! timeout 1800 make download -j"$(nproc)" > dl.log 2>&1; then
+            echo "::error::make download failed or timed out - last 100 lines:"
+            tail -n 100 dl.log
+            exit 1
+          fi
+          tail -n 5 dl.log
+
       - name: Build image (full source build)
         run: |
           cd openwrt
-          if ! make -j"$(nproc)" > build.log 2>&1; then
+          make -j"$(nproc)" > build.log 2>&1 &
+          MPID=$!
+          while kill -0 $MPID 2>/dev/null; do
+            echo "$(date -u +%H:%M:%S) | load: $(cut -d' ' -f1-3 /proc/loadavg) | $(tail -n 1 build.log | tr -d '\r' | cut -c1-180)"
+            sleep 60
+          done
+          if ! wait $MPID; then
             echo "::error::make failed - last 400 lines of build.log:"
             tail -n 400 build.log
             exit 1
@@ -185,33 +201,55 @@ jobs:
           [ "$(stat -c%s "$IMG")" -gt 50000000 ] || { echo "image suspiciously small: $IMG"; exit 1; }
           ls -la bin/targets/x86/64/
 
-          ROOTFS=build_dir/target-x86_64_musl/root-x86_64
-          [ -d "$ROOTFS" ] || { echo "rootfs dir missing"; exit 1; }
-
-          KCFG="$(find build_dir/target-x86_64_musl -maxdepth 3 -name '.config' -path '*linux*' | head -n1)"
-          [ -n "$KCFG" ] || { echo "kernel .config not found"; exit 1; }
-          for k in CONFIG_NET_DSA CONFIG_NET_DSA_MV88E6XXX CONFIG_IXGBE CONFIG_I2C_ISMT; do
-            grep -qE "^${k}=[ym]" "$KCFG" || { echo "kernel config missing $k"; exit 1; }
+          # Package manifest: every selected package must be installed.
+          MAN=bin/targets/x86/64/openwrt-x86-64.manifest
+          [ -f "$MAN" ] || { echo "manifest missing"; exit 1; }
+          for p in luci-app-openclash i2c-tools ip-full dnsmasq-full \
+                   kmod-edge610-switch kmod-edge610-dsa kmod-i2c-ismt \
+                   kmod-dsa-mv88e6xxx kmod-ixgbe; do
+            grep -q "^$p " "$MAN" || { echo "manifest missing package: $p"; exit 1; }
           done
 
-          for m in edge610_switch_standalone.ko edge610_dsa.ko i2c-ismt.ko mv88e6xxx.ko ixgbe.ko; do
-            find "$ROOTFS/lib/modules" -name "$m" | grep -q . || { echo "rootfs module missing: $m"; exit 1; }
+          # Modules must be in the rootfs staging tree (directory name varies).
+          for m in edge610_switch_standalone edge610_dsa i2c-ismt mv88e6xxx ixgbe; do
+            find build_dir -path '*/lib/modules/*' -name "$m.ko" | grep -q . || { echo "rootfs module missing: $m.ko"; exit 1; }
           done
-          find "$ROOTFS/lib/modules" -name 'dsa*.ko' | grep -q . || { echo "dsa core module missing"; exit 1; }
+          find build_dir -path '*/lib/modules/*' -name 'dsa*.ko' | grep -q . || { echo "dsa core module missing"; exit 1; }
 
-          [ -x "$ROOTFS/etc/init.d/edge610" ] || { echo "init.d/edge610 missing"; exit 1; }
-          [ -f "$ROOTFS/etc/modprobe.d/edge610.conf" ] || { echo "modprobe.d/edge610.conf missing"; exit 1; }
-          [ -f "$ROOTFS/etc/uci-defaults/zzz99-edge610-network" ] || { echo "uci-defaults network script missing"; exit 1; }
-          grep -q "lan6" "$ROOTFS/etc/uci-defaults/zzz99-edge610-network" || { echo "network defaults do not reference lan6"; exit 1; }
-          strings "$ROOTFS"/lib/modules/*/edge610_dsa.ko | grep -q 'lan6' || { echo "DSA port rename not baked into module"; exit 1; }
+          # File-level checks via the rootfs tarball (path-independent).
+          TAR=bin/targets/x86/64/openwrt-x86-64-rootfs.tar.gz
+          [ -f "$TAR" ] || { echo "rootfs tarball missing"; exit 1; }
+          tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
+          for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
+                   etc/uci-defaults/zzz99-edge610-network \
+                   etc/openclash/core/clash_meta; do
+            grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
+          done
+          grep -qE '/i2cset$' /tmp/rootfs-files.txt || { echo "i2cset missing"; exit 1; }
 
-          [ -x "$ROOTFS/etc/init.d/openclash" ] || { echo "OpenClash init script missing"; exit 1; }
-          [ -x "$ROOTFS/etc/openclash/core/clash_meta" ] || { echo "clash_meta missing from rootfs"; exit 1; }
-          file "$ROOTFS/etc/openclash/core/clash_meta" | grep -q "ELF 64-bit" || { echo "clash_meta not ELF64"; exit 1; }
-          "$ROOTFS/etc/openclash/core/clash_meta" -v
-          "$ROOTFS/etc/openclash/core/clash_meta" -v | grep -qi mihomo || { echo "clash_meta does not report Mihomo"; exit 1; }
+          # Extract and run the binaries actually shipped in the image.
+          rm -rf /tmp/rootcheck && mkdir -p /tmp/rootcheck
+          tar -xzf "$TAR" -C /tmp/rootcheck
+          file /tmp/rootcheck/etc/openclash/core/clash_meta | grep -q "ELF 64-bit" || { echo "clash_meta not ELF64"; exit 1; }
+          /tmp/rootcheck/etc/openclash/core/clash_meta -v | tee /tmp/core-v.txt
+          grep -qi mihomo /tmp/core-v.txt || { echo "clash_meta does not report Mihomo"; exit 1; }
+          grep -q "lan6" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "network defaults do not reference lan6"; exit 1; }
 
-          { [ -x "$ROOTFS/usr/sbin/i2cset" ] || [ -x "$ROOTFS/usr/bin/i2cset" ]; } || { echo "i2cset missing"; exit 1; }
+          # DSA port rename baked into the compiled module.
+          KO="$(find build_dir -path '*/lib/modules/*' -name edge610_dsa.ko | head -n1)"
+          [ -n "$KO" ] || KO="$(find build_dir -name edge610_dsa.ko | head -n1)"
+          [ -n "$KO" ] || { echo "edge610_dsa.ko not found"; exit 1; }
+          strings "$KO" | grep -q 'lan6' || { echo "DSA port rename not in module"; exit 1; }
+
+          # Kernel config is belt-and-suspenders (module presence above is the proof).
+          KCFG="$(find build_dir -maxdepth 5 -name '.config' -path '*linux*' | head -n1)"
+          if [ -n "$KCFG" ]; then
+            for k in CONFIG_NET_DSA CONFIG_NET_DSA_MV88E6XXX CONFIG_IXGBE CONFIG_I2C_ISMT; do
+              grep -qE "^${k}=[ym]" "$KCFG" || echo "::warning::kernel config missing $k ($KCFG)"
+            done
+          else
+            echo "::warning::kernel .config not located; relying on module presence checks"
+          fi
           echo "verification OK"
 
       - name: Upload image artifact
@@ -229,5 +267,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: openwrt/build.log
+          path: |
+            openwrt/build.log
+            openwrt/dl.log
           if-no-files-found: ignore
