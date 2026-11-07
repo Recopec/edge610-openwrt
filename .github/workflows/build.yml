@@ -7,44 +7,61 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 准备依赖并下载 ImageBuilder
+      - name: 准备宿主编译依赖与哈希工具
         run: |
           sudo apt-get update
-          # 安装 which 及其它依赖，并建立 sha256 / md5 别名
-          sudo apt-get install -y zstd xz-utils jq curl libncurses-dev which
-          sudo ln -sf /usr/bin/sha256sum /usr/local/bin/sha256
-          sudo ln -sf /usr/bin/md5sum /usr/local/bin/md5
+          sudo apt-get install -y zstd xz-utils jq curl libncurses-dev which debianutils gawk
 
-          VERSION=$(curl -sL https://downloads.openwrt.org/releases/ | grep -oE '23\.05\.[0-9]+' | sort -V | tail -n 1)
-          [ -z "$VERSION" ] && VERSION="23.05.5"
-          echo "Detected OpenWrt version: $VERSION"
+          # 建立通用 sha256 与 md5 兼容包装，确保索引脚本 100% 能够获取哈希值
+          sudo tee /usr/local/bin/sha256 > /dev/null << 'EOF'
+          #!/bin/sh
+          sha256sum "$1" | awk '{print $1}'
+          EOF
+          sudo chmod +x /usr/local/bin/sha256
+
+          sudo tee /usr/local/bin/md5 > /dev/null << 'EOF'
+          #!/bin/sh
+          md5sum "$1" | awk '{print $1}'
+          EOF
+          sudo chmod +x /usr/local/bin/md5
+
+      - name: 下载并解压 ImageBuilder
+        run: |
+          VERSION="23.05.5"
+          echo "Using OpenWrt version: $VERSION"
 
           IB_FILE=$(curl -sL "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/" | grep -oE "openwrt-imagebuilder-${VERSION}-x86-64\.Linux-x86_64\.tar\.(xz|zst)" | head -n 1)
-          [ -z "$IB_FILE" ] && IB_FILE="openwrt-imagebuilder-${VERSION}-x86-64.Linux-x86_64.tar.xz"
-          echo "Downloading: $IB_FILE"
+          [ -z "$IB_FILE" ] && IB_FILE="openwrt-imagebuilder-23.05.5-x86-64.Linux-x86_64.tar.xz"
+          echo "Downloading $IB_FILE..."
 
           curl -fL -o ib-archive "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/${IB_FILE}"
           mkdir -p imagebuilder
           tar -xf ib-archive -C imagebuilder --strip-components=1
           rm -f ib-archive
 
-      - name: 抓取最新 OpenClash 与 Mihomo amd64-v1 内核
+      - name: 抓取 OpenClash 与 Mihomo amd64-v1 内核
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd imagebuilder
           mkdir -p packages files/etc/openclash/core files/etc
 
-          # 1. 抓取 OpenClash ipk
-          CLASH_IPK_URL=$(curl -sL https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r '.assets[] | select(.name | endswith(".ipk") and contains("all")) | .browser_download_url' | head -n 1)
+          # 1. 抓取 OpenClash ipk (带 Token 与备用直链防限流)
+          CLASH_IPK_URL=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r '.assets[] | select(.name | endswith(".ipk") and contains("all")) | .browser_download_url' | head -n 1)
+          [ -z "$CLASH_IPK_URL" ] && CLASH_IPK_URL="https://github.com/vernesong/OpenClash/releases/download/v0.48.002/luci-app-openclash_0.48.002_all.ipk"
+          echo "Downloading OpenClash from: $CLASH_IPK_URL"
           curl -sL -o packages/luci-app-openclash.ipk "$CLASH_IPK_URL"
 
-          # 2. 抓取适配 Atom C3338 的最新版 Mihomo (amd64-v1)
-          CORE_URL=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-v1") and (endswith(".gz"))) | .browser_download_url' | head -n 1)
+          # 2. 抓取适合 Atom C3338 的 Mihomo amd64-v1 内核
+          CORE_URL=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-v1") and (endswith(".gz"))) | .browser_download_url' | head -n 1)
+          [ -z "$CORE_URL" ] && CORE_URL="https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1-go120-v1.19.33.gz"
+          echo "Downloading Mihomo Core from: $CORE_URL"
           curl -sL -o mihomo.gz "$CORE_URL"
           gzip -d mihomo.gz
           mv mihomo files/etc/openclash/core/clash_meta
           chmod +x files/etc/openclash/core/clash_meta
 
-          # 3. 注入防看门狗开机脚本
+          # 3. 预置防看门狗超时的开机关狗指令
           cat << 'EOF' > files/etc/rc.local
           i2cset -y 0 0x22 0 0 b 2>/dev/null || true
           i2cset -y 0 0x24 0x0 0x0 b 2>/dev/null || true
@@ -54,21 +71,28 @@ jobs:
           EOF
           chmod +x files/etc/rc.local
 
-      - name: 配置本地包源并建立索引
+      - name: 配置本地仓库源并生成索引
         run: |
           cd imagebuilder
-          # 禁用签名校验
+          # 1. 允许安装未签名第三方包
           sed -i 's/option check_signature/# option check_signature/' repositories.conf
-          # 注册本地目录为 opkg 仓库
+
+          # 2. 注册本地 packages 目录
           echo "src custom file:$PWD/packages" >> repositories.conf
-          # 建立 Packages 索引
-          (cd packages && ../scripts/ipkg-make-index.sh . > Packages && gzip -9nc Packages > Packages.gz)
+
+          # 3. 预先生成 key-build 私钥，确保 make package_index 调用 usign 时不会退出
+          ./staging_dir/host/bin/usign -G -s key-build -p key-build.pub
+
+          # 4. 执行官方索引打包
+          make package_index
 
       - name: 生成 Edge 610 定制镜像
         run: |
           cd imagebuilder
+          # ROOTFS_PARTSIZE=1024 确保 1GB 根分区，容纳 50MB+ 的 Mihomo 内核与全套驱动
           make image \
             PROFILE="generic" \
+            ROOTFS_PARTSIZE=1024 \
             PACKAGES="kmod-switch-mv88e6xxx kmod-ixgbe kmod-i2c-core kmod-i2c-i801 kmod-i2c-smbus i2c-tools \
                       luci luci-app-openclash -dnsmasq dnsmasq-full \
                       kmod-nft-tproxy ip-full ca-certificates ca-bundle bash curl coreutils coreutils-nohup ipset kmod-tun" \
