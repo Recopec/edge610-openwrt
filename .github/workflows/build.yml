@@ -1,0 +1,79 @@
+name: Build Edge 610 OpenWrt Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 准备依赖并下载 ImageBuilder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd xz-utils jq curl libncurses-dev
+
+          VERSION=$(curl -sL https://downloads.openwrt.org/releases/ | grep -oE '23\.05\.[0-9]+' | sort -V | tail -n 1)
+          [ -z "$VERSION" ] && VERSION="23.05.5"
+          echo "Detected OpenWrt version: $VERSION"
+
+          IB_FILE=$(curl -sL "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/" | grep -oE "openwrt-imagebuilder-${VERSION}-x86-64\.Linux-x86_64\.tar\.(xz|zst)" | head -n 1)
+          [ -z "$IB_FILE" ] && IB_FILE="openwrt-imagebuilder-${VERSION}-x86-64.Linux-x86_64.tar.xz"
+          echo "Downloading: $IB_FILE"
+
+          curl -fL -o ib-archive "https://downloads.openwrt.org/releases/${VERSION}/targets/x86/64/${IB_FILE}"
+          mkdir -p imagebuilder
+          tar -xf ib-archive -C imagebuilder --strip-components=1
+          rm -f ib-archive
+
+      - name: 抓取最新 OpenClash 与 Mihomo amd64-v1 内核
+        run: |
+          cd imagebuilder
+          mkdir -p packages files/etc/openclash/core files/etc
+
+          # 1. 抓取 OpenClash ipk
+          CLASH_IPK_URL=$(curl -sL https://api.github.com/repos/vernesong/OpenClash/releases/latest | jq -r '.assets[] | select(.name | endswith(".ipk") and contains("all")) | .browser_download_url' | head -n 1)
+          curl -sL -o packages/luci-app-openclash.ipk "$CLASH_IPK_URL"
+
+          # 2. 抓取适配 Atom C3338 的最新版 Mihomo (amd64-v1)
+          CORE_URL=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-v1") and (endswith(".gz"))) | .browser_download_url' | head -n 1)
+          curl -sL -o mihomo.gz "$CORE_URL"
+          gzip -d mihomo.gz
+          mv mihomo files/etc/openclash/core/clash_meta
+          chmod +x files/etc/openclash/core/clash_meta
+
+          # 3. 注入防看门狗开机脚本
+          cat << 'EOF' > files/etc/rc.local
+          i2cset -y 0 0x22 0 0 b 2>/dev/null || true
+          i2cset -y 0 0x24 0x0 0x0 b 2>/dev/null || true
+          i2cset -y 1 0x22 0 0 b 2>/dev/null || true
+          i2cset -y 1 0x24 0x0 0x0 b 2>/dev/null || true
+          exit 0
+          EOF
+          chmod +x files/etc/rc.local
+
+      - name: 配置本地包源并建立索引
+        run: |
+          cd imagebuilder
+          # 禁用签名检查，避免拦截第三方 ipk
+          sed -i 's/option check_signature/# option check_signature/' repositories.conf
+          # 将 packages 目录注册为本地源
+          echo "src custom file:$PWD/packages" >> repositories.conf
+          # 构建本地索引
+          make package_index
+
+      - name: 生成 Edge 610 定制镜像
+        run: |
+          cd imagebuilder
+          make image \
+            PROFILE="generic" \
+            PACKAGES="kmod-switch-mv88e6xxx kmod-ixgbe kmod-i2c-core kmod-i2c-i801 kmod-i2c-smbus i2c-tools \
+                      luci luci-app-openclash -dnsmasq dnsmasq-full \
+                      kmod-nft-tproxy ip-full ca-certificates ca-bundle bash curl coreutils coreutils-nohup ipset" \
+            FILES="files"
+
+      - name: 发布镜像构件
+        uses: actions/upload-artifact@v4
+        with:
+          name: Edge610-OpenWrt-Image
+          path: imagebuilder/bin/targets/x86/64/*-generic-ext4-combined-efi.img.gz
+          if-no-files-found: error
