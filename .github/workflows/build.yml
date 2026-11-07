@@ -54,12 +54,14 @@ jobs:
       - name: 配置本地包源并建立索引
         run: |
           cd imagebuilder
-          # 禁用签名检查，避免拦截第三方 ipk
+          # 1. 禁用签名校验，允许加载第三方 ipk
           sed -i 's/option check_signature/# option check_signature/' repositories.conf
-          # 将 packages 目录注册为本地源
+
+          # 2. 注册 packages 目录为本地源
           echo "src custom file:$PWD/packages" >> repositories.conf
-          # 构建本地索引
-          make package_index
+
+          # 3. 直接生成本地索引，绕过缺少 key-build 私钥导致的 usign 报错
+          (cd packages && ../scripts/ipkg-make-index.sh . > Packages && gzip -9nc Packages > Packages.gz)
 
       - name: 生成 Edge 610 定制镜像
         run: |
@@ -68,7 +70,7 @@ jobs:
             PROFILE="generic" \
             PACKAGES="kmod-switch-mv88e6xxx kmod-ixgbe kmod-i2c-core kmod-i2c-i801 kmod-i2c-smbus i2c-tools \
                       luci luci-app-openclash -dnsmasq dnsmasq-full \
-                      kmod-nft-tproxy ip-full ca-certificates ca-bundle bash curl coreutils coreutils-nohup ipset" \
+                      kmod-nft-tproxy ip-full ca-certificates ca-bundle bash curl coreutils coreutils-nohup ipset kmod-tun" \
             FILES="files"
 
       - name: 发布镜像构件
