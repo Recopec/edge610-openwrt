@@ -10,7 +10,10 @@ jobs:
       - name: 准备依赖并下载 ImageBuilder
         run: |
           sudo apt-get update
-          sudo apt-get install -y zstd xz-utils jq curl libncurses-dev
+          # 安装 which 及其它依赖，并建立 sha256 / md5 别名
+          sudo apt-get install -y zstd xz-utils jq curl libncurses-dev which
+          sudo ln -sf /usr/bin/sha256sum /usr/local/bin/sha256
+          sudo ln -sf /usr/bin/md5sum /usr/local/bin/md5
 
           VERSION=$(curl -sL https://downloads.openwrt.org/releases/ | grep -oE '23\.05\.[0-9]+' | sort -V | tail -n 1)
           [ -z "$VERSION" ] && VERSION="23.05.5"
@@ -54,13 +57,11 @@ jobs:
       - name: 配置本地包源并建立索引
         run: |
           cd imagebuilder
-          # 1. 禁用签名校验，允许加载第三方 ipk
+          # 禁用签名校验
           sed -i 's/option check_signature/# option check_signature/' repositories.conf
-
-          # 2. 注册 packages 目录为本地源
+          # 注册本地目录为 opkg 仓库
           echo "src custom file:$PWD/packages" >> repositories.conf
-
-          # 3. 直接生成本地索引，绕过缺少 key-build 私钥导致的 usign 报错
+          # 建立 Packages 索引
           (cd packages && ../scripts/ipkg-make-index.sh . > Packages && gzip -9nc Packages > Packages.gz)
 
       - name: 生成 Edge 610 定制镜像
