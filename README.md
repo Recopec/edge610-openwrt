@@ -64,7 +64,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
-| 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；`wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置） |
+| 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；**不预置 WAN**（`eth2`/`eth3` 留空，由用户在 LuCI 里自行分配） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
@@ -96,7 +96,7 @@ package/edge610-board/
 └── files/
     ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
     ├── etc/modprobe.d/edge610.conf  板级模块参数
-    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（LAN + SFP WAN）
+    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（仅 LAN，无 WAN）
     ├── etc/uci-defaults/zzz98-edge610-resize   首启根分区扩容到整块 eMMC
     └── etc/openclash/core/          clash_meta 由 CI 下载（已 gitignore）
 ```
@@ -158,7 +158,7 @@ sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-corete
 | 日志 `P2SB BAR unavailable` | 该机 BIOS 隐藏了 P2SB（`8086:19dd` 不在 `lspci` 里）。模块会从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（通常 `0xfd000000`）；仍失败时手动指定：`modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` 和 `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
 | 4~5 分钟自动重启 | 看门狗未关：`logread -e edge610` 应无 `iSMT SMBus adapter not found`。手动确认：`modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`，然后 `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openclash/core/clash_meta` |
-| 没有 WAN | 默认 `wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置）。没插 SFP 模块时两口都是 `NO-CARRIER`，属正常。插上 1.25G/2.5G 电口模块后若未 UP，用 `ip -br link` 确认哪个 eth 变 UP，再到 LuCI 改 `wan` 的设备（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
+| 没有 WAN | 默认不预置 WAN：`br-lan` 只含 `lan1..lan6`，`eth2`/`eth3`（SFP）保持未配置。需要 WAN 时在 LuCI「网络→接口→添加」里自己建，设备可选 `lan1..lan6` 或 `eth2/eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建
