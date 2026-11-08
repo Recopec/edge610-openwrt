@@ -57,6 +57,7 @@ if [ ! -f feeds.conf ]; then
     | jq -r '.tag_name // empty' || true)"
   [ -n "$OC_TAG" ] || OC_TAG=master
   echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
+  echo "src-git istore https://github.com/istoreos/istore;main" >> feeds.conf
 
   cat feeds.conf
 fi
@@ -65,6 +66,16 @@ if [ ! -d feeds/luci ]; then
   ./scripts/feeds update -a
   ./scripts/feeds install -a
 fi
+# iStore feed (may be new on an existing tree)
+if ! grep -q "src-git istore" feeds.conf; then
+  echo "src-git istore https://github.com/istoreos/istore;main" >> feeds.conf
+fi
+if [ ! -d feeds/istore ]; then
+  log "feeds update/install istore"
+  ./scripts/feeds update istore
+  ./scripts/feeds install -a -p istore
+fi
+
 # Argon theme: clone into package/ (its root Makefile breaks the feed scanner)
 if [ ! -f package/luci-theme-argon/Makefile ]; then
   log "fetch argon theme"
@@ -199,6 +210,8 @@ CONFIG_PACKAGE_containerd=y
 CONFIG_PACKAGE_runc=y
 CONFIG_PACKAGE_tini=y
 CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-app-store=y
+CONFIG_PACKAGE_luci-compat=y
 EOF
 if [ -f .config ]; then
   added=0
@@ -239,6 +252,7 @@ for sym in \
   CONFIG_PACKAGE_partx-utils=y \
   CONFIG_PACKAGE_resize2fs=y \
   CONFIG_PACKAGE_luci-theme-argon=y \
+  CONFIG_PACKAGE_luci-app-store=y \
   CONFIG_PACKAGE_luci-app-dockerman=y \
   CONFIG_PACKAGE_luci-app-adguardhome=y \
   CONFIG_PACKAGE_luci-app-ksmbd=y; do

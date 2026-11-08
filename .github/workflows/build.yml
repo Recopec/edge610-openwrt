@@ -109,6 +109,8 @@ jobs:
             | jq -r '.tag_name // empty')"
           [ -n "$OC_TAG" ] || OC_TAG=master
           echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
+          # iStore app store (apk-aware since 25.12; x86_64 supported)
+          echo "src-git istore https://github.com/istoreos/istore;main" >> feeds.conf
 
           echo "--- feeds.conf ---"
           cat feeds.conf
@@ -253,6 +255,8 @@ jobs:
           CONFIG_PACKAGE_runc=y
           CONFIG_PACKAGE_tini=y
           CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-app-store=y
+          CONFIG_PACKAGE_luci-compat=y
           EOF
           make defconfig
           for sym in \
@@ -279,6 +283,7 @@ jobs:
             CONFIG_PACKAGE_sfdisk=y \
             CONFIG_PACKAGE_resize2fs=y \
             CONFIG_PACKAGE_luci-theme-argon=y \
+            CONFIG_PACKAGE_luci-app-store=y \
             CONFIG_PACKAGE_luci-app-dockerman=y \
             CONFIG_PACKAGE_luci-app-adguardhome=y \
             CONFIG_PACKAGE_luci-app-ksmbd=y; do
