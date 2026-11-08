@@ -65,6 +65,23 @@ kofile() {
 	[ -f "$ko" ] && echo "$ko"
 }
 
+# insmod with parameters, idempotent: a second start() must not fail with
+# EEXIST, and a module already loaded with the right parameters is fine.
+load_module() {
+	local name="$1" ko
+	shift
+	if [ -d "/sys/module/$name" ]; then
+		log "$name already loaded; parameters: $(for f in /sys/module/$name/parameters/*; do printf '%s=%s ' "${f##*/}" "$(cat "$f" 2>/dev/null)"; done)"
+		return 0
+	fi
+	ko="$(kofile "$name")"
+	if [ -z "$ko" ]; then
+		log "ERROR: $name.ko not found under /lib/modules/$(uname -r)"
+		return 1
+	fi
+	insmod "$ko" "$@"
+}
+
 find_conduit() {
 	local c tries n
 	c=""
@@ -105,7 +122,7 @@ start() {
 	# NOTE: /sbin/modprobe is kmodloader, which silently drops name=value
 	# arguments, so the modules are loaded with insmod and their parameters
 	# are passed explicitly (verified on hardware: modprobe lost conduit_name).
-	if ! insmod "$(kofile edge610_switch_standalone)" cpu_port=10 x553_sgmii=1 \
+	if ! load_module edge610_switch_standalone cpu_port=10 x553_sgmii=1 \
 		cpu_mac_ctl=0x203e serdes_autoneg=1; then
 		log "ERROR: edge610_switch_standalone failed to load"
 		return 1
@@ -128,7 +145,7 @@ start() {
 		log "ERROR: mv88e6xxx failed to load"
 		return 1
 	fi
-	if ! insmod "$(kofile edge610_dsa)" conduit_name="$conduit" force_cpu_phyctl=0x203e; then
+	if ! load_module edge610_dsa conduit_name="$conduit" force_cpu_phyctl=0x203e; then
 		log "ERROR: edge610_dsa failed to load"
 		return 1
 	fi
