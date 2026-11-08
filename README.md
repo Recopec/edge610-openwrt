@@ -65,7 +65,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；**不预置 WAN**（`eth2`/`eth3` 留空，由用户在 LuCI 里自行分配） |
-| 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
+| 根分区 | 镜像内 1 GiB；**装盘时离线扩到整块 eMMC**（见“刷机”第 3 步） |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
 | 安全/证书 | `acme`+`uhttpd`（Let's Encrypt HTTPS）、`banip`（爆破封禁）、`acl`（多用户权限） |
@@ -97,7 +97,6 @@ package/edge610-board/
     ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
     ├── etc/modprobe.d/edge610.conf  板级模块参数
     ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（仅 LAN，无 WAN）
-    ├── etc/uci-defaults/zzz98-edge610-resize   首启根分区扩容到整块 eMMC
     └── etc/openclash/core/          clash_meta 由 CI 下载（已 gitignore）
 ```
 
@@ -108,19 +107,40 @@ package/edge610-board/
 - **conduit 检测**：优先 PCI `0000:03:00.0` 的 netdev；回退取 ixgbe 中 MAC 最小的网口（conduit 是四个连续 X553 MAC 的第一个）。conduit 口只置 up，不配地址。
 - **看门狗**：扫描 `/sys/bus/i2c/devices/*/name` 中的 `iSMT` 适配器，向 `0x22`/`0x24` 写 `0x00`；失败仅记录日志，不阻塞启动。
 - **端口改名**：`edge610_dsa` 中端口名由上游 `ge1..ge6` 改为 `lan1..lan6`，与 OpenWrt DSA 惯例及网络默认配置一致。
-- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等）；首启由 `zzz98-edge610-resize` 扩到整块 eMMC（`sfdisk -N 2` 保留起始扇区 → `partx -u` → `resize2fs`，CI 用 loop 设备验证幂等）。
+- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等）；剩余空间在**装盘时离线**扩展。
+  注意：OpenWrt 用 `make_ext4fs` 生成镜像，其 resize inode 布局与内核在线扩容不兼容（`reserve_backup_gdb: reserved block 64 not at offset 63`），
+  因此**不能**在已挂载的根文件系统上 `resize2fs`，必须在 U 盘系统里对未挂载的 eMMC 执行。
 
 ## 刷机
 
-1. 解压 artifact 得到 `openwrt-x86-64-generic-ext4-combined-efi.img`，用 Rufus / BalenaEtcher 以 DD 模式写入 U 盘。
+> **不要**把镜像用 Rufus/Etcher 写盘后再 `dd if=/dev/sda of=/dev/mmcblk0`：
+> 写盘工具会把 GPT 的 `last-lba` 改写成 U 盘容量，复制到 14.6GB eMMC 后内核会拒绝整张分区表
+> （卡在 `Waiting for root device PARTUUID=...`）。
+
+1. 准备 U 盘：一个 OpenWrt 启动盘 + 一个 **exfat 数据分区**，把 `edge610-*.img.gz` 放进数据分区。
 2. 拆背板小铁片露出 Micro-USB 串口（CP210x），PuTTY：`115200 8N1`、无流控。
 3. 插 U 盘开机，F12 选 USB 启动，进入 OpenWrt 后：
+
    ```sh
-   lsblk                                   # 确认 /dev/mmcblk0 为内置 eMMC，/dev/sda 为 U 盘
-   dd if=/dev/sda of=/dev/mmcblk0 bs=4M status=progress conv=fsync
-   reboot                                  # 拔 U 盘，从 eMMC 启动
+   lsblk                                   # 确认 /dev/mmcblk0 为 eMMC，U 盘数据分区为 /dev/sdbX
+   mkdir -p /mnt/usb && mount /dev/sdbX /mnt/usb
+
+   # 1) 写入原始镜像（GPT 与 uci-defaults 保持完整）
+   gzip -dc /mnt/usb/edge610-*.img.gz | dd of=/dev/mmcblk0 bs=4M conv=fsync
+   sync
+
+   # 2) 把 p2 扩到整盘
+   START=$(cat /sys/class/block/mmcblk0p2/start)
+   END=$(( $(cat /sys/class/block/mmcblk0/size) - 34 ))
+   printf '%s,%s\n' "$START" "$((END - START + 1))" | sfdisk --force --no-reread -N 2 /dev/mmcblk0
+   partx -u /dev/mmcblk0
+
+   # 3) 离线扩文件系统（此时 eMMC 未挂载）
+   e2fsck -f -y /dev/mmcblk0p2
+   resize2fs /dev/mmcblk0p2
    ```
-   从 eMMC 首次启动时 `zzz98-edge610-resize` 会自动把根分区扩到整盘（14.6GiB）并 `resize2fs`，日志见 `logread -e edge610-resize`；从 U 盘启动不会动 eMMC。手动执行：`/etc/uci-defaults/zzz98-edge610-resize /dev/mmcblk0`。
+
+4. 拔 U 盘，`reboot`，从 eMMC 启动，`df -h /` 应为 ~14.5G。
 
 ## 开机验收
 
@@ -129,7 +149,7 @@ package/edge610-board/
 ```sh
 ip link                     # 应出现 lan1..lan6（+ lo 与若干 ethX）
 logread -e edge610          # 看门狗清除、conduit、端口 up 日志
-df -h /                     # 从 eMMC 启动应为 ~14.6G（首启扩容生效）
+df -h /                     # 从 eMMC 启动应为 ~14.5G（装盘时已离线扩容）
 sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-coretemp）
 /etc/openclash/core/clash_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
 ```

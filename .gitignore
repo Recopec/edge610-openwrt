@@ -1,2 +1,6 @@
 # Downloaded in CI before the build (amd64-v1 Mihomo core for Atom C3338).
 package/edge610-board/files/etc/openclash/core/clash_meta
+
+# Local-only notes (credentials, VM IPs) — never commit
+.secrets.local.md
+*.local.md
