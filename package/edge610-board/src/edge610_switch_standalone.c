@@ -348,10 +348,8 @@ static int x553_select_sgmii(unsigned int fn)
 static int __init edge610_switch_init(void)
 {
 	struct pci_dev *p2sb;
-	struct pci_dev *x553;
-	void __iomem *x553_bar;
 	resource_size_t p2sb_bar;
-	u32 padbar, nwsel, new_nwsel, reg0;
+	u32 padbar, reg0;
 	u16 id, status;
 	int port, err;
 
