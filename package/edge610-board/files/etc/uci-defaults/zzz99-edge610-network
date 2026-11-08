@@ -2,7 +2,13 @@
 # First-boot network for the Edge 610: LAN is the DSA port bridge
 # (lan1..lan6) at 192.168.1.1. The zzz prefix runs after every other
 # uci-default (board.d eth0/eth1 defaults, ULA generation) and before
-# netifd starts (START=20). No WAN by default: assign an SFP port in LuCI.
+# netifd starts (START=20).
+#
+# WAN is pre-wired to the two SFP cages: eth2 is DHCP (WAN) and eth3 is
+# left unconfigured (WAN2, ready for a second uplink in LuCI). eth2/eth3
+# are the two ports of the second X553 controller (05:00.0/.1); eth0 is
+# the switch conduit and eth1 (03:00.1) is unused. Both stay down until a
+# module is inserted, so a module-less setup behaves exactly as before.
 
 ula="$(uci -q get network.globals.ula_prefix)"
 
@@ -32,6 +38,20 @@ config interface 'lan'
 	option ipaddr '192.168.1.1'
 	option netmask '255.255.255.0'
 	option ip6assign '60'
+
+config device
+	option name 'eth2'
+
+config interface 'wan'
+	option device 'eth2'
+	option proto 'dhcp'
+
+config device
+	option name 'eth3'
+
+config interface 'wan2'
+	option device 'eth3'
+	option proto 'none'
 EOF
 
 exit 0

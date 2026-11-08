@@ -2,9 +2,21 @@
 
 为 **VMware SD-WAN Edge 610**（Dell EMC VEP1400 同款硬件）定制的 OpenWrt 镜像，GitHub Actions 一键全源码构建。
 
-- 目标机：Intel Atom C3338（无 AVX/AVX2）/ 4GB DDR4 / 16GB eMMC（`/dev/mmcblk0`）/ 无显示输出（Micro-USB 串口 115200 8N1）
+- 目标机：Intel Atom **C3308**（2C/2T 1.6GHz，无 AVX/AVX2）/ 4GB DDR4 / 16GB eMMC（`/dev/mmcblk0`，14.6GiB 可用）/ 无显示输出（Micro-USB 串口 115200 8N1）
 - 交换：2× SFP（SoC 原生 X553，`ixgbe`）+ 6× RJ45（板载 Marvell 88E6190，DSA `lan1..lan6`）
 - 看门狗：板载 PIC 硬件 WDT（iSMT SMBus `0x22/0x24`），开机由脚本清除，否则 4~5 分钟硬重启
+
+## 硬件实测（本机）
+
+| 项目 | 实测值 |
+| --- | --- |
+| CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（交接文档里写的 C3338 是错的） |
+| 内存 | 4,003,672 kB ≈ 3.8 GiB |
+| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`，p1 128MB EFI + p2 根分区） |
+| 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
+| SFP 口映射 | `eth2` = `05:00.0`、`eth3` = `05:00.1`（第二个 X553 控制器的两个口）；`eth0` = `03:00.0` 交换 conduit；`eth1` = `03:00.1` 空闲 |
+| SFP 速率 | **最高 1G/2.5G，不支持 10G**：驱动能力表只有 `1000baseKX`/`2500baseT`，BIOS 只有 `Link Speed [Auto Negotiated]`，无 10G 档 |
+| WiFi | `168c:003c` QCA986x/988x（ath10k + `ath10k-firmware-qca988x`） |
 
 > 为什么不用 ImageBuilder：官方 x86 预编译内核关闭了 `CONFIG_NET_DSA` / `MV88E6XXX`，没有 `i2c-ismt`，也无法编译本机所需的外挂内核模块。因此本仓库改为 **全源码构建** OpenWrt 25.12.6。
 
@@ -49,7 +61,10 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 交换 | `kmod-dsa` + `kmod-dsa-mv88e6xxx` + 本仓库 `edge610_dsa`（端口名 `lan1..lan6`） |
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
-| 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；**无默认 WAN** |
+| 温度 | `kmod-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
+| WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
+| 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；`wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置） |
+| 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 预置插件 | LuCI 中文、`luci-app-ttyd`（Web 终端）、`luci-app-package-manager`、`luci-app-statistics`、`luci-app-ddns`、`luci-app-sqm`、`luci-proto-wireguard` |
 | 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |
@@ -67,7 +82,8 @@ package/edge610-board/
 └── files/
     ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
     ├── etc/modprobe.d/edge610.conf  板级模块参数
-    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置
+    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（LAN + SFP WAN）
+    ├── etc/uci-defaults/zzz98-edge610-resize   首启根分区扩容到整块 eMMC
     └── etc/openclash/core/          clash_meta 由 CI 下载（已 gitignore）
 ```
 
@@ -78,7 +94,7 @@ package/edge610-board/
 - **conduit 检测**：优先 PCI `0000:03:00.0` 的 netdev；回退取 ixgbe 中 MAC 最小的网口（conduit 是四个连续 X553 MAC 的第一个）。conduit 口只置 up，不配地址。
 - **看门狗**：扫描 `/sys/bus/i2c/devices/*/name` 中的 `iSMT` 适配器，向 `0x22`/`0x24` 写 `0x00`；失败仅记录日志，不阻塞启动。
 - **端口改名**：`edge610_dsa` 中端口名由上游 `ge1..ge6` 改为 `lan1..lan6`，与 OpenWrt DSA 惯例及网络默认配置一致。
-- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等）。
+- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等）；首启由 `zzz98-edge610-resize` 扩到整块 eMMC（`sfdisk -N 2` 保留起始扇区 → `partx -u` → `resize2fs`，CI 用 loop 设备验证幂等）。
 
 ## 刷机
 
@@ -90,6 +106,7 @@ package/edge610-board/
    dd if=/dev/sda of=/dev/mmcblk0 bs=4M status=progress conv=fsync
    reboot                                  # 拔 U 盘，从 eMMC 启动
    ```
+   从 eMMC 首次启动时 `zzz98-edge610-resize` 会自动把根分区扩到整盘（14.6GiB）并 `resize2fs`，日志见 `logread -e edge610-resize`；从 U 盘启动不会动 eMMC。手动执行：`/etc/uci-defaults/zzz98-edge610-resize /dev/mmcblk0`。
 
 ## 开机验收
 
@@ -98,6 +115,8 @@ package/edge610-board/
 ```sh
 ip link                     # 应出现 lan1..lan6（+ lo 与若干 ethX）
 logread -e edge610          # 看门狗清除、conduit、端口 up 日志
+df -h /                     # 从 eMMC 启动应为 ~14.6G（首启扩容生效）
+sensors                     # 应看到 Core 0/Core 1 温度（kmod-coretemp）
 /etc/openclash/core/clash_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
 ```
 
@@ -125,7 +144,7 @@ logread -e edge610          # 看门狗清除、conduit、端口 up 日志
 | 日志 `P2SB BAR unavailable` | 该机 BIOS 隐藏了 P2SB（`8086:19dd` 不在 `lspci` 里）。模块会从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（通常 `0xfd000000`）；仍失败时手动指定：`modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` 和 `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
 | 4~5 分钟自动重启 | 看门狗未关：`logread -e edge610` 应无 `iSMT SMBus adapter not found`。手动确认：`modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`，然后 `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openclash/core/clash_meta` |
-| 没有 WAN | 默认只配 LAN。LuCI → 网络 → 接口 → 添加，设备选 SFP 对应的 `ethX`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
+| 没有 WAN | 默认 `wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置）。没插 SFP 模块时两口都是 `NO-CARRIER`，属正常。插上 1.25G/2.5G 电口模块后若未 UP，用 `ip -br link` 确认哪个 eth 变 UP，再到 LuCI 改 `wan` 的设备（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建

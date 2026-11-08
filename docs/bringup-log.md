@@ -167,3 +167,36 @@ CI/本地构建均加了防回归断言：uci-defaults 里出现带引号的 sec
 - 设备无 `base64`/`od`/`xxd`/`python`，但有 `ruby`（`unpack1("m")` 可解 base64）
 - 设备 `/lib/modules/<ver>/` 下没有 `modules.dep`，但 `modprobe <name>` 仍可用（ubox kmodloader）
 - 日志前缀：`edge610-switch:` / `edge610-dsa:` / `mv88e6085 sw0:00`
+
+## 2026-11-08 BIOS 巡检 + 硬件能力确认
+
+通过串口驱动 BIOS（AMI Aptio 5.13，`3.43.0.9-12`）只读浏览，未改动任何设置（`Exit Without Saving`）。
+
+| 观察点 | 结果 |
+| --- | --- |
+| CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（此前文档写的 C3338 有误） |
+| 内存 | 4,003,672 kB（≈3.8 GiB） |
+| BIOS 网卡页 | 4 个 `X553 Backplane` 条目，`Chip Type` = **X550**，`PCI Device ID` = **15C3** |
+| 速率选项 | 只有 `Link Speed [Auto Negotiated]`，**无 2.5G/10G 手动档** |
+| SFP 口 | `05:00.0/.1`（`eth2`/`eth3`）`Link Status [Disconnected]`（未插模块） |
+| 串口键盘映射 | `Down` = `ESC[B`、`Right` = `ESC[C`；`Up` = `ESC[A` 在子菜单内不生效（`ESC[1A`/`ESC OA` 会被当成 `Esc`） |
+
+**SFP 速率结论**：`ethtool` 能力表最高 `2500baseT/Full`（SGMII 模式）或 `1000baseKX/Full`，
+无任何 `10000base*`；BIOS 也无 10G 选项 → **这两个笼子最高 1G/2.5G，不支持 10G**。
+1.25G 模块 = 千兆 SFP（8b/10b 编码，线速率 1.25Gbps），可直接使用。
+
+**SFP 口映射**：第二个 X553 控制器的两个口（`05:00.0`/`05:00.1` = `eth2`/`eth3`）即两个 SFP 笼子；
+`03:00.0`（`eth0`）是交换 conduit，`03:00.1`（`eth1`）空闲。固件据此把 `wan` 预配到 `eth2`。
+
+**eMMC 现状**：`mmcblk0` 14.6 GiB；`p1` 128MB（EFI）+ `p2` 2GB（用户自行安装的 diag-os，605MB 占用），
+其余空间未使用。刷入本固件后 `p2` 由首启脚本扩到整盘。
+
+## 2026-11-08 固件补强
+
+| 项 | 实现 |
+| --- | --- |
+| SFP WAN | `zzz99-edge610-network` 新增 `wan`=eth2(DHCP)、`wan2`=eth3(none) |
+| eMMC 扩容 | 新增 `zzz98-edge610-resize`（`sfdisk -N 2` 保留起始扇区 → `partx -u` → `resize2fs`）；CI 用 loop 设备验证增长与幂等 |
+| 温度 | `kmod-coretemp`（Denverton MSR）+ 既有 `lm-sensors` |
+| WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（`168c:003c`） |
+| 依赖 | 板级包 DEPENDS 增加 `sfdisk`、`resize2fs` |

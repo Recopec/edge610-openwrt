@@ -36,7 +36,8 @@ define Package/edge610-board
   SECTION:=utils
   CATEGORY:=Base system
   TITLE:=VMware SD-WAN Edge 610 board support
-  DEPENDS:=+kmod-edge610-switch +kmod-edge610-dsa +kmod-i2c-ismt +kmod-ixgbe +i2c-tools +ip-full
+  DEPENDS:=+kmod-edge610-switch +kmod-edge610-dsa +kmod-i2c-ismt +kmod-ixgbe \
+	+i2c-tools +ip-full +sfdisk +partx-utils +resize2fs
 endef
 
 define Package/edge610-board/description
@@ -63,6 +64,7 @@ define Package/edge610-board/install
 	$(INSTALL_DATA) ./files/etc/modprobe.d/edge610.conf $(1)/etc/modprobe.d/edge610.conf
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/etc/uci-defaults/zzz99-edge610-network $(1)/etc/uci-defaults/zzz99-edge610-network
+	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz98-edge610-resize $(1)/etc/uci-defaults/zzz98-edge610-resize
 	$(INSTALL_DIR) $(1)/etc/openclash/core
 	$(INSTALL_BIN) ./files/etc/openclash/core/clash_meta $(1)/etc/openclash/core/clash_meta
 endef

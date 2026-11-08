@@ -1,0 +1,61 @@
+#!/bin/sh
+# First boot: grow the root filesystem to fill the eMMC (14.6 GiB usable).
+#
+# The image ships a 1 GiB rootfs so the download stays small; the rest of
+# the 16 GB eMMC is reclaimed here, once. Nothing is touched when the
+# system boots from USB (the root filesystem is then not on the eMMC).
+#
+# Manual use (e.g. from a live USB session):  zzz98-edge610-resize /dev/mmcblk0
+# Passing the disk explicitly skips the "is / on this partition" check.
+
+DISK="${1:-/dev/mmcblk0}"
+PART="${DISK}p2"
+SYS="/sys/class/block/$(basename "$PART")"
+MINGROW=1048576   # sectors: only bother when >512 MiB is unused
+
+log() {
+	logger -t edge610-resize "$@" 2>/dev/null
+	echo "edge610-resize: $*"
+}
+
+[ -b "$DISK" ] || { log "no $DISK, skipping"; exit 0; }
+[ -b "$PART" ] || { log "no $PART, skipping"; exit 0; }
+[ -r "$SYS/dev" ] || { log "no sysfs entry for $PART, skipping"; exit 0; }
+
+if [ "$#" -eq 0 ]; then
+	# Only the flashed eMMC layout is grown: verify that / lives on $PART.
+	dev="$(cat "$SYS/dev")"
+	hex="$(printf '%x:%x' "${dev%%:*}" "${dev##*:}")"
+	if [ "$(stat -c %t:%T / 2>/dev/null)" != "$hex" ]; then
+		log "/ is not on $PART, skipping"
+		exit 0
+	fi
+fi
+
+start="$(cat "$SYS/start")"
+size="$(cat "$SYS/size")"
+disk="$(cat "/sys/class/block/$(basename "$DISK")/size")"
+free=$((disk - start - size))
+
+if [ "$free" -lt "$MINGROW" ]; then
+	log "$PART already fills the disk ($((free / 2048)) MiB unused)"
+	exit 0
+fi
+
+log "growing $PART: $((size / 2048)) MiB -> $(((disk - start) / 2048)) MiB"
+
+# Keep the existing start sector, extend the partition to the end of the disk.
+if ! printf '%s,\n' "$start" | sfdisk --force --no-reread -N 2 "$DISK" >/dev/null 2>&1; then
+	log "ERROR: sfdisk failed, filesystem left unchanged"
+	exit 1
+fi
+partx -u "$DISK" 2>/dev/null
+sync
+
+if ! resize2fs "$PART" >/dev/null 2>&1; then
+	log "ERROR: partition grown but resize2fs failed; rerun: resize2fs $PART"
+	exit 1
+fi
+
+log "done: $(df -h / | awk 'NR==2 {print $2}') total"
+exit 0

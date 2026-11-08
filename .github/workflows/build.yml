@@ -23,7 +23,7 @@ jobs:
             build-essential clang flex bison g++ gawk gcc-multilib \
             gettext git libncurses-dev libssl-dev libelf-dev libxml2-utils \
             python3 python3-setuptools rsync unzip zlib1g-dev file wget \
-            time zip xz-utils zstd which debianutils jq
+            time zip xz-utils zstd which debianutils jq fdisk e2fsprogs
           # Handoff-validated shims: harmless on GNU userland, kept as belt
           # and suspenders for the OpenWrt host prechecks (install/sha256/md5).
           sudo tee /usr/local/bin/sha256 >/dev/null <<'EOF'
@@ -45,6 +45,32 @@ jobs:
           exec /usr/bin/install "$@"
           EOF
           sudo chmod +x /usr/local/bin/install
+
+      - name: Verify eMMC auto-expand script on a loop device
+        run: |
+          # Reproduce the flashed layout (128 MiB EFI + 1 GiB rootfs) on a
+          # 4 GiB sparse file and check that the first-boot script grows the
+          # root filesystem in place, keeps the start sector and is idempotent.
+          sudo truncate -s 4G /tmp/disk.img
+          sudo sfdisk /tmp/disk.img >/dev/null <<'EOF'
+          label: dos
+          ,128M,c
+          ,1G,83
+          EOF
+          LOOP="$(sudo losetup -fP --show /tmp/disk.img)"
+          sudo mkfs.ext4 -q "${LOOP}p2"
+          PART_SYS="/sys/class/block/$(basename "${LOOP}p2")"
+          blocks() { sudo dumpe2fs -h "${LOOP}p2" 2>/dev/null | awk -F: '/^Block count/{gsub(/ /,"",$2); print $2}'; }
+          before="$(blocks)"; start_before="$(cat "$PART_SYS/start")"
+          sudo sh package/edge610-board/files/etc/uci-defaults/zzz98-edge610-resize "$LOOP"
+          after="$(blocks)"; start_after="$(cat "$PART_SYS/start")"
+          echo "blocks ${before} -> ${after}, start ${start_before} -> ${start_after}"
+          [ "$start_before" = "$start_after" ] || { echo "::error::partition start moved"; exit 1; }
+          [ "$after" -gt "$((before * 2))" ] || { echo "::error::filesystem did not grow"; exit 1; }
+          sudo sh package/edge610-board/files/etc/uci-defaults/zzz98-edge610-resize "$LOOP"
+          [ "$(blocks)" = "$after" ] || { echo "::error::second run changed the filesystem"; exit 1; }
+          sudo losetup -d "$LOOP"
+          echo "auto-expand OK: $((before * 4 / 1024)) MiB -> $((after * 4 / 1024)) MiB"
 
       - name: Free disk space
         run: |
@@ -171,6 +197,9 @@ jobs:
           CONFIG_PACKAGE_pciutils=y
           CONFIG_PACKAGE_usbutils=y
           CONFIG_PACKAGE_lm-sensors=y
+          CONFIG_PACKAGE_kmod-coretemp=y
+          CONFIG_PACKAGE_kmod-ath10k=y
+          CONFIG_PACKAGE_ath10k-firmware-qca988x=y
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
           CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
@@ -196,7 +225,12 @@ jobs:
             CONFIG_PACKAGE_luci-app-package-manager=y \
             CONFIG_PACKAGE_luci-proto-wireguard=y \
             CONFIG_PACKAGE_ethtool=y \
-            CONFIG_PACKAGE_iperf3=y; do
+            CONFIG_PACKAGE_iperf3=y \
+            CONFIG_PACKAGE_kmod-coretemp=y \
+            CONFIG_PACKAGE_kmod-ath10k=y \
+            CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
+            CONFIG_PACKAGE_sfdisk=y \
+            CONFIG_PACKAGE_resize2fs=y; do
             grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
           done
           grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
@@ -251,7 +285,8 @@ jobs:
           [ -f "$MAN" ] || { echo "manifest missing"; exit 1; }
           for p in luci-app-openclash i2c-tools ip-full dnsmasq-full \
                    kmod-edge610-switch kmod-edge610-dsa kmod-i2c-ismt \
-                   kmod-dsa-mv88e6xxx kmod-ixgbe; do
+                   kmod-dsa-mv88e6xxx kmod-ixgbe kmod-coretemp kmod-ath10k \
+                   ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
             grep -q "^$p " "$MAN" || { echo "manifest missing package: $p"; exit 1; }
           done
 
@@ -267,10 +302,16 @@ jobs:
           tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
           for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
                    etc/uci-defaults/zzz99-edge610-network \
+                   etc/uci-defaults/zzz98-edge610-resize \
                    etc/openclash/core/clash_meta; do
             grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
           done
           grep -qE '/i2cset$' /tmp/rootfs-files.txt || { echo "i2cset missing"; exit 1; }
+          grep -qE '/sfdisk$' /tmp/rootfs-files.txt || { echo "sfdisk missing"; exit 1; }
+          grep -qE '/partx$' /tmp/rootfs-files.txt || { echo "partx missing"; exit 1; }
+          grep -qE '/resize2fs$' /tmp/rootfs-files.txt || { echo "resize2fs missing"; exit 1; }
+          grep -qE '/lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
+            || { echo "ath10k QCA988X firmware missing"; exit 1; }
 
           # Extract and run the binaries actually shipped in the image.
           rm -rf /tmp/rootcheck && mkdir -p /tmp/rootcheck
@@ -279,6 +320,8 @@ jobs:
           /tmp/rootcheck/etc/openclash/core/clash_meta -v | tee /tmp/core-v.txt
           grep -qi mihomo /tmp/core-v.txt || { echo "clash_meta does not report Mihomo"; exit 1; }
           grep -q "lan6" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "network defaults do not reference lan6"; exit 1; }
+          grep -q "config interface 'wan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "SFP WAN interface missing"; exit 1; }
+          grep -q "option device 'eth2'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN is not wired to eth2 (SFP1)"; exit 1; }
           ! grep -qE "^config [a-z]+ '" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "uci section names must be anonymous (no quotes)"; exit 1; }
 
           # DSA port rename baked into the compiled module.
