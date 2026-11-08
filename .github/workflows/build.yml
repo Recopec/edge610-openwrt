@@ -109,6 +109,8 @@ jobs:
             | jq -r '.tag_name // empty')"
           [ -n "$OC_TAG" ] || OC_TAG=master
           echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
+          # Argon theme (v3.x supports the apk era; config UI is bundled)
+          echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
           echo "--- feeds.conf ---"
           cat feeds.conf
           ./scripts/feeds update -a
@@ -206,6 +208,44 @@ jobs:
           CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
           CONFIG_PACKAGE_kmod-usb-storage=y
           CONFIG_PACKAGE_kmod-fs-ext4=y
+          CONFIG_PACKAGE_luci-app-mwan3=y
+          CONFIG_PACKAGE_luci-app-pbr=y
+          CONFIG_PACKAGE_luci-app-upnp=y
+          CONFIG_PACKAGE_luci-app-nlbwmon=y
+          CONFIG_PACKAGE_luci-app-wol=y
+          CONFIG_PACKAGE_luci-app-udpxy=y
+          CONFIG_PACKAGE_luci-app-omcproxy=y
+          CONFIG_PACKAGE_luci-app-watchcat=y
+          CONFIG_PACKAGE_luci-app-lldpd=y
+          CONFIG_PACKAGE_luci-app-adblock-fast=y
+          CONFIG_PACKAGE_luci-app-adguardhome=y
+          CONFIG_PACKAGE_adguardhome=y
+          CONFIG_PACKAGE_luci-app-smartdns=y
+          CONFIG_PACKAGE_smartdns=y
+          CONFIG_PACKAGE_luci-app-https-dns-proxy=y
+          CONFIG_PACKAGE_luci-app-ksmbd=y
+          CONFIG_PACKAGE_ksmbd-server=y
+          CONFIG_PACKAGE_luci-app-minidlna=y
+          CONFIG_PACKAGE_luci-app-hd-idle=y
+          CONFIG_PACKAGE_luci-app-openlist=y
+          CONFIG_PACKAGE_luci-app-filebrowser=y
+          CONFIG_PACKAGE_luci-app-aria2=y
+          CONFIG_PACKAGE_luci-app-transmission=y
+          CONFIG_PACKAGE_luci-app-commands=y
+          CONFIG_PACKAGE_luci-app-irqbalance=y
+          CONFIG_PACKAGE_luci-app-p910nd=y
+          CONFIG_PACKAGE_luci-app-ser2net=y
+          CONFIG_PACKAGE_luci-app-filemanager=y
+          CONFIG_PACKAGE_luci-app-openvpn=y
+          CONFIG_PACKAGE_luci-app-tailscale-community=y
+          CONFIG_PACKAGE_tailscale=y
+          CONFIG_PACKAGE_luci-app-frpc=y
+          CONFIG_PACKAGE_luci-app-dockerman=y
+          CONFIG_PACKAGE_dockerd=y
+          CONFIG_PACKAGE_containerd=y
+          CONFIG_PACKAGE_runc=y
+          CONFIG_PACKAGE_tini=y
+          CONFIG_PACKAGE_luci-theme-argon=y
           EOF
           make defconfig
           for sym in \
@@ -230,7 +270,11 @@ jobs:
             CONFIG_PACKAGE_kmod-ath10k=y \
             CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
             CONFIG_PACKAGE_sfdisk=y \
-            CONFIG_PACKAGE_resize2fs=y; do
+            CONFIG_PACKAGE_resize2fs=y \
+            CONFIG_PACKAGE_luci-theme-argon=y \
+            CONFIG_PACKAGE_luci-app-dockerman=y \
+            CONFIG_PACKAGE_luci-app-adguardhome=y \
+            CONFIG_PACKAGE_luci-app-ksmbd=y; do
             grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
           done
           grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
@@ -310,7 +354,7 @@ jobs:
           grep -qE '/sfdisk$' /tmp/rootfs-files.txt || { echo "sfdisk missing"; exit 1; }
           grep -qE '/partx$' /tmp/rootfs-files.txt || { echo "partx missing"; exit 1; }
           grep -qE '/resize2fs$' /tmp/rootfs-files.txt || { echo "resize2fs missing"; exit 1; }
-          grep -qE '/lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
+          grep -qE '^lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
             || { echo "ath10k QCA988X firmware missing"; exit 1; }
 
           # Extract and run the binaries actually shipped in the image.

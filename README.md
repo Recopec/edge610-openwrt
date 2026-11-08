@@ -65,7 +65,14 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；`wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
-| 预置插件 | LuCI 中文、`luci-app-ttyd`（Web 终端）、`luci-app-package-manager`、`luci-app-statistics`、`luci-app-ddns`、`luci-app-sqm`、`luci-proto-wireguard` |
+| 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
+| 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
+| 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`watchcat`（断网自愈）、`lldpd` |
+| DNS/去广告 | `adblock-fast`、`adguardhome`、`smartdns`、`https-dns-proxy`（DoH） |
+| 存储/共享 | `ksmbd`（SMB）、`minidlna`（DLNA）、`hd-idle`、`openlist`（网盘挂载）、`filebrowser`、`aria2`、`transmission` |
+| 运维 | `commands`、`irqbalance`、`p910nd`（USB 打印）、`ser2net`、`filemanager` |
+| VPN/穿透 | `openvpn`、`tailscale`、`frpc` |
+| 容器 | `dockerman` + `dockerd`/`containerd`/`runc`/`tini` |
 | 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |
 

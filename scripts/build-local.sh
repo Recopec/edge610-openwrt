@@ -57,12 +57,22 @@ if [ ! -f feeds.conf ]; then
     | jq -r '.tag_name // empty' || true)"
   [ -n "$OC_TAG" ] || OC_TAG=master
   echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
+  echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
   cat feeds.conf
 fi
 if [ ! -d feeds/luci ]; then
   log "feeds update/install"
   ./scripts/feeds update -a
   ./scripts/feeds install -a
+fi
+# argon feed may be new on an existing tree
+if ! grep -q luci-theme-argon feeds.conf; then
+  echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
+fi
+if [ ! -d feeds/argon ]; then
+  log "feeds update/install argon"
+  ./scripts/feeds update argon
+  ./scripts/feeds install -a -p argon
 fi
 
 # 3. po2lmo host tool -------------------------------------------------------
@@ -154,6 +164,44 @@ CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
 CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
 CONFIG_PACKAGE_kmod-usb-storage=y
 CONFIG_PACKAGE_kmod-fs-ext4=y
+CONFIG_PACKAGE_luci-app-mwan3=y
+CONFIG_PACKAGE_luci-app-pbr=y
+CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-app-nlbwmon=y
+CONFIG_PACKAGE_luci-app-wol=y
+CONFIG_PACKAGE_luci-app-udpxy=y
+CONFIG_PACKAGE_luci-app-omcproxy=y
+CONFIG_PACKAGE_luci-app-watchcat=y
+CONFIG_PACKAGE_luci-app-lldpd=y
+CONFIG_PACKAGE_luci-app-adblock-fast=y
+CONFIG_PACKAGE_luci-app-adguardhome=y
+CONFIG_PACKAGE_adguardhome=y
+CONFIG_PACKAGE_luci-app-smartdns=y
+CONFIG_PACKAGE_smartdns=y
+CONFIG_PACKAGE_luci-app-https-dns-proxy=y
+CONFIG_PACKAGE_luci-app-ksmbd=y
+CONFIG_PACKAGE_ksmbd-server=y
+CONFIG_PACKAGE_luci-app-minidlna=y
+CONFIG_PACKAGE_luci-app-hd-idle=y
+CONFIG_PACKAGE_luci-app-openlist=y
+CONFIG_PACKAGE_luci-app-filebrowser=y
+CONFIG_PACKAGE_luci-app-aria2=y
+CONFIG_PACKAGE_luci-app-transmission=y
+CONFIG_PACKAGE_luci-app-commands=y
+CONFIG_PACKAGE_luci-app-irqbalance=y
+CONFIG_PACKAGE_luci-app-p910nd=y
+CONFIG_PACKAGE_luci-app-ser2net=y
+CONFIG_PACKAGE_luci-app-filemanager=y
+CONFIG_PACKAGE_luci-app-openvpn=y
+CONFIG_PACKAGE_luci-app-tailscale-community=y
+CONFIG_PACKAGE_tailscale=y
+CONFIG_PACKAGE_luci-app-frpc=y
+CONFIG_PACKAGE_luci-app-dockerman=y
+CONFIG_PACKAGE_dockerd=y
+CONFIG_PACKAGE_containerd=y
+CONFIG_PACKAGE_runc=y
+CONFIG_PACKAGE_tini=y
+CONFIG_PACKAGE_luci-theme-argon=y
 EOF
 if [ -f .config ]; then
   added=0
@@ -192,7 +240,11 @@ for sym in \
   CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
   CONFIG_PACKAGE_sfdisk=y \
   CONFIG_PACKAGE_partx-utils=y \
-  CONFIG_PACKAGE_resize2fs=y; do
+  CONFIG_PACKAGE_resize2fs=y \
+  CONFIG_PACKAGE_luci-theme-argon=y \
+  CONFIG_PACKAGE_luci-app-dockerman=y \
+  CONFIG_PACKAGE_luci-app-adguardhome=y \
+  CONFIG_PACKAGE_luci-app-ksmbd=y; do
   grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
 done
 grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
@@ -239,7 +291,7 @@ done
 for b in sfdisk partx resize2fs; do
   grep -qE "/$b$" /tmp/rootfs-files.txt || { echo "binary missing: $b"; exit 1; }
 done
-grep -qE '/lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
+grep -qE '^lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
   || { echo "ath10k QCA988X firmware missing"; exit 1; }
 grep -q "option device 'eth2'" package/edge610-board/files/etc/uci-defaults/zzz99-edge610-network \
   || { echo "SFP WAN (eth2) missing from network defaults"; exit 1; }
