@@ -61,7 +61,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 交换 | `kmod-dsa` + `kmod-dsa-mv88e6xxx` + 本仓库 `edge610_dsa`（端口名 `lan1..lan6`） |
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
-| 温度 | `kmod-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
+| 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；`wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
@@ -116,7 +116,7 @@ package/edge610-board/
 ip link                     # 应出现 lan1..lan6（+ lo 与若干 ethX）
 logread -e edge610          # 看门狗清除、conduit、端口 up 日志
 df -h /                     # 从 eMMC 启动应为 ~14.6G（首启扩容生效）
-sensors                     # 应看到 Core 0/Core 1 温度（kmod-coretemp）
+sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-coretemp）
 /etc/openclash/core/clash_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
 ```
 

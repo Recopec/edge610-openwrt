@@ -145,7 +145,7 @@ CONFIG_PACKAGE_nano=y
 CONFIG_PACKAGE_pciutils=y
 CONFIG_PACKAGE_usbutils=y
 CONFIG_PACKAGE_lm-sensors=y
-CONFIG_PACKAGE_kmod-coretemp=y
+CONFIG_PACKAGE_kmod-hwmon-coretemp=y
 CONFIG_PACKAGE_kmod-ath10k=y
 CONFIG_PACKAGE_ath10k-firmware-qca988x=y
 CONFIG_PACKAGE_block-mount=y
@@ -187,7 +187,7 @@ for sym in \
   CONFIG_PACKAGE_luci-proto-wireguard=y \
   CONFIG_PACKAGE_ethtool=y \
   CONFIG_PACKAGE_iperf3=y \
-  CONFIG_PACKAGE_kmod-coretemp=y \
+  CONFIG_PACKAGE_kmod-hwmon-coretemp=y \
   CONFIG_PACKAGE_kmod-ath10k=y \
   CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
   CONFIG_PACKAGE_sfdisk=y \
@@ -227,7 +227,7 @@ MAN=bin/targets/x86/64/openwrt-x86-64.manifest
 TAR=bin/targets/x86/64/openwrt-x86-64-rootfs.tar.gz
 for p in luci-app-openclash i2c-tools ip-full dnsmasq-full luci-app-ttyd \
          kmod-edge610-switch kmod-edge610-dsa kmod-i2c-ismt kmod-dsa-mv88e6xxx kmod-ixgbe \
-         kmod-coretemp kmod-ath10k ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
+         kmod-hwmon-coretemp kmod-ath10k ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
   grep -q "^$p " "$MAN" || { echo "manifest missing: $p"; exit 1; }
 done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
