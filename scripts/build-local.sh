@@ -158,13 +158,36 @@ CONFIG_PACKAGE_luci-app-ddns=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-proto-wireguard=y
 CONFIG_PACKAGE_luci-proto-ipv6=y
-CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-package-manager-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
-CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
+# LuCI 25.12 renamed the language code zh-cn -> zh_Hans; the old symbols are
+# stale aliases that make defconfig silently drop the translation packages.
+CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-firewall-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-package-manager-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-ttyd-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-statistics-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-ddns-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-sqm-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-dockerman-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-acme-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-banip-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-mwan3-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-pbr-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-nlbwmon-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-watchcat-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-lldpd-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-ksmbd-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-hd-idle-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-udpxy-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-omcproxy-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-vnstat2-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-chrony-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-librespeed-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-uhttpd-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-acl-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-lxc-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-wifischedule-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-upnp-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-wol-zh_Hans=y
 CONFIG_PACKAGE_ethtool=y
 CONFIG_PACKAGE_tcpdump=y
 CONFIG_PACKAGE_htop=y
@@ -297,7 +320,8 @@ for sym in \
   CONFIG_PACKAGE_resize2fs=y \
   CONFIG_PACKAGE_luci-theme-argon=y \
   CONFIG_PACKAGE_luci-app-store=y \
-  CONFIG_PACKAGE_luci-app-ksmbd=y; do
+  CONFIG_PACKAGE_luci-app-ksmbd=y \
+  CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y; do
   grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
 done
 grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
