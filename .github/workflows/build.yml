@@ -228,6 +228,15 @@ jobs:
           CONFIG_PACKAGE_luci-app-librespeed=y
           CONFIG_PACKAGE_luci-app-vnstat2=y
           CONFIG_PACKAGE_kmod-wireguard=y
+          CONFIG_PACKAGE_kmod-veth=y
+          CONFIG_PACKAGE_kmod-ipt-nat=y
+          CONFIG_PACKAGE_kmod-ipt-physdev=y
+          CONFIG_PACKAGE_kmod-nf-ipvs=y
+          CONFIG_PACKAGE_kmod-ipt-nat6=y
+          CONFIG_PACKAGE_iptables-nft=y
+          CONFIG_PACKAGE_iptables-mod-extra=y
+          CONFIG_PACKAGE_kmod-br-netfilter=y
+          CONFIG_PACKAGE_kmod-nf-conntrack-netlink=y
           CONFIG_PACKAGE_kmod-tcp-bbr=y
           CONFIG_PACKAGE_luci-app-wifischedule=y
           CONFIG_PACKAGE_zerotier=y
@@ -250,7 +259,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-ksmbd=y
           CONFIG_PACKAGE_ksmbd-server=y
                     CONFIG_PACKAGE_luci-app-hd-idle=y
-          CONFIG_PACKAGE_luci-app-openlist=y
           CONFIG_PACKAGE_luci-app-filebrowser=y
           CONFIG_PACKAGE_luci-app-aria2=y
           CONFIG_PACKAGE_luci-app-transmission=y
@@ -263,11 +271,6 @@ jobs:
           CONFIG_PACKAGE_luci-app-tailscale-community=y
           CONFIG_PACKAGE_tailscale=y
           CONFIG_PACKAGE_luci-app-frpc=y
-          CONFIG_PACKAGE_luci-app-dockerman=y
-          CONFIG_PACKAGE_dockerd=y
-          CONFIG_PACKAGE_containerd=y
-          CONFIG_PACKAGE_runc=y
-          CONFIG_PACKAGE_tini=y
           CONFIG_PACKAGE_luci-theme-argon=y
           CONFIG_PACKAGE_luci-app-store=y
           CONFIG_PACKAGE_luci-lib-taskd=y
@@ -301,8 +304,7 @@ jobs:
             CONFIG_PACKAGE_resize2fs=y \
             CONFIG_PACKAGE_luci-theme-argon=y \
             CONFIG_PACKAGE_luci-app-store=y \
-            CONFIG_PACKAGE_luci-app-dockerman=y \
-            CONFIG_PACKAGE_luci-app-adguardhome=y \
+              CONFIG_PACKAGE_luci-app-adguardhome=y \
             CONFIG_PACKAGE_luci-app-ksmbd=y; do
             grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
           done

@@ -71,11 +71,11 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证 2.5G）、`vnstat2`（流量历史） |
 | 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`watchcat`（断网自愈）、`lldpd` |
 | DNS/去广告 | `adblock-fast`、`adguardhome`、`smartdns`、`https-dns-proxy`（DoH） |
-| 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`openlist`（网盘挂载）、`filebrowser`、`aria2`、`transmission` |
+| 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`filebrowser`、`aria2`、`transmission` |
 | 磁盘/文件系统 | `kmod-fs-exfat` / `vfat` / `ntfs3`、`kmod-usb-printer`、`e2fsprogs`、`smartmontools`、`hdparm` |
 | 运维 | `commands`、`irqbalance`、`p910nd`（USB 打印）、`ser2net`、`filemanager` |
 | VPN/穿透 | `openvpn`、`tailscale`、`frpc` |
-| 容器 | `dockerman` + `dockerd`/`containerd`/`runc`/`tini` |
+| 容器 | **不预装** docker；内置其内核依赖（`kmod-veth`/`kmod-ipt-nat`/`kmod-ipt-physdev`/`kmod-nf-ipvs` + `iptables-nft`），需要时从 iStore 装 dockerd+luci-app-dockerman |
 | 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |
 
