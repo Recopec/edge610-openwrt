@@ -36,6 +36,9 @@ Actions 运行成功后下载 artifact `Edge610-OpenWrt-Image`（zip 内）：
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；**无默认 WAN** |
+| 预置插件 | LuCI 中文、`luci-app-ttyd`（Web 终端）、`luci-app-package-manager`、`luci-app-statistics`、`luci-app-ddns`、`luci-app-sqm`、`luci-proto-wireguard` |
+| 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
+| USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |
 
 ## 仓库结构
 

@@ -59,6 +59,14 @@ jobs:
           cp -r package/edge610-board openwrt/package/
           test -f openwrt/package/edge610-board/Makefile
 
+      - name: Cache source downloads
+        uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: dl-25.12.6-v1
+          restore-keys: |
+            dl-25.12.6-
+
       - name: Configure feeds (official pinned commits + OpenClash)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,6 +145,38 @@ jobs:
           CONFIG_PACKAGE_ca-certificates=y
           CONFIG_PACKAGE_dnsmasq-full=y
           # CONFIG_PACKAGE_dnsmasq is not set
+          CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci-app-package-manager=y
+          CONFIG_PACKAGE_luci-app-ttyd=y
+          CONFIG_PACKAGE_luci-app-statistics=y
+          CONFIG_PACKAGE_luci-app-ddns=y
+          CONFIG_PACKAGE_luci-app-sqm=y
+          CONFIG_PACKAGE_luci-proto-wireguard=y
+          CONFIG_PACKAGE_luci-proto-ipv6=y
+          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-package-manager-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-statistics-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-ddns-zh-cn=y
+          CONFIG_PACKAGE_luci-i18n-sqm-zh-cn=y
+          CONFIG_PACKAGE_ethtool=y
+          CONFIG_PACKAGE_tcpdump=y
+          CONFIG_PACKAGE_htop=y
+          CONFIG_PACKAGE_mtr=y
+          CONFIG_PACKAGE_iperf3=y
+          CONFIG_PACKAGE_iftop=y
+          CONFIG_PACKAGE_bind-host=y
+          CONFIG_PACKAGE_nano=y
+          CONFIG_PACKAGE_pciutils=y
+          CONFIG_PACKAGE_usbutils=y
+          CONFIG_PACKAGE_lm-sensors=y
+          CONFIG_PACKAGE_block-mount=y
+          CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+          CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
+          CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+          CONFIG_PACKAGE_kmod-usb-storage=y
+          CONFIG_PACKAGE_kmod-fs-ext4=y
           EOF
           make defconfig
           for sym in \
@@ -151,7 +191,12 @@ jobs:
             CONFIG_PACKAGE_luci-app-openclash=y \
             CONFIG_PACKAGE_i2c-tools=y \
             CONFIG_PACKAGE_ip-full=y \
-            CONFIG_PACKAGE_dnsmasq-full=y; do
+            CONFIG_PACKAGE_dnsmasq-full=y \
+            CONFIG_PACKAGE_luci-app-ttyd=y \
+            CONFIG_PACKAGE_luci-app-package-manager=y \
+            CONFIG_PACKAGE_luci-proto-wireguard=y \
+            CONFIG_PACKAGE_ethtool=y \
+            CONFIG_PACKAGE_iperf3=y; do
             grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
           done
           grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
