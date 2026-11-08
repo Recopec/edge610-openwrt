@@ -189,7 +189,6 @@ CONFIG_PACKAGE_smartdns=y
 CONFIG_PACKAGE_luci-app-https-dns-proxy=y
 CONFIG_PACKAGE_luci-app-ksmbd=y
 CONFIG_PACKAGE_ksmbd-server=y
-CONFIG_PACKAGE_luci-app-minidlna=y
 CONFIG_PACKAGE_luci-app-hd-idle=y
 CONFIG_PACKAGE_luci-app-openlist=y
 CONFIG_PACKAGE_luci-app-filebrowser=y
