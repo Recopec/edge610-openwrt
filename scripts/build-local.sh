@@ -243,16 +243,17 @@ CONFIG_PACKAGE_taskd=y
 CONFIG_PACKAGE_xz-utils=y
 CONFIG_PACKAGE_luci-compat=y
 EOF
-if [ -f .config ]; then
-  added=0
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    grep -qxF "$line" .config || { printf '%s\n' "$line" >> .config; added=$((added + 1)); }
-  done < /tmp/edge610-seed.config
-  [ "$added" = 0 ] || log "merged $added new symbol(s) into .config"
+# The seed is the source of truth: if it changed, regenerate .config so that
+# packages removed from the seed really disappear (defconfig never drops a
+# symbol that is already selected).
+SEED_HASH="$(sha256sum /tmp/edge610-seed.config | cut -d' ' -f1)"
+if [ -f .config ] && [ "$(cat .config.seedhash 2>/dev/null)" = "$SEED_HASH" ]; then
+  log "seed unchanged, keeping incremental .config"
 else
-  log "write .config seed"
+  log "write .config from seed"
+  rm -f .config
   cp /tmp/edge610-seed.config .config
+  printf '%s\n' "$SEED_HASH" > .config.seedhash
 fi
 log "make defconfig"
 make defconfig
