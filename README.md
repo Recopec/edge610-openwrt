@@ -67,6 +67,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
+| 加速/组网 | `kmod-tcp-bbr`（BBR 拥塞控制）、`zerotier`（组网，GUI 走 iStore）、`luci-app-wifischedule`（无线定时） |
 | 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证 2.5G）、`vnstat2`（流量历史） |
 | 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`watchcat`（断网自愈）、`lldpd` |
 | DNS/去广告 | `adblock-fast`、`adguardhome`、`smartdns`、`https-dns-proxy`（DoH） |
