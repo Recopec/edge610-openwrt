@@ -14,7 +14,7 @@
 | 内存 | 4,003,672 kB ≈ 3.8 GiB |
 | eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`，p1 128MB EFI + p2 根分区） |
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
-| SFP 口映射 | `eth2` = `05:00.0`、`eth3` = `05:00.1`（第二个 X553 控制器的两个口）；`eth0` = `03:00.0` 交换 conduit；`eth1` = `03:00.1` 空闲 |
+| SFP 口映射 | `eth2` = `05:00.0`、`eth3` = `05:00.1`（第二个 X553 控制器的两个口）；**`eth1` = `03:00.1` 是交换 CPU 链路（port 9）**；`eth0` = `03:00.0`（port 10，本机型无链路） |
 | SFP 速率 | **最高 1G/2.5G，不支持 10G**：驱动能力表只有 `1000baseKX`/`2500baseT`，BIOS 只有 `Link Speed [Auto Negotiated]`，无 10G 档 |
 | WiFi | `168c:003c` QCA986x/988x（ath10k + `ath10k-firmware-qca988x`） |
 

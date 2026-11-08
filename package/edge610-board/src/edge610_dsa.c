@@ -43,13 +43,21 @@ module_param(conduit_name, charp, 0444);
 MODULE_PARM_DESC(conduit_name, "Linux netdev name of the X553 switch CPU conduit");
 module_param(force_cpu_phyctl, int, 0644);
 MODULE_PARM_DESC(force_cpu_phyctl,
-	"Override CPU port 10 physical control register 0x01 after DSA setup (-1 disables)");
+	"Override CPU port physical control register 0x01 after DSA setup (-1 disables)");
 module_param(force_cpu_ctl0, int, 0644);
 MODULE_PARM_DESC(force_cpu_ctl0,
-	"Override CPU port 10 control register 0x04 after DSA setup (-1 disables)");
+	"Override CPU port control register 0x04 after DSA setup (-1 disables)");
 module_param(force_cpu_map, int, 0644);
 MODULE_PARM_DESC(force_cpu_map,
-	"Override CPU port 10 VLAN map register 0x06 after DSA setup (-1 disables)");
+	"Override CPU port VLAN map register 0x06 after DSA setup (-1 disables)");
+
+/* Which 88E6190 port is wired to the X553 function used as the conduit:
+ * 10 = 0000:03:00.0 (eth0), 9 = 0000:03:00.1 (eth1). Validated on the
+ * Edge 610: port 9 carries the working 1G SGMII link.
+ */
+static ushort cpu_port = 10;
+module_param(cpu_port, ushort, 0444);
+MODULE_PARM_DESC(cpu_port, "88E6190 CPU port wired to the conduit (9 or 10)");
 
 static unsigned long p2sb_bar_addr;
 module_param(p2sb_bar_addr, ulong, 0444);
@@ -279,7 +287,7 @@ static int __init edge610_dsa_init(void)
 
 	memset(&switch_pdata, 0, sizeof(switch_pdata));
 	switch_pdata.compatible = "marvell,mv88e6190";
-	switch_pdata.enabled_ports = GENMASK(6, 1) | BIT(10);
+	switch_pdata.enabled_ports = GENMASK(6, 1) | BIT(cpu_port);
 	switch_pdata.netdev = conduit;
 	switch_pdata.irq = 0;
 	switch_pdata.cd.host_dev = host;
@@ -294,7 +302,7 @@ static int __init edge610_dsa_init(void)
 	switch_pdata.cd.port_names[4] = "lan4";
 	switch_pdata.cd.port_names[5] = "lan5";
 	switch_pdata.cd.port_names[6] = "lan6";
-	switch_pdata.cd.port_names[10] = "cpu";
+	switch_pdata.cd.port_names[cpu_port] = "cpu";
 
 	switch_mdio = mdio_device_create(edge_bus, 0);
 	if (IS_ERR(switch_mdio)) {
@@ -314,14 +322,14 @@ static int __init edge610_dsa_init(void)
 	}
 
 	if (force_cpu_phyctl >= 0)
-		mdiobus_write(edge_bus, 10, 1, force_cpu_phyctl);
+		mdiobus_write(edge_bus, cpu_port, 1, force_cpu_phyctl);
 	if (force_cpu_ctl0 >= 0)
-		mdiobus_write(edge_bus, 10, 4, force_cpu_ctl0);
+		mdiobus_write(edge_bus, cpu_port, 4, force_cpu_ctl0);
 	if (force_cpu_map >= 0)
-		mdiobus_write(edge_bus, 10, 6, force_cpu_map);
+		mdiobus_write(edge_bus, cpu_port, 6, force_cpu_map);
 
 	for (port = 1; port <= 10; port++) {
-		if (port > 6 && port != 10)
+		if (port > 6 && port != cpu_port)
 			continue;
 		value = mdiobus_read(edge_bus, port, 4);
 		pr_info(DRV ": p%d status=0x%04x phyctl=0x%04x ctl0=0x%04x map=0x%04x ctl2=0x%04x etype=0x%04x\n",
@@ -333,7 +341,8 @@ static int __init edge610_dsa_init(void)
 			mdiobus_read(edge_bus, port, 15));
 	}
 
-	pr_info(DRV ": registered 88E6190 on sw0, ports lan1-lan6, CPU port 10 via %s\n",
+	pr_info(DRV ": registered 88E6190 on sw0, ports lan1-lan6, CPU port %u via %s\n",
+		cpu_port,
 		conduit_name);
 	return 0;
 

@@ -85,10 +85,10 @@ load_module() {
 find_conduit() {
 	local c tries n
 	c=""
-	if [ -d /sys/bus/pci/devices/0000:03:00.0/net ]; then
+	if [ -d "/sys/bus/pci/devices/$CPU_PCI/net" ]; then
 		tries=0
 		while [ "$tries" -lt 50 ]; do
-			c="$(ls /sys/bus/pci/devices/0000:03:00.0/net 2>/dev/null | head -n1)"
+			c="$(ls "/sys/bus/pci/devices/$CPU_PCI/net" 2>/dev/null | head -n1)"
 			[ -n "$c" ] && break
 			tries=$((tries + 1))
 			sleep 0.1
@@ -107,6 +107,12 @@ find_conduit() {
 	echo "$c"
 }
 
+# The 88E6190 CPU port wired to the working X553 function on the Edge 610 is
+# port 9 (PCI 0000:03:00.1, eth1). Port 10/eth0 is the alternate pair and does
+# not carry a link on this board revision.
+CPU_PORT=9
+CPU_PCI=0000:03:00.1
+
 start() {
 	local conduit p t
 
@@ -122,7 +128,7 @@ start() {
 	# NOTE: /sbin/modprobe is kmodloader, which silently drops name=value
 	# arguments, so the modules are loaded with insmod and their parameters
 	# are passed explicitly (verified on hardware: modprobe lost conduit_name).
-	if ! load_module edge610_switch_standalone cpu_port=10 x553_sgmii=1 \
+	if ! load_module edge610_switch_standalone cpu_port="$CPU_PORT" x553_sgmii=1 \
 		cpu_mac_ctl=0x203e serdes_autoneg=1; then
 		log "ERROR: edge610_switch_standalone failed to load"
 		return 1
@@ -145,7 +151,8 @@ start() {
 		log "ERROR: mv88e6xxx failed to load"
 		return 1
 	fi
-	if ! load_module edge610_dsa conduit_name="$conduit" force_cpu_phyctl=0x203e; then
+	if ! load_module edge610_dsa cpu_port="$CPU_PORT" conduit_name="$conduit" \
+		force_cpu_phyctl=0x203e; then
 		log "ERROR: edge610_dsa failed to load"
 		return 1
 	fi
