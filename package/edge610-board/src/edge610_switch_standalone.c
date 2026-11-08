@@ -1,6 +1,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/ioport.h>
+#include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/pci.h>
 #include <linux/bitops.h>
@@ -9,6 +11,7 @@
 #define P2SB_DEVICE_ID 0x19dd
 #define NORTH_OFFSET 0x00c20000
 #define NORTH_SIZE 0x10000
+#define NORTH_BAR_SIZE 0x1000000
 #define PIN_RESET 1
 #define PIN_MDC 33
 #define PIN_MDIO 34
@@ -59,6 +62,60 @@ MODULE_PARM_DESC(cpu_port, "88E6190 CPU port: 9 (alternate) or 10 (primary)");
 static bool x553_sgmii;
 module_param(x553_sgmii, bool, 0444);
 MODULE_PARM_DESC(x553_sgmii, "Temporarily select X553 SGMII/1G mode");
+
+static unsigned long p2sb_bar_addr;
+module_param(p2sb_bar_addr, ulong, 0444);
+MODULE_PARM_DESC(p2sb_bar_addr,
+		 "P2SB MMIO BAR to use when the PCI function is hidden by BIOS (0 = autodetect)");
+
+/* Some BIOSes hide the P2SB PCI function (00:1f.1, 8086:19dd) from the bus
+ * scan while still reserving its MMIO window. There the ACPI resource
+ * "INTC3000:00" covers exactly P2SB_BAR + NORTH_OFFSET, so the BAR can be
+ * derived from /proc/iomem instead of PCI enumeration.
+ */
+static resource_size_t p2sb_bar_from_iomem(void)
+{
+	struct resource *r;
+
+	for (r = iomem_resource.child; r; r = r->sibling) {
+		if (!r->name || !strstr(r->name, "INTC3000"))
+			continue;
+		if (resource_size(r) != NORTH_SIZE)
+			continue;
+		if ((r->start & (NORTH_SIZE - 1)) !=
+		    (NORTH_OFFSET & (NORTH_SIZE - 1)))
+			continue;
+		/* The P2SB MMIO BAR is 16MB aligned; anything else is a
+		 * different P2SB port window, not the BAR base.
+		 */
+		if ((r->start - NORTH_OFFSET) & (NORTH_BAR_SIZE - 1))
+			continue;
+		return r->start - NORTH_OFFSET;
+	}
+	return 0;
+}
+
+/* Resolve the P2SB BAR: enumerated device first, then explicit parameter,
+ * then the ACPI iomem hint. */
+static resource_size_t edge610_p2sb_bar(struct pci_dev **pdev)
+{
+	resource_size_t bar = 0;
+
+	*pdev = pci_get_device(PCI_VENDOR_ID_INTEL, P2SB_DEVICE_ID, NULL);
+	if (*pdev) {
+		bar = pci_resource_start(*pdev, 0);
+		return bar;
+	}
+	if (p2sb_bar_addr) {
+		pr_info(DRV ": P2SB hidden by BIOS, BAR %pa from module param\n",
+			&p2sb_bar_addr);
+		return p2sb_bar_addr;
+	}
+	bar = p2sb_bar_from_iomem();
+	if (bar)
+		pr_info(DRV ": P2SB hidden by BIOS, BAR %pa from iomem\n", &bar);
+	return bar;
+}
 
 static void __iomem *padcfg(unsigned int pin)
 {
@@ -264,23 +321,27 @@ static int __init edge610_switch_init(void)
 	struct pci_dev *x553;
 	void __iomem *x553_bar;
 	resource_size_t p2sb_bar;
-	u32 padbar, nwsel, new_nwsel;
+	u32 padbar, nwsel, new_nwsel, reg0;
 	u16 id, status;
 	int port, err;
 
-	p2sb = pci_get_device(PCI_VENDOR_ID_INTEL, P2SB_DEVICE_ID, NULL);
-	if (!p2sb)
-		return -ENODEV;
-	p2sb_bar = pci_resource_start(p2sb, 0);
+	p2sb_bar = edge610_p2sb_bar(&p2sb);
 	pci_dev_put(p2sb);
-	if (!p2sb_bar)
+	p2sb = NULL;
+	if (!p2sb_bar) {
+		pr_err(DRV ": P2SB BAR unavailable (device hidden by BIOS and no iomem hint); pass p2sb_bar_addr=\n");
 		return -ENODEV;
+	}
 
 	north = ioremap(p2sb_bar + NORTH_OFFSET, NORTH_SIZE);
 	if (!north)
 		return -ENOMEM;
+	reg0 = readl(north);
 	padbar = readl(north + 0x0c);
-	if (readl(north) == 0xffffffff || padbar >= NORTH_SIZE) {
+	pr_info(DRV ": north window %pa+0x%lx: reg0=0x%08x padbar=0x%08x\n",
+		&p2sb_bar, (unsigned long)NORTH_OFFSET, reg0, padbar);
+	if (reg0 == 0xffffffff || padbar >= NORTH_SIZE) {
+		pr_err(DRV ": north window not decodable (P2SB MMIO disabled?)\n");
 		err = -ENODEV;
 		goto fail_unmap;
 	}

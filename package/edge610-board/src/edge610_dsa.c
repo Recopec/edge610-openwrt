@@ -2,6 +2,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/ioport.h>
+#include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/pci.h>
 #include <linux/bitops.h>
@@ -15,6 +17,7 @@
 #define P2SB_DEVICE_ID 0x19dd
 #define NORTH_OFFSET 0x00c20000
 #define NORTH_SIZE 0x10000
+#define NORTH_BAR_SIZE 0x1000000
 #define PIN_MDC 33
 #define PIN_MDIO 34
 
@@ -47,6 +50,38 @@ MODULE_PARM_DESC(force_cpu_ctl0,
 module_param(force_cpu_map, int, 0644);
 MODULE_PARM_DESC(force_cpu_map,
 	"Override CPU port 10 VLAN map register 0x06 after DSA setup (-1 disables)");
+
+static unsigned long p2sb_bar_addr;
+module_param(p2sb_bar_addr, ulong, 0444);
+MODULE_PARM_DESC(p2sb_bar_addr,
+		 "P2SB MMIO BAR to use when the PCI function is hidden by BIOS (0 = autodetect)");
+
+/* Some BIOSes hide the P2SB PCI function (00:1f.1, 8086:19dd) from the bus
+ * scan while still reserving its MMIO window. There the ACPI resource
+ * "INTC3000:00" covers exactly P2SB_BAR + NORTH_OFFSET, so the BAR can be
+ * derived from the iomem resource tree instead of PCI enumeration.
+ */
+static resource_size_t p2sb_bar_from_iomem(void)
+{
+	struct resource *r;
+
+	for (r = iomem_resource.child; r; r = r->sibling) {
+		if (!r->name || !strstr(r->name, "INTC3000"))
+			continue;
+		if (resource_size(r) != NORTH_SIZE)
+			continue;
+		if ((r->start & (NORTH_SIZE - 1)) !=
+		    (NORTH_OFFSET & (NORTH_SIZE - 1)))
+			continue;
+		/* The P2SB MMIO BAR is 16MB aligned; anything else is a
+		 * different P2SB port window, not the BAR base.
+		 */
+		if ((r->start - NORTH_OFFSET) & (NORTH_BAR_SIZE - 1))
+			continue;
+		return r->start - NORTH_OFFSET;
+	}
+	return 0;
+}
 
 static void __iomem *padcfg(unsigned int pin)
 {
@@ -178,7 +213,8 @@ static int edge610_mdio_bus_match(struct device *dev,
 static int __init edge610_dsa_init(void)
 {
 	resource_size_t p2sb_bar;
-	u32 padbar;
+	struct device *host;
+	u32 padbar, reg0;
 	int err, port;
 	u16 value;
 
@@ -190,23 +226,34 @@ static int __init edge610_dsa_init(void)
 	}
 
 	p2sb = pci_get_device(PCI_VENDOR_ID_INTEL, P2SB_DEVICE_ID, NULL);
-	if (!p2sb) {
+	if (p2sb) {
+		p2sb_bar = pci_resource_start(p2sb, 0);
+	} else {
+		p2sb_bar = p2sb_bar_addr ? p2sb_bar_addr : p2sb_bar_from_iomem();
+		if (p2sb_bar)
+			pr_info(DRV ": P2SB hidden by BIOS, BAR %pa\n",
+				&p2sb_bar);
+	}
+	if (!p2sb_bar) {
+		pr_err(DRV ": P2SB BAR unavailable (device hidden, no iomem hint); pass p2sb_bar_addr=\n");
 		err = -ENODEV;
 		goto fail_netdev;
 	}
-	p2sb_bar = pci_resource_start(p2sb, 0);
-	if (!p2sb_bar) {
-		err = -ENODEV;
-		goto fail_pci;
-	}
+	/* host_dev/parent only need a valid struct device; the kernel does not
+	 * dereference dsa_chip_data.host_dev for this driver. */
+	host = p2sb ? &p2sb->dev : &conduit->dev;
 
 	north = ioremap(p2sb_bar + NORTH_OFFSET, NORTH_SIZE);
 	if (!north) {
 		err = -ENOMEM;
 		goto fail_pci;
 	}
+	reg0 = readl(north);
 	padbar = readl(north + 0x0c);
-	if (readl(north) == 0xffffffff || padbar >= NORTH_SIZE) {
+	pr_info(DRV ": north window %pa+0x%lx: reg0=0x%08x padbar=0x%08x\n",
+		&p2sb_bar, (unsigned long)NORTH_OFFSET, reg0, padbar);
+	if (reg0 == 0xffffffff || padbar >= NORTH_SIZE) {
+		pr_err(DRV ": north window not decodable (P2SB MMIO disabled?)\n");
 		err = -ENODEV;
 		goto fail_unmap;
 	}
@@ -221,7 +268,7 @@ static int __init edge610_dsa_init(void)
 	}
 	edge_bus->name = "VMware Edge 610 relocated MDIO";
 	strscpy(edge_bus->id, "sw0", MII_BUS_ID_SIZE);
-	edge_bus->parent = &p2sb->dev;
+	edge_bus->parent = host;
 	edge_bus->read = edge610_mdio_read;
 	edge_bus->write = edge610_mdio_write;
 	edge_bus->phy_mask = ~0U;
@@ -235,7 +282,7 @@ static int __init edge610_dsa_init(void)
 	switch_pdata.enabled_ports = GENMASK(6, 1) | BIT(10);
 	switch_pdata.netdev = conduit;
 	switch_pdata.irq = 0;
-	switch_pdata.cd.host_dev = &p2sb->dev;
+	switch_pdata.cd.host_dev = host;
 	switch_pdata.cd.sw_addr = 0;
 	/* OpenWrt DSA naming: user ports are lan1..lan6 (CVMagic upstream
 	 * used ge1..ge6; renamed to match this image's network config and
