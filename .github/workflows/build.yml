@@ -428,7 +428,7 @@ jobs:
       - name: Stamp artifact names with build time
         run: |
           cd openwrt/bin/targets/x86/64
-          STAMP="$(date -u +%Y%m%d-%H%M)"
+          STAMP="$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
           IMG="$(ls *-generic-ext4-combined-efi.img.gz | head -n1)"
           cp "$IMG" "edge610-$STAMP.img.gz"
           cp openwrt-x86-64.manifest "edge610-$STAMP.manifest"

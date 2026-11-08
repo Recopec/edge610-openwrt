@@ -362,8 +362,8 @@ echo "=== BUILD OK $(date -u) ==="
 ls -la "$IMG"
 
 # Timestamped copy for archiving (the build output keeps its canonical name
-# so sha256sums and scripted paths stay valid).
-STAMP="$(date -u +%Y%m%d-%H%M)"
+# so sha256sums and scripted paths stay valid). GMT+8, machine TZ independent.
+STAMP="$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
 ART="${ARTIFACTS_DIR:-$WORK/artifacts}"
 mkdir -p "$ART"
 cp "$IMG" "$ART/edge610-$STAMP.img.gz"
