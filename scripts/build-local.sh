@@ -211,6 +211,8 @@ CONFIG_PACKAGE_runc=y
 CONFIG_PACKAGE_tini=y
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-store=y
+CONFIG_PACKAGE_luci-lib-taskd=y
+CONFIG_PACKAGE_taskd=y
 CONFIG_PACKAGE_luci-compat=y
 EOF
 if [ -f .config ]; then
