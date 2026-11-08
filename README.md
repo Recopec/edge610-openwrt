@@ -16,7 +16,7 @@
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
 | SFP 口映射 | `eth2` = `05:00.0`、`eth3` = `05:00.1`（第二个 X553 控制器的两个口）；`eth0` = `03:00.0` 交换 conduit；`eth1` = `03:00.1` 空闲 |
 | SFP 速率 | **最高 1G/2.5G，不支持 10G**：驱动能力表只有 `1000baseKX`/`2500baseT`，BIOS 只有 `Link Speed [Auto Negotiated]`，无 10G 档 |
-| WiFi | `168c:003c` QCA986x/988x 卡在位；本镜像**未含 ath10k**（见下） |
+| WiFi | `168c:003c` QCA986x/988x（ath10k + `ath10k-firmware-qca988x`） |
 
 > 为什么不用 ImageBuilder：官方 x86 预编译内核关闭了 `CONFIG_NET_DSA` / `MV88E6XXX`，没有 `i2c-ismt`，也无法编译本机所需的外挂内核模块。因此本仓库改为 **全源码构建** OpenWrt 25.12.6。
 
@@ -62,7 +62,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
-| WiFi | **未启用**：`kmod-ath10k` 会连带 mac80211/hostapd 源码组（约 7MB 下载），需要时在 `.config` 种子加 `CONFIG_PACKAGE_kmod-ath10k=y` + `CONFIG_PACKAGE_ath10k-firmware-qca988x=y` 重编 |
+| WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；`wan` = `eth2`（SFP1，DHCP）、`wan2` = `eth3`（SFP2，未配置） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 预置插件 | LuCI 中文、`luci-app-ttyd`（Web 终端）、`luci-app-package-manager`、`luci-app-statistics`、`luci-app-ddns`、`luci-app-sqm`、`luci-proto-wireguard` |
