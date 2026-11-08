@@ -360,4 +360,14 @@ strings "$KO" | grep -q lan6 || { echo "port rename missing"; exit 1; }
 echo
 echo "=== BUILD OK $(date -u) ==="
 ls -la "$IMG"
+
+# Timestamped copy for archiving (the build output keeps its canonical name
+# so sha256sums and scripted paths stay valid).
+STAMP="$(date -u +%Y%m%d-%H%M)"
+ART="${ARTIFACTS_DIR:-$WORK/artifacts}"
+mkdir -p "$ART"
+cp "$IMG" "$ART/edge610-$STAMP.img.gz"
+cp "$MAN" "$ART/edge610-$STAMP.manifest"
+ln -sfn "$ART/edge610-$STAMP.img.gz" "$ART/edge610-latest.img.gz"
+echo "artifact: $ART/edge610-$STAMP.img.gz"
 echo "$IMG"

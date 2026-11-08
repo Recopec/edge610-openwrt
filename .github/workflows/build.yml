@@ -425,6 +425,16 @@ jobs:
           fi
           echo "verification OK"
 
+      - name: Stamp artifact names with build time
+        run: |
+          cd openwrt/bin/targets/x86/64
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          IMG="$(ls *-generic-ext4-combined-efi.img.gz | head -n1)"
+          cp "$IMG" "edge610-$STAMP.img.gz"
+          cp openwrt-x86-64.manifest "edge610-$STAMP.manifest"
+          echo "stamped: edge610-$STAMP.img.gz"
+          ls -la edge610-$STAMP.*
+
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
@@ -433,6 +443,8 @@ jobs:
             openwrt/bin/targets/x86/64/*-generic-ext4-combined-efi.img.gz
             openwrt/bin/targets/x86/64/*.manifest
             openwrt/bin/targets/x86/64/sha256sums
+            openwrt/bin/targets/x86/64/edge610-*.img.gz
+            openwrt/bin/targets/x86/64/edge610-*.manifest
           if-no-files-found: error
 
       - name: Upload build log on failure

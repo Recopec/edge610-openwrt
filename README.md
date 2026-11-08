@@ -26,7 +26,8 @@ Actions 运行成功后下载 artifact `Edge610-OpenWrt-Image`（zip 内）：
 
 | 文件 | 说明 |
 | --- | --- |
-| `openwrt-x86-64-generic-ext4-combined-efi.img.gz` | **刷机用镜像**（EFI，根分区 1024MB） |
+| `openwrt-x86-64-generic-ext4-combined-efi.img.gz` | **刷机用镜像**（EFI，根分区 1024MB，构建系统默认名） |
+| `edge610-YYYYMMDD-HHMM.img.gz` | 同一镜像的**带时间戳副本**（便于区分构建时间；CI 与本机构建都会生成） |
 | `openwrt-x86-64.manifest` | 已安装软件包清单 |
 | `sha256sums` | 校验和 |
 
