@@ -377,5 +377,11 @@ mkdir -p "$ART"
 cp "$IMG" "$ART/edge610-$STAMP.img.gz"
 cp "$MAN" "$ART/edge610-$STAMP.manifest"
 ln -sfn "$ART/edge610-$STAMP.img.gz" "$ART/edge610-latest.img.gz"
+# Board packages (kmods + files) for ImageBuilder / on-device apk upgrades.
+mkdir -p "$ART/repo"
+find bin -name 'edge610*.apk' -o -name 'kmod-edge610-*.apk' | while read -r a; do
+  cp -f "$a" "$ART/repo/"
+done
+ls -l "$ART/repo"
 echo "artifact: $ART/edge610-$STAMP.img.gz"
 echo "$IMG"
