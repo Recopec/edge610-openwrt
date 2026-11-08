@@ -406,7 +406,7 @@ jobs:
           grep -q "lan6" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "network defaults do not reference lan6"; exit 1; }
           grep -q "config interface 'wan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "SFP WAN interface missing"; exit 1; }
           grep -q "option device 'eth2'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN is not wired to eth2 (SFP1)"; exit 1; }
-          ! grep -qE "^config [a-z]+ '" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "uci section names must be anonymous (no quotes)"; exit 1; }
+          ! grep -qE "^config [a-z]+ '[^']*-[^']*'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "uci section name contains '-': /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network"; exit 1; }
 
           # DSA port rename baked into the compiled module.
           KO="$(find build_dir -path '*/lib/modules/*' -name edge610_dsa.ko | head -n1)"
