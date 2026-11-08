@@ -326,8 +326,12 @@ done
 log "pre-build luci-base"
 make package/feeds/luci/luci-base/compile || { echo "luci-base pre-build failed"; exit 1; }
 
-log "make -j$(nproc)"
-make -j"$(nproc)"
+# luci-base races when the whole tree is built at full parallelism on a
+# 16-vCPU/16GB runner; half the cores is stable and still fast.
+JOBS=$(( $(nproc) / 2 ))
+[ "$JOBS" -lt 4 ] && JOBS=4
+log "make -j$JOBS"
+make -j"$JOBS"
 
 # 8. Verify -----------------------------------------------------------------
 log "verify"
