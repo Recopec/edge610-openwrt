@@ -275,7 +275,7 @@ static int g2_wait(void)
 	return -ETIMEDOUT;
 }
 
-static int serdes_c45_addr(u16 reg)
+static int serdes_c45_addr(u16 port, u16 reg)
 {
 	int err = g2_wait();
 
@@ -283,35 +283,35 @@ static int serdes_c45_addr(u16 reg)
 		return err;
 	smi_write(GLOBAL2, G2_SMI_DATA, reg);
 	smi_write(GLOBAL2, G2_SMI_CMD,
-		  G2_BUSY | (cpu_port << 5) | MDIO_MMD_PHYXS);
+		  G2_BUSY | (port << 5) | MDIO_MMD_PHYXS);
 	return g2_wait();
 }
 
-static int serdes_read(u16 reg, u16 *value)
+static int serdes_read(u16 port, u16 reg, u16 *value)
 {
-	int err = serdes_c45_addr(reg);
+	int err = serdes_c45_addr(port, reg);
 
 	if (err)
 		return err;
 	smi_write(GLOBAL2, G2_SMI_CMD,
 		  G2_BUSY | G2_C45_READ_DATA |
-		  (cpu_port << 5) | MDIO_MMD_PHYXS);
+		  (port << 5) | MDIO_MMD_PHYXS);
 	err = g2_wait();
 	if (err)
 		return err;
 	return smi_read(GLOBAL2, G2_SMI_DATA, value);
 }
 
-static int serdes_write(u16 reg, u16 value)
+static int serdes_write(u16 port, u16 reg, u16 value)
 {
-	int err = serdes_c45_addr(reg);
+	int err = serdes_c45_addr(port, reg);
 
 	if (err)
 		return err;
 	smi_write(GLOBAL2, G2_SMI_DATA, value);
 	smi_write(GLOBAL2, G2_SMI_CMD,
 		  G2_BUSY | G2_C45_WRITE_DATA |
-		  (cpu_port << 5) | MDIO_MMD_PHYXS);
+		  (port << 5) | MDIO_MMD_PHYXS);
 	return g2_wait();
 }
 
@@ -453,24 +453,38 @@ static int __init edge610_switch_init(void)
 	/* Power the 2.5GBASE-X PCS and advertise full duplex with symmetric pause.
 	 * Enabling AN triggers negotiation with the X553 link partner.
 	 */
-	if (!serdes_read(SERDES_BMCR, &status)) {
-		pr_info(DRV ": serdes BMCR before=0x%04x\n", status);
-		status &= ~(BIT(15) | BIT(14) | BIT(11)); /* reset/loopback/pdown */
-		if (serdes_autoneg)
-			status |= BIT(12) | BIT(9); /* AN enable + restart */
-		else
-			status &= ~(BIT(12) | BIT(9));
-		serdes_write(SERDES_ADVERTISE, 0x00e0);
-		serdes_write(SERDES_BMCR, status);
-		msleep(100);
-		if (!serdes_read(SERDES_BMCR, &status))
-			pr_info(DRV ": serdes BMCR after=0x%04x\n", status);
-		if (!serdes_read(SERDES_BMSR, &status))
-			pr_info(DRV ": serdes BMSR=0x%04x\n", status);
-		if (!serdes_read(SERDES_LPA, &status))
-			pr_info(DRV ": serdes LPA=0x%04x\n", status);
-		if (!serdes_read(SERDES_PHY_STATUS, &status))
-			pr_info(DRV ": serdes PHY status=0x%04x\n", status);
+	{
+		int cports[2] = { 9, 10 };
+		int i, n = cpu_port ? 1 : 2;
+
+		if (cpu_port)
+			cports[0] = cpu_port;
+
+		for (i = 0; i < n; i++) {
+			u16 sp = cports[i];
+
+			if (serdes_read(sp, SERDES_BMCR, &status))
+				continue;
+			pr_info(DRV ": serdes%d BMCR before=0x%04x\n", sp, status);
+			status &= ~(BIT(15) | BIT(14) | BIT(11));
+			if (serdes_autoneg)
+				status |= BIT(12) | BIT(9);
+			else
+				status &= ~(BIT(12) | BIT(9));
+			serdes_write(sp, SERDES_ADVERTISE, 0x00e0);
+			serdes_write(sp, SERDES_BMCR, status);
+			msleep(100);
+			if (!serdes_read(sp, SERDES_BMCR, &status))
+				pr_info(DRV ": serdes%d BMCR after=0x%04x\n",
+					sp, status);
+			if (!serdes_read(sp, SERDES_BMSR, &status))
+				pr_info(DRV ": serdes%d BMSR=0x%04x\n", sp, status);
+			if (!serdes_read(sp, SERDES_LPA, &status))
+				pr_info(DRV ": serdes%d LPA=0x%04x\n", sp, status);
+			if (!serdes_read(sp, SERDES_PHY_STATUS, &status))
+				pr_info(DRV ": serdes%d PHY status=0x%04x\n",
+					sp, status);
+		}
 	}
 
 	for (port = 1; port <= 6; port++) {
@@ -506,7 +520,8 @@ static void __exit edge610_switch_exit(void)
 
 	for (port = 1; port <= 6; port++)
 		port_update(port, PORT_CTL0, PORT_STATE_MASK, 0);
-	port_update(cpu_port, PORT_CTL0, PORT_STATE_MASK, 0);
+	port_update(9, PORT_CTL0, PORT_STATE_MASK, 0);
+	port_update(10, PORT_CTL0, PORT_STATE_MASK, 0);
 	if (north)
 		iounmap(north);
 	pr_info(DRV ": front-panel and CPU ports disabled\n");

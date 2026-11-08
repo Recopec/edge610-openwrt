@@ -91,7 +91,7 @@ detect_cpu_link() {
 	local tries pair dev port
 
 	tries=0
-	while [ "$tries" -lt 50 ]; do
+	while [ "$tries" -lt 20 ]; do
 		for pair in eth0:10 eth1:9; do
 			dev="${pair%%:*}"
 			port="${pair##*:}"
@@ -102,7 +102,7 @@ detect_cpu_link() {
 			fi
 		done
 		tries=$((tries + 1))
-		sleep 0.1
+		sleep 1
 	done
 	return 1
 }
