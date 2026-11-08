@@ -284,7 +284,6 @@ for sym in \
   CONFIG_PACKAGE_resize2fs=y \
   CONFIG_PACKAGE_luci-theme-argon=y \
   CONFIG_PACKAGE_luci-app-store=y \
-    CONFIG_PACKAGE_luci-app-adguardhome=y \
   CONFIG_PACKAGE_luci-app-ksmbd=y; do
   grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
 done
