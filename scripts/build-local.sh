@@ -93,6 +93,13 @@ fi
 
 # 4. Mihomo core ------------------------------------------------------------
 CORE="$OW/package/edge610-board/files/etc/openclash/core/clash_meta"
+CACHE="$WORK/clash_meta.cache"
+if [ ! -s "$CORE" ] && [ -s "$CACHE" ]; then
+  log "restore mihomo core from cache"
+  mkdir -p "$(dirname "$CORE")"
+  cp "$CACHE" "$CORE"
+  chmod 755 "$CORE"
+fi
 if [ ! -s "$CORE" ]; then
   log "download mihomo amd64-v1"
   mkdir -p "$(dirname "$CORE")"
@@ -102,9 +109,15 @@ if [ ! -s "$CORE" ]; then
   [ -n "$CORE_URL" ] || CORE_URL="https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1-go120-v1.19.33.gz"
   echo "core: $CORE_URL"
   echo "$CORE_URL" | grep -q "linux-amd64-v1"
-  curl -fL -o /tmp/mihomo.gz "$CORE_URL"
+  for attempt in 1 2 3 4; do
+    curl -fL --retry 5 --retry-delay 3 -o /tmp/mihomo.gz "$CORE_URL" && break
+    log "mihomo download failed (attempt $attempt), retrying"
+    sleep 5
+  done
+  [ -s /tmp/mihomo.gz ] || { echo "mihomo download failed after retries"; exit 1; }
   gzip -dc /tmp/mihomo.gz > "$CORE"
   chmod 755 "$CORE"
+  cp "$CORE" "$CACHE" 2>/dev/null || true
   "$CORE" -v
 fi
 
