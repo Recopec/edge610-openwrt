@@ -37,37 +37,33 @@ CI：`.github/workflows/build.yml`（workflow_dispatch，ubuntu-24.04）。
 
 ## 安装到 eMMC（正确流程）
 
-镜像 1GB，eMMC 14.6GB。**扩容必须离线做**（见"已知坑 1"）：
-
 ```sh
-# 从 U 盘启动（镜像放在 U 盘的 exfat 数据分区，不要用写盘工具写盘后再 dd 设备）
+# 镜像放 U 盘 exfat 数据分区，或设备联网后直接下载
 gzip -dc /mnt/usb/edge610-*.img.gz | dd of=/dev/mmcblk0 bs=4M conv=fsync
 sync
-
-# 扩分区
-START=$(cat /sys/class/block/mmcblk0p2/start)
-END=$(( $(cat /sys/class/block/mmcblk0/size) - 34 ))
-printf '%s,%s\n' "$START" "$((END - START + 1))" | sfdisk --force --no-reread -N 2 /dev/mmcblk0
-partx -u /dev/mmcblk0
-
-# 离线扩文件系统（此时 eMMC 未挂载）
-e2fsck -f -y /dev/mmcblk0p2
-resize2fs /dev/mmcblk0p2
-
-# 拔 U 盘，重启
+# 拔 U 盘（或直接）重启；首启 zzz98-edge610-resize 自动把 p2 扩到整盘
 ```
+
+首启后 `df -h /` 应为 ~14.3G。脚本日志：`logread -e edge610-resize`。
+
+> 前提：镜像必须用本仓库的 mke2fs 补丁构建（见"已知坑 1"）。旧镜像（make_ext4fs）
+> 在线扩容会失败，只能用 U 盘离线扩。
 
 ## 已知坑（都踩过）
 
-1. **在线 resize2fs 必失败**：内核 ext4 `reserve_backup_gdb` 报
-   `reserved block 64 not at offset 63` → `-EINVAL`。离线 `resize2fs` 正常。
-   所以不要指望首启 uci-defaults 自动扩容；必须在装盘时离线扩。
+1. **make_ext4fs 的镜像不能在线扩容**（openwrt/openwrt#7729）：
+   内核报 `reserve_backup_gdb: reserved block 64 not at offset 63` → `-EINVAL`。
+   修复：`patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch` 把 `Image/mkfs/ext4`
+   换成 `mkfs.ext4 -d`（在 fakeroot 里 `chown -R 0:0` 保证属主正确），
+   build-local.sh 和 CI 在 clone OpenWrt 后自动 apply。
 2. **不要从运行中的 U 盘 dd 整盘设备**：`uci-defaults` 已被消费删除，且文件系统是脏的。
 3. **写盘工具会改 GPT**：Rufus/Etcher 把 `last-lba` 扩到 U 盘容量（如 119GB），
    复制到 14.6GB eMMC 后内核拒绝整张分区表 → 卡 `Waiting for root device`。
    要么写镜像文件，要么事后用 `sfdisk` 改 `last-lba`。
 4. **两块盘 PARTUUID 相同**（同一镜像）→ 拔掉 U 盘再重启，否则 `/boot` 会挂错盘。
 5. **busybox 没有 `stat`**：脚本判断根分区要用 `/proc/self/mountinfo`（`$5=="/"` 的 `$3` 是 `major:minor`，与 sysfs `dev` 一致）。
+6. **无线需要 wpad**：只装 `kmod-ath10k` + 固件不够，必须 `wpad-basic-mbedtls`
+   （提供 wpa_supplicant/hostapd），否则只能 `iw` 扫描、无法关联。
 
 ## 验证清单
 
