@@ -57,7 +57,7 @@ if [ ! -f feeds.conf ]; then
     | jq -r '.tag_name // empty' || true)"
   [ -n "$OC_TAG" ] || OC_TAG=master
   echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
-  echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
+
   cat feeds.conf
 fi
 if [ ! -d feeds/luci ]; then
@@ -65,14 +65,11 @@ if [ ! -d feeds/luci ]; then
   ./scripts/feeds update -a
   ./scripts/feeds install -a
 fi
-# argon feed may be new on an existing tree
-if ! grep -q luci-theme-argon feeds.conf; then
-  echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
-fi
-if [ ! -d feeds/argon ]; then
-  log "feeds update/install argon"
-  ./scripts/feeds update argon
-  ./scripts/feeds install -a -p argon
+# Argon theme: clone into package/ (its root Makefile breaks the feed scanner)
+if [ ! -f package/luci-theme-argon/Makefile ]; then
+  log "fetch argon theme"
+  rm -rf package/luci-theme-argon
+  git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
 fi
 
 # 3. po2lmo host tool -------------------------------------------------------

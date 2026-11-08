@@ -109,12 +109,19 @@ jobs:
             | jq -r '.tag_name // empty')"
           [ -n "$OC_TAG" ] || OC_TAG=master
           echo "src-git openclash https://github.com/vernesong/OpenClash.git;${OC_TAG}" >> feeds.conf
-          # Argon theme (v3.x supports the apk era; config UI is bundled)
-          echo "src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master" >> feeds.conf
+
           echo "--- feeds.conf ---"
           cat feeds.conf
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+
+      - name: Fetch Argon theme (single-package repo -> package/, not a feed)
+        run: |
+          # The repo has a root Makefile, which the 25.12 feed scanner
+          # mis-parses; the main package scan handles it correctly.
+          git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git \
+            openwrt/package/luci-theme-argon
+          test -f openwrt/package/luci-theme-argon/Makefile
 
       - name: Build po2lmo host tool (needed by OpenClash translation build)
         run: |
