@@ -320,6 +320,12 @@ for i in 1 2 3; do
 done
 [ "$ok" = 1 ] || { echo "download failed after 3 attempts"; tail -n 60 dl.log; exit 1; }
 
+# luci-base intermittently fails when world builds it in parallel with the
+# other LuCI packages (host/target staging race). Build it serially first so
+# the parallel world run only reuses it.
+log "pre-build luci-base"
+make package/feeds/luci/luci-base/compile || { echo "luci-base pre-build failed"; exit 1; }
+
 log "make -j$(nproc)"
 make -j"$(nproc)"
 
