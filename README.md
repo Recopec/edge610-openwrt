@@ -75,7 +75,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 磁盘/文件系统 | `kmod-fs-exfat` / `vfat` / `ntfs3`、`kmod-usb-printer`、`e2fsprogs`、`smartmontools`、`hdparm` |
 | 运维 | `commands`、`irqbalance`、`p910nd`（USB 打印）、`ser2net`、`filemanager` |
 | VPN/穿透 | `openvpn`、`tailscale`、`frpc` |
-| 容器 | **不预装** docker；内置其内核依赖（`kmod-veth`/`kmod-ipt-nat`/`kmod-ipt-physdev`/`kmod-nf-ipvs` + `iptables-nft`），需要时从 iStore 装 dockerd+luci-app-dockerman |
+| 容器 | **内置 docker**：`dockerd`/`containerd`/`runc`/`tini`/`docker` CLI/`docker-compose` + `luci-app-dockerman`（内核依赖 veth/ipt-nat/ipt-physdev/nf-ipvs 一并内置） |
 | 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |
 
