@@ -86,5 +86,5 @@ if ! resize2fs "$PART" >/dev/null 2>&1; then
 	exit 1
 fi
 
-log "done: $(df -h / | awk 'NR==2 {print $2}') total"
+log "done: $(df -h "$PART" 2>/dev/null | awk 'NR==2 {print $2}') total"
 exit 0
