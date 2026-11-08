@@ -68,18 +68,17 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
 | 安全/证书 | `acme`+`uhttpd`（Let's Encrypt HTTPS）、`banip`（爆破封禁）、`acl`（多用户权限） |
-| 远程/监控 | `cloudflared`（CF 隧道）、`sshtunnel`（SSH 隧道）、`snmpd`（SNMP）、`apinger`+`email`（告警） |
-| VPN 服务端 | `ocserv`（AnyConnect）、`strongswan-swanctl`（IPsec IKEv2） |
 | 虚拟化 | `lxc`（LXC 容器） |
-| 诊断工具 | `nmap` `arp-scan` `strace` `lsof` `sysstat` `rsync` `bash` |
+| 诊断工具 | `nmap` `arp-scan` `strace` `lsof` `sysstat` `rsync` `bash`（预置，便于无网排障） |
 | 加速/组网 | `kmod-tcp-bbr`（BBR 拥塞控制）、`zerotier`（组网，GUI 走 iStore）、`luci-app-wifischedule`（无线定时） |
 | 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证 2.5G）、`vnstat2`（流量历史） |
 | 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`watchcat`（断网自愈）、`lldpd` |
-| DNS/去广告 | `adblock-fast`、`adguardhome`、`smartdns`、`https-dns-proxy`（DoH） |
-| 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`filebrowser`、`aria2`、`transmission` |
+| DNS/去广告 | **不预置**（按需 `apk add luci-app-adguardhome` / `luci-app-smartdns` / `luci-app-adblock-fast`） |
+| 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`filebrowser`（aria2/transmission 按需 `apk add`） |
 | 磁盘/文件系统 | `kmod-fs-exfat` / `vfat` / `ntfs3`、`kmod-usb-printer`、`e2fsprogs`、`smartmontools`、`hdparm` |
 | 运维 | `commands`、`irqbalance`、`p910nd`（USB 打印）、`ser2net`、`filemanager` |
-| VPN/穿透 | `openvpn`、`tailscale`、`frpc` |
+| VPN/穿透 | 仅内核+协议（`kmod-wireguard`、`wireguard-tools`、`luci-proto-wireguard`）；openvpn/tailscale/frpc 按需 `apk add` |
+| 服务默认 | 首启脚本 `zzz97-edge610-services` 只启用必要服务（network/firewall/dnsmasq/dropbear/log/sysntpd/uhttpd/edge610），其余（含 dockerd）保持 disabled，LuCI 里点开即用 |
 | 容器 | **内置 docker**：`dockerd`/`containerd`/`runc`/`tini`/`docker` CLI/`docker-compose` + `luci-app-dockerman`（内核依赖 veth/ipt-nat/ipt-physdev/nf-ipvs 一并内置） |
 | 诊断工具 | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB 扩展 | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether`（USB 网卡或手机共享作 WAN）、`kmod-usb-storage`、`kmod-fs-ext4` |

@@ -189,21 +189,7 @@ CONFIG_PACKAGE_acme-acmesh=y
 CONFIG_PACKAGE_luci-app-banip=y
 CONFIG_PACKAGE_rsync=y
 CONFIG_PACKAGE_nmap=y
-CONFIG_PACKAGE_luci-app-cloudflared=y
-CONFIG_PACKAGE_cloudflared=y
-CONFIG_PACKAGE_luci-app-sshtunnel=y
-CONFIG_PACKAGE_autossh=y
-CONFIG_PACKAGE_luci-app-snmpd=y
-CONFIG_PACKAGE_snmpd-ssl=y
 CONFIG_PACKAGE_luci-app-acl=y
-CONFIG_PACKAGE_luci-app-apinger=y
-CONFIG_PACKAGE_luci-app-email=y
-CONFIG_PACKAGE_msmtp=y
-CONFIG_PACKAGE_luci-app-ocserv=y
-CONFIG_PACKAGE_ocserv=y
-CONFIG_PACKAGE_luci-app-strongswan-swanctl=y
-CONFIG_PACKAGE_strongswan=y
-CONFIG_PACKAGE_strongswan-swanctl=y
 CONFIG_PACKAGE_luci-app-lxc=y
 CONFIG_PACKAGE_lxc=y
 CONFIG_PACKAGE_lxc-common=y
@@ -231,7 +217,6 @@ CONFIG_PACKAGE_kmod-br-netfilter=y
 CONFIG_PACKAGE_kmod-nf-conntrack-netlink=y
 CONFIG_PACKAGE_kmod-tcp-bbr=y
 CONFIG_PACKAGE_luci-app-wifischedule=y
-CONFIG_PACKAGE_zerotier=y
 CONFIG_PACKAGE_wireguard-tools=y
 CONFIG_PACKAGE_luci-app-mwan3=y
 CONFIG_PACKAGE_luci-app-pbr=y
@@ -242,27 +227,15 @@ CONFIG_PACKAGE_luci-app-udpxy=y
 CONFIG_PACKAGE_luci-app-omcproxy=y
 CONFIG_PACKAGE_luci-app-watchcat=y
 CONFIG_PACKAGE_luci-app-lldpd=y
-CONFIG_PACKAGE_luci-app-adblock-fast=y
-CONFIG_PACKAGE_luci-app-adguardhome=y
-CONFIG_PACKAGE_adguardhome=y
-CONFIG_PACKAGE_luci-app-smartdns=y
-CONFIG_PACKAGE_smartdns=y
-CONFIG_PACKAGE_luci-app-https-dns-proxy=y
 CONFIG_PACKAGE_luci-app-ksmbd=y
 CONFIG_PACKAGE_ksmbd-server=y
 CONFIG_PACKAGE_luci-app-hd-idle=y
 CONFIG_PACKAGE_luci-app-filebrowser=y
-CONFIG_PACKAGE_luci-app-aria2=y
-CONFIG_PACKAGE_luci-app-transmission=y
 CONFIG_PACKAGE_luci-app-commands=y
 CONFIG_PACKAGE_luci-app-irqbalance=y
 CONFIG_PACKAGE_luci-app-p910nd=y
 CONFIG_PACKAGE_luci-app-ser2net=y
 CONFIG_PACKAGE_luci-app-filemanager=y
-CONFIG_PACKAGE_luci-app-openvpn=y
-CONFIG_PACKAGE_luci-app-tailscale-community=y
-CONFIG_PACKAGE_tailscale=y
-CONFIG_PACKAGE_luci-app-frpc=y
 CONFIG_PACKAGE_luci-theme-argon=y
 CONFIG_PACKAGE_luci-app-store=y
 CONFIG_PACKAGE_luci-lib-taskd=y
@@ -352,6 +325,7 @@ done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
 for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
          etc/uci-defaults/zzz99-edge610-network etc/uci-defaults/zzz98-edge610-resize \
+         etc/uci-defaults/zzz97-edge610-services \
          etc/openclash/core/clash_meta; do
   grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
 done

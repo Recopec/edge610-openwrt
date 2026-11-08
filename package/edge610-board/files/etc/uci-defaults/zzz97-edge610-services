@@ -1,0 +1,27 @@
+#!/bin/sh
+# Keep the first boot lean: everything is installed, but services that need
+# configuration (or that would fight over ports/routing) stay disabled until
+# they are turned on in LuCI -> System -> Startup.
+#
+# Essential services are never touched: network, firewall, dnsmasq, dropbear,
+# log, sysntpd, uhttpd and the board bring-up (edge610).
+
+for svc in \
+	dockerd containerd \
+	ksmbd hd-idle \
+	mwan3 pbr upnp udpxy omcproxy \
+	sqm ddns watchcat wifischedule \
+	nlbwmon vnstat2 librespeed statistics \
+	banip acme \
+	lldpd irqbalance \
+	p910nd ser2net filebrowser \
+	dockerman lxc-auto \
+	frpc tailscale zerotier snmpd ocserv strongswan \
+	apinger email cloudflared sshtunnel
+do
+	[ -x "/etc/init.d/$svc" ] || continue
+	/etc/init.d/$svc disable 2>/dev/null && \
+		logger -t edge610-services "disabled $svc (enable in LuCI when needed)" 2>/dev/null
+done
+
+exit 0
