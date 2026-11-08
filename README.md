@@ -105,6 +105,18 @@ logread -e edge610          # 看门狗清除、conduit、端口 up 日志
 - 网线接 **LAN1**，浏览器打开 `http://192.168.1.1` → LuCI。
 - 服务 → OpenClash：载入订阅配置，启动代理。
 
+## 实现历程与关键发现
+
+完整的调试时间线（含证据、串口日志、构建耗时）见 [`docs/bringup-log.md`](docs/bringup-log.md)。
+
+这台机器踩过的三个坑，维护时值得记住：
+
+| 坑 | 现象 | 处理 |
+| --- | --- | --- |
+| BIOS 隐藏 P2SB（`8086:19dd` 不在 `lspci`） | 模块静默 `-ENODEV`，`ixgbe` 不加载，只有 `lo` | 模块从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（本机 `0xFD000000`）；可参数 `p2sb_bar_addr=` 覆盖 |
+| uci section 名不允许 `-` | `uci: Parse error (invalid character in name field)`，网桥不生效 | `config device` 匿名 + `option name 'br-lan'`（构建期已有断言） |
+| `make download` 无总超时 | 半死连接无限挂起，构建看似"卡住" | `CURL_OPTIONS=--max-time 600 --speed-time 60 --speed-limit 1024` + 重试 |
+
 ## 故障排查
 
 | 现象 | 处理 |
