@@ -315,6 +315,36 @@ static int serdes_write(u16 reg, u16 value)
 	return g2_wait();
 }
 
+/* Put one X553 function into the board's SGMII/1G mode. Both functions are
+ * configured when cpu_port=0 so the wiring difference between board
+ * revisions (port 9 -> fn1, port 10 -> fn0) does not matter: whichever
+ * pair is actually wired comes up and the init script picks it.
+ */
+static int x553_select_sgmii(unsigned int fn)
+{
+	struct pci_dev *dev;
+	void __iomem *bar;
+	u32 nwsel, new_nwsel;
+
+	dev = pci_get_domain_bus_and_slot(0, 3, PCI_DEVFN(0, fn));
+	if (!dev)
+		return -ENODEV;
+	bar = pci_iomap(dev, 0, 0);
+	if (!bar) {
+		pci_dev_put(dev);
+		return -ENOMEM;
+	}
+	nwsel = readl(bar + X553_NW_MNG_IF_SEL);
+	new_nwsel = (nwsel & ~GENMASK(21, 17)) | BIT(19) | BIT(25);
+	writel(new_nwsel, bar + X553_NW_MNG_IF_SEL);
+	readl(bar + X553_NW_MNG_IF_SEL);
+	pci_iounmap(dev, bar);
+	pci_dev_put(dev);
+	pr_info(DRV ": X553 fn%u NW_MNG_IF_SEL 0x%08x -> 0x%08x\n",
+		fn, nwsel, new_nwsel);
+	return 0;
+}
+
 static int __init edge610_switch_init(void)
 {
 	struct pci_dev *p2sb;
@@ -346,7 +376,7 @@ static int __init edge610_switch_init(void)
 		goto fail_unmap;
 	}
 	pads = north + padbar;
-	if (cpu_port != 9 && cpu_port != 10) {
+	if (cpu_port != 0 && cpu_port != 9 && cpu_port != 10) {
 		err = -EINVAL;
 		goto fail_unmap;
 	}
@@ -368,32 +398,26 @@ static int __init edge610_switch_init(void)
 		id & 0xf, &p2sb_bar);
 
 	if (x553_sgmii) {
-		x553 = pci_get_domain_bus_and_slot(0, 3,
-			PCI_DEVFN(0, cpu_port == 10 ? 0 : 1));
-		if (!x553) {
-			err = -ENODEV;
-			goto fail_unmap;
+		if (cpu_port) {
+			err = x553_select_sgmii(cpu_port == 10 ? 0 : 1);
+			if (err)
+				goto fail_unmap;
+			port_update(cpu_port, 0, 0x000f, 0x000a); /* SGMII C_Mode */
+		} else {
+			x553_select_sgmii(0);
+			x553_select_sgmii(1);
+			port_update(9, 0, 0x000f, 0x000a);
+			port_update(10, 0, 0x000f, 0x000a);
 		}
-		x553_bar = pci_iomap(x553, 0, 0);
-		if (!x553_bar) {
-			pci_dev_put(x553);
-			err = -ENOMEM;
-			goto fail_unmap;
-		}
-		nwsel = readl(x553_bar + X553_NW_MNG_IF_SEL);
-		new_nwsel = (nwsel & ~GENMASK(21, 17)) | BIT(19) | BIT(25);
-		writel(new_nwsel, x553_bar + X553_NW_MNG_IF_SEL);
-		readl(x553_bar + X553_NW_MNG_IF_SEL);
-		pci_iounmap(x553, x553_bar);
-		pci_dev_put(x553);
-		pr_info(DRV ": X553 NW_MNG_IF_SEL 0x%08x -> 0x%08x\n",
-			nwsel, new_nwsel);
-		port_update(cpu_port, 0, 0x000f, 0x000a); /* SGMII C_Mode */
 	}
 
-	/* Isolate each front-panel port to the primary CPU port (10). */
+	/* Isolate each front-panel port to the CPU port(s). With cpu_port=0
+	 * both CPU ports are enabled and the front panels join VLANs 1..6,
+	 * which both CPU ports are members of.
+	 */
 	for (port = 1; port <= 6; port++) {
-		err = port_update(port, PORT_BASE_VLAN, 0x07ff, BIT(cpu_port));
+		err = port_update(port, PORT_BASE_VLAN, 0x07ff,
+				  cpu_port ? BIT(cpu_port) : GENMASK(6, 1));
 		if (err)
 			goto fail_unmap;
 		port_update(port, PORT_DEFAULT_VLAN, 0x0fff, 1);
@@ -407,13 +431,26 @@ static int __init edge610_switch_init(void)
 	 * The X553 function advertises only 2500baseT/Full on this board. For the
 	 * 6390 family, 2.5G is ForceSpeed + AltSpeed + speed value 3.
 	 */
-	port_update(cpu_port, PORT_BASE_VLAN, 0x07ff, GENMASK(6, 1));
-	port_update(cpu_port, PORT_DEFAULT_VLAN, 0x0fff, 1);
-	port_update(cpu_port, PORT_CTL2, PORT_8021Q_MODE_MASK, 0);
-	port_update(cpu_port, PORT_CTL0,
-		    PORT_FRAME_MODE_MASK | PORT_STATE_MASK,
-		    PORT_STATE_FORWARDING);
-	port_update(cpu_port, PORT_MAC_CTL, 0xffff, cpu_mac_ctl);
+	{
+		int cports[2] = { 9, 10 };
+		int i, n = cpu_port ? 1 : 2;
+
+		if (cpu_port)
+			cports[0] = cpu_port;
+
+		for (i = 0; i < n; i++) {
+			port_update(cports[i], PORT_BASE_VLAN, 0x07ff,
+				    GENMASK(6, 1));
+			port_update(cports[i], PORT_DEFAULT_VLAN, 0x0fff, 1);
+			port_update(cports[i], PORT_CTL2,
+				    PORT_8021Q_MODE_MASK, 0);
+			port_update(cports[i], PORT_CTL0,
+				    PORT_FRAME_MODE_MASK | PORT_STATE_MASK,
+				    PORT_STATE_FORWARDING);
+			port_update(cports[i], PORT_MAC_CTL, 0xffff,
+				    cpu_mac_ctl);
+		}
+	}
 
 	/* Power the 2.5GBASE-X PCS and advertise full duplex with symmetric pause.
 	 * Enabling AN triggers negotiation with the X553 link partner.
@@ -443,9 +480,19 @@ static int __init edge610_switch_init(void)
 			pr_info(DRV ": ge%d status=0x%04x link=%s\n", port,
 				status, status & BIT(11) ? "up" : "down");
 	}
-	if (!smi_read(cpu_port, 0, &status))
-		pr_info(DRV ": cpu%u status=0x%04x link=%s\n", cpu_port, status,
-			status & BIT(11) ? "up" : "down");
+	{
+		int cports[2] = { 9, 10 };
+		int i, n = cpu_port ? 1 : 2;
+
+		if (cpu_port)
+			cports[0] = cpu_port;
+		for (i = 0; i < n; i++) {
+			if (!smi_read(cports[i], 0, &status))
+				pr_info(DRV ": cpu%d status=0x%04x link=%s\n",
+					cports[i], status,
+					status & BIT(11) ? "up" : "down");
+		}
+	}
 
 	return 0;
 

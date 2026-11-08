@@ -215,3 +215,24 @@ CI/本地构建均加了防回归断言：uci-defaults 里出现带引号的 sec
 **修复**：`/etc/init.d/edge610` 改用 `insmod /lib/modules/$(uname -r)/<mod>.ko <params>`，
 参数直通内核；`mv88e6xxx` 仍由脚本 `modprobe` 预先加载（insmod 不处理 softdep）。
 实测 `insmod edge610_dsa.ko conduit_name=eth0` 后 DSA 正常注册 `lan1-lan6`。
+
+## CPU 链路是 port 9 ↔ eth1，不是 port 10 ↔ eth0（2026-11-09）
+
+88E6190 有两个 CPU 口，分别连到 X553 控制器 0000:03: 的两个功能：
+
+| 交换机 CPU 口 | X553 功能 | netdev |
+| --- | --- | --- |
+| 10 | 0000:03:00.0 | eth0 |
+| 9 | 0000:03:00.1 | eth1 |
+
+实测本机只有 **port 9 ↔ eth1** 能起来（`NIC Link is Up 1 Gbps`）；
+port 10 ↔ eth0 一直 `NO-CARRIER`。之前用 port 10 时，交换机侧能看到收到
+PC 的广播帧，但帧到不了 CPU，表现就是 DHCP 拿不到地址。
+
+修复方式（已实现）：
+
+1. `edge610_switch_standalone` 支持 `cpu_port=0`：同时把两个 X553 功能切到
+   SGMII，并把 port 9/10 都配成转发状态；
+2. `edge610_dsa` 新增 `cpu_port` 参数（默认 10）；
+3. `/etc/init.d/edge610` 在 ixgbe 加载后轮询 `eth0/eth1` 的 carrier，
+   用**实际起来的那一对**作为 conduit 和 DSA CPU 口。

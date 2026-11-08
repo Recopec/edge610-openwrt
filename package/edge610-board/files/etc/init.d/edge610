@@ -82,39 +82,33 @@ load_module() {
 	insmod "$ko" "$@"
 }
 
-find_conduit() {
-	local c tries n
-	c=""
-	if [ -d "/sys/bus/pci/devices/$CPU_PCI/net" ]; then
-		tries=0
-		while [ "$tries" -lt 50 ]; do
-			c="$(ls "/sys/bus/pci/devices/$CPU_PCI/net" 2>/dev/null | head -n1)"
-			[ -n "$c" ] && break
-			tries=$((tries + 1))
-			sleep 0.1
+# The 88E6190 has two CPU ports (9 and 10) wired to the two X553 functions
+# of controller 0000:03: (fn0 = eth0, fn1 = eth1). Which pair actually carries
+# the link varies between board revisions, so the initializer puts both
+# functions into SGMII mode and both switch ports into forwarding state; the
+# pair that links up is then used as the DSA conduit.
+detect_cpu_link() {
+	local tries pair dev port
+
+	tries=0
+	while [ "$tries" -lt 50 ]; do
+		for pair in eth0:10 eth1:9; do
+			dev="${pair%%:*}"
+			port="${pair##*:}"
+			[ -e "/sys/class/net/$dev" ] || continue
+			if [ "$(cat "/sys/class/net/$dev/carrier" 2>/dev/null)" = "1" ]; then
+				echo "$dev $port"
+				return 0
+			fi
 		done
-	fi
-	if [ -z "$c" ]; then
-		# Fallback: the conduit carries the first of four consecutive
-		# X553 MAC addresses (CVMagic), so pick the lowest-MAC ixgbe netdev.
-		c="$(for n in /sys/class/net/*; do
-			[ -e "$n/device/driver" ] || continue
-			case "$(basename "$(readlink -f "$n/device/driver")")" in
-			ixgbe) echo "$(cat "$n/address" 2>/dev/null) $(basename "$n")" ;;
-			esac
-		done | sort | head -n1 | awk '{print $2}')"
-	fi
-	echo "$c"
+		tries=$((tries + 1))
+		sleep 0.1
+	done
+	return 1
 }
 
-# The 88E6190 CPU port wired to the working X553 function on the Edge 610 is
-# port 9 (PCI 0000:03:00.1, eth1). Port 10/eth0 is the alternate pair and does
-# not carry a link on this board revision.
-CPU_PORT=9
-CPU_PCI=0000:03:00.1
-
 start() {
-	local conduit p t
+	local conduit p t link
 
 	if ! is_edge610; then
 		log "not an Edge 610 (DMI/P2SB check failed); board bring-up skipped"
@@ -128,7 +122,7 @@ start() {
 	# NOTE: /sbin/modprobe is kmodloader, which silently drops name=value
 	# arguments, so the modules are loaded with insmod and their parameters
 	# are passed explicitly (verified on hardware: modprobe lost conduit_name).
-	if ! load_module edge610_switch_standalone cpu_port="$CPU_PORT" x553_sgmii=1 \
+	if ! load_module edge610_switch_standalone cpu_port=0 x553_sgmii=1 \
 		cpu_mac_ctl=0x203e serdes_autoneg=1; then
 		log "ERROR: edge610_switch_standalone failed to load"
 		return 1
@@ -138,12 +132,14 @@ start() {
 		return 1
 	fi
 
-	conduit="$(find_conduit)"
-	if [ -z "$conduit" ]; then
-		log "ERROR: X553 conduit netdev not found"
+	link="$(detect_cpu_link)" || link=""
+	if [ -z "$link" ]; then
+		log "ERROR: no X553 CPU link came up on eth0/eth1"
 		return 1
 	fi
-	log "conduit: $conduit"
+	conduit="${link%% *}"
+	CPU_PORT="${link##* }"
+	log "conduit: $conduit (CPU port $CPU_PORT)"
 	ip addr flush dev "$conduit" 2>/dev/null
 	ip link set "$conduit" up
 
