@@ -168,7 +168,6 @@ jobs:
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-app-openclash=y
           CONFIG_LUCI_LANG_zh_Hans=y
-          CONFIG_LUCI_LANG_zh_Hant=y
           CONFIG_PACKAGE_edge610-board=y
           CONFIG_PACKAGE_kmod-edge610-switch=y
           CONFIG_PACKAGE_kmod-edge610-dsa=y

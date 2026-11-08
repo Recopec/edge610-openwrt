@@ -163,7 +163,6 @@ CONFIG_PACKAGE_luci-proto-ipv6=y
 # ignored by defconfig). The po dir is zh_Hans, the package name keeps the
 # legacy alias zh-cn.
 CONFIG_LUCI_LANG_zh_Hans=y
-CONFIG_LUCI_LANG_zh_Hant=y
 CONFIG_PACKAGE_ethtool=y
 CONFIG_PACKAGE_tcpdump=y
 CONFIG_PACKAGE_htop=y
@@ -335,8 +334,8 @@ for p in luci-app-openclash i2c-tools ip-full dnsmasq-full luci-app-ttyd \
          kmod-hwmon-coretemp kmod-ath10k ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
   grep -q "^$p " "$MAN" || { echo "manifest missing: $p"; exit 1; }
 done
-for p in luci-i18n-base-zh-cn luci-i18n-base-zh-tw; do
-  grep -q "^$p " "$MAN" || { echo "manifest missing translation: $p (CONFIG_LUCI_LANG_zh_Hans/zh_Hant not applied?)"; exit 1; }
+for p in luci-i18n-base-zh-cn; do
+  grep -q "^$p " "$MAN" || { echo "manifest missing translation: $p (CONFIG_LUCI_LANG_zh_Hans not applied?)"; exit 1; }
 done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
 for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
