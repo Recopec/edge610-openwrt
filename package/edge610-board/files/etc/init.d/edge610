@@ -96,6 +96,8 @@ detect_cpu_link() {
 			dev="${pair%%:*}"
 			port="${pair##*:}"
 			[ -e "/sys/class/net/$dev" ] || continue
+			# carrier is only readable on an administratively up interface
+			ip link set "$dev" up 2>/dev/null
 			if [ "$(cat "/sys/class/net/$dev/carrier" 2>/dev/null)" = "1" ]; then
 				echo "$dev $port"
 				return 0
