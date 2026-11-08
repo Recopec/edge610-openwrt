@@ -236,3 +236,31 @@ PC 的广播帧，但帧到不了 CPU，表现就是 DHCP 拿不到地址。
 2. `edge610_dsa` 新增 `cpu_port` 参数（默认 10）；
 3. `/etc/init.d/edge610` 在 ixgbe 加载后轮询 `eth0/eth1` 的 carrier，
    用**实际起来的那一对**作为 conduit 和 DSA CPU 口。
+
+## 写 eMMC 的正确做法（2026-11-09）
+
+**不要**用 `dd if=/dev/sdb of=/dev/mmcblk0` 复制整块 U 盘设备。写盘工具
+（Rufus/Etcher）会把 GPT 的 `last-lba` 扩展到 U 盘容量（例如 119GB），
+复制到 14.6GB 的 eMMC 后内核会因 `last_usable_lba` 超出设备而**拒绝整张分区表**，
+表现为启动卡在 `Waiting for root device PARTUUID=...`。
+
+正确做法（把 .img.gz 放在 U 盘的另一个分区或另一个 U 盘）：
+
+```sh
+gzip -dc /mnt/usb/edge610-YYYYMMDD-HHMM.img.gz | dd of=/dev/mmcblk0 bs=4M
+sync
+```
+
+这样写入的是镜像自带的 GPT（1.09GB 布局），对 14.6GB 的 eMMC 合法；
+首次启动时 `zzz98-edge610-resize` 会把 p2 扩展到整盘。
+
+如果已经复制了整块设备，可以只修分区表（数据不动）：
+
+```sh
+sfdisk -d /dev/sdb > /tmp/pt.dump
+LAST=$(( $(cat /sys/block/mmcblk0/size) - 34 ))
+sed -i "s|^last-lba: .*|last-lba: $LAST|; s|^device: .*|device: /dev/mmcblk0|" /tmp/pt.dump
+sfdisk /dev/mmcblk0 < /tmp/pt.dump
+```
+
+验证：`lsblk` 应出现 `mmcblk0p1/p2/p3`，且 `mount -o ro /dev/mmcblk0p2 /mnt` 成功。
