@@ -35,22 +35,40 @@ fi
 start="$(cat "$SYS/start")"
 size="$(cat "$SYS/size")"
 disk="$(cat "/sys/class/block/$(basename "$DISK")/size")"
-free=$((disk - start - size))
 
-if [ "$free" -lt "$MINGROW" ]; then
-	log "$PART already fills the disk ($((free / 2048)) MiB unused)"
+# End of the usable area: DOS keeps sector disk-1, GPT reserves the last 33
+# for the backup header (sfdisk -N with an empty size field means "keep the
+# current size", not "extend", so the size has to be spelled out).
+label="$(sfdisk -d "$DISK" 2>/dev/null | head -n1 | awk '{print $2}')"
+case "$label" in
+gpt) end=$((disk - 34)) ;;
+*)   end=$((disk - 1)) ;;
+esac
+newsize=$((end - start + 1))
+
+if [ "$((newsize - size))" -lt "$MINGROW" ]; then
+	log "$PART already fills the disk ($(((disk - start - size) / 2048)) MiB unused)"
 	exit 0
 fi
 
-log "growing $PART: $((size / 2048)) MiB -> $(((disk - start) / 2048)) MiB"
+log "growing $PART: $((size / 2048)) MiB -> $((newsize / 2048)) MiB ($label)"
 
 # Keep the existing start sector, extend the partition to the end of the disk.
-if ! printf '%s,\n' "$start" | sfdisk --force --no-reread -N 2 "$DISK" >/dev/null 2>&1; then
+if ! printf '%s,%s\n' "$start" "$newsize" | sfdisk --force --no-reread -N 2 "$DISK" >/dev/null 2>&1; then
 	log "ERROR: sfdisk failed, filesystem left unchanged"
 	exit 1
 fi
-partx -u "$DISK" 2>/dev/null
+if ! partx -u "$DISK" >/dev/null 2>&1; then
+	log "ERROR: partx -u failed, kernel did not pick up the new table"
+	exit 1
+fi
 sync
+
+kern="$(cat "$SYS/size" 2>/dev/null)"
+if [ "$kern" != "$newsize" ]; then
+	log "ERROR: kernel reports $kern sectors, expected $newsize"
+	exit 1
+fi
 
 if ! resize2fs "$PART" >/dev/null 2>&1; then
 	log "ERROR: partition grown but resize2fs failed; rerun: resize2fs $PART"
