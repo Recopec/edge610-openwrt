@@ -219,6 +219,8 @@ for m in edge610_switch_standalone edge610_dsa i2c-ismt mv88e6xxx ixgbe; do
   find build_dir -path '*/lib/modules/*' -name "$m.ko" | grep -q . || { echo "module missing: $m"; exit 1; }
 done
 find build_dir -path '*/lib/modules/*' -name 'dsa*.ko' | grep -q . || { echo "dsa core missing"; exit 1; }
+# uci section names cannot contain '-': br-lan must be an anonymous section
+! grep -qE "^config [a-z]+ '" package/edge610-board/files/etc/uci-defaults/zzz99-edge610-network || { echo "uci section names must be anonymous (no quotes)"; exit 1; }
 KO="$(find build_dir -path '*/lib/modules/*' -name edge610_dsa.ko | head -n1)"
 strings "$KO" | grep -q lan6 || { echo "port rename missing"; exit 1; }
 

@@ -16,7 +16,7 @@ config interface 'loopback'
 config globals 'globals'
 ${ula:+	option ula_prefix '$ula'}
 
-config device 'br-lan'
+config device
 	option name 'br-lan'
 	option type 'bridge'
 	list ports 'lan1'
