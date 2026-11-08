@@ -41,7 +41,7 @@ echo
 echo "== storage (first-boot resize) =="
 df -h / | sed 's/^/  /'
 root_size="$(df -h / | awk 'NR==2 {print $2}')"
-root_part="$(lsblk -no NAME,MOUNTPOINT 2>/dev/null | awk '$2=="/" {print $1}' | head -n1)"
+root_part="$(lsblk -lno NAME,MOUNTPOINT 2>/dev/null | awk '$2=="/" {print $1}' | head -n1)"
 root_disk="${root_part%%[0-9]*}"
 case "$root_disk" in *p) root_disk="${root_disk%p}" ;; esac
 case "$root_size" in
