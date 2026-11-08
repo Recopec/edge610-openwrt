@@ -198,8 +198,6 @@ jobs:
           CONFIG_PACKAGE_usbutils=y
           CONFIG_PACKAGE_lm-sensors=y
           CONFIG_PACKAGE_kmod-hwmon-coretemp=y
-          CONFIG_PACKAGE_kmod-ath10k=y
-          CONFIG_PACKAGE_ath10k-firmware-qca988x=y
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
           CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
@@ -227,8 +225,6 @@ jobs:
             CONFIG_PACKAGE_ethtool=y \
             CONFIG_PACKAGE_iperf3=y \
             CONFIG_PACKAGE_kmod-hwmon-coretemp=y \
-            CONFIG_PACKAGE_kmod-ath10k=y \
-            CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
             CONFIG_PACKAGE_sfdisk=y \
             CONFIG_PACKAGE_resize2fs=y; do
             grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
@@ -285,8 +281,8 @@ jobs:
           [ -f "$MAN" ] || { echo "manifest missing"; exit 1; }
           for p in luci-app-openclash i2c-tools ip-full dnsmasq-full \
                    kmod-edge610-switch kmod-edge610-dsa kmod-i2c-ismt \
-                   kmod-dsa-mv88e6xxx kmod-ixgbe kmod-hwmon-coretemp kmod-ath10k \
-                   ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
+                   kmod-dsa-mv88e6xxx kmod-ixgbe kmod-hwmon-coretemp \
+                   sfdisk partx-utils resize2fs; do
             grep -q "^$p " "$MAN" || { echo "manifest missing package: $p"; exit 1; }
           done
 
@@ -310,8 +306,6 @@ jobs:
           grep -qE '/sfdisk$' /tmp/rootfs-files.txt || { echo "sfdisk missing"; exit 1; }
           grep -qE '/partx$' /tmp/rootfs-files.txt || { echo "partx missing"; exit 1; }
           grep -qE '/resize2fs$' /tmp/rootfs-files.txt || { echo "resize2fs missing"; exit 1; }
-          grep -qE '/lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
-            || { echo "ath10k QCA988X firmware missing"; exit 1; }
 
           # Extract and run the binaries actually shipped in the image.
           rm -rf /tmp/rootcheck && mkdir -p /tmp/rootcheck
