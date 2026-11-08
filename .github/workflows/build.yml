@@ -167,6 +167,8 @@ jobs:
           CONFIG_GRUB_EFI_IMAGES=y
           CONFIG_PACKAGE_luci=y
           CONFIG_PACKAGE_luci-app-openclash=y
+          CONFIG_LUCI_LANG_zh_Hans=y
+          CONFIG_LUCI_LANG_zh_Hant=y
           CONFIG_PACKAGE_edge610-board=y
           CONFIG_PACKAGE_kmod-edge610-switch=y
           CONFIG_PACKAGE_kmod-edge610-dsa=y
@@ -190,16 +192,7 @@ jobs:
           CONFIG_PACKAGE_luci-app-sqm=y
           CONFIG_PACKAGE_luci-proto-wireguard=y
           CONFIG_PACKAGE_luci-proto-ipv6=y
-          CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-firewall-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-package-manager-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-ttyd-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-statistics-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-ddns-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-sqm-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-dockerman-zh_Hans=y
           CONFIG_PACKAGE_luci-i18n-mwan3-zh_Hans=y
-          CONFIG_PACKAGE_luci-i18n-ksmbd-zh_Hans=y
           CONFIG_PACKAGE_ethtool=y
           CONFIG_PACKAGE_tcpdump=y
           CONFIG_PACKAGE_htop=y
@@ -302,6 +295,7 @@ jobs:
             CONFIG_PACKAGE_kmod-dsa-mv88e6xxx=y \
             CONFIG_PACKAGE_kmod-ixgbe=y \
             CONFIG_PACKAGE_luci-app-openclash=y \
+            CONFIG_LUCI_LANG_zh_Hans=y \
             CONFIG_PACKAGE_i2c-tools=y \
             CONFIG_PACKAGE_ip-full=y \
             CONFIG_PACKAGE_dnsmasq-full=y \

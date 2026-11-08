@@ -158,36 +158,12 @@ CONFIG_PACKAGE_luci-app-ddns=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-proto-wireguard=y
 CONFIG_PACKAGE_luci-proto-ipv6=y
-# LuCI 25.12 renamed the language code zh-cn -> zh_Hans; the old symbols are
-# stale aliases that make defconfig silently drop the translation packages.
-CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-firewall-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-package-manager-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-ttyd-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-statistics-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-ddns-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-sqm-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-dockerman-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-acme-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-banip-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-mwan3-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-pbr-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-nlbwmon-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-watchcat-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-lldpd-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-ksmbd-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-hd-idle-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-udpxy-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-omcproxy-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-vnstat2-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-chrony-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-librespeed-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-uhttpd-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-acl-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-lxc-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-wifischedule-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-upnp-zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-wol-zh_Hans=y
+# LuCI i18n packages are HIDDEN with DEFAULT:=LUCI_LANG_<lang>: selecting the
+# language symbol is the only way to pull them in (per-package symbols are
+# ignored by defconfig). The po dir is zh_Hans, the package name keeps the
+# legacy alias zh-cn.
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_LUCI_LANG_zh_Hant=y
 CONFIG_PACKAGE_ethtool=y
 CONFIG_PACKAGE_tcpdump=y
 CONFIG_PACKAGE_htop=y
@@ -321,7 +297,7 @@ for sym in \
   CONFIG_PACKAGE_luci-theme-argon=y \
   CONFIG_PACKAGE_luci-app-store=y \
   CONFIG_PACKAGE_luci-app-ksmbd=y \
-  CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y; do
+  CONFIG_LUCI_LANG_zh_Hans=y; do
   grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
 done
 grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
@@ -358,6 +334,9 @@ for p in luci-app-openclash i2c-tools ip-full dnsmasq-full luci-app-ttyd \
          kmod-edge610-switch kmod-edge610-dsa kmod-i2c-ismt kmod-dsa-mv88e6xxx kmod-ixgbe \
          kmod-hwmon-coretemp kmod-ath10k ath10k-firmware-qca988x sfdisk partx-utils resize2fs; do
   grep -q "^$p " "$MAN" || { echo "manifest missing: $p"; exit 1; }
+done
+for p in luci-i18n-base-zh-cn luci-i18n-base-zh-tw; do
+  grep -q "^$p " "$MAN" || { echo "manifest missing translation: $p (CONFIG_LUCI_LANG_zh_Hans/zh_Hant not applied?)"; exit 1; }
 done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
 for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
