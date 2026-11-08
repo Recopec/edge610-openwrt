@@ -60,6 +60,11 @@ disable_watchdog() {
 	return 1
 }
 
+kofile() {
+	local ko="/lib/modules/$(uname -r)/$1.ko"
+	[ -f "$ko" ] && echo "$ko"
+}
+
 find_conduit() {
 	local c tries n
 	c=""
@@ -97,7 +102,10 @@ start() {
 	disable_watchdog || log "continuing despite watchdog failure"
 
 	# Switch/X553 initializer MUST load before ixgbe probes.
-	if ! modprobe edge610_switch_standalone cpu_port=10 x553_sgmii=1 \
+	# NOTE: /sbin/modprobe is kmodloader, which silently drops name=value
+	# arguments, so the modules are loaded with insmod and their parameters
+	# are passed explicitly (verified on hardware: modprobe lost conduit_name).
+	if ! insmod "$(kofile edge610_switch_standalone)" cpu_port=10 x553_sgmii=1 \
 		cpu_mac_ctl=0x203e serdes_autoneg=1; then
 		log "ERROR: edge610_switch_standalone failed to load"
 		return 1
@@ -120,7 +128,7 @@ start() {
 		log "ERROR: mv88e6xxx failed to load"
 		return 1
 	fi
-	if ! modprobe edge610_dsa conduit_name="$conduit" force_cpu_phyctl=0x203e; then
+	if ! insmod "$(kofile edge610_dsa)" conduit_name="$conduit" force_cpu_phyctl=0x203e; then
 		log "ERROR: edge610_dsa failed to load"
 		return 1
 	fi

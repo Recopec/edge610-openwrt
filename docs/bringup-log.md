@@ -200,3 +200,18 @@ CI/本地构建均加了防回归断言：uci-defaults 里出现带引号的 sec
 | 温度 | `kmod-coretemp`（Denverton MSR）+ 既有 `lm-sensors` |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（`168c:003c`） |
 | 依赖 | 板级包 DEPENDS 增加 `sfdisk`、`resize2fs` |
+
+## kmodloader 丢弃模块参数（2026-11-09）
+
+**现象**：`lan1..lan6` 全部缺失，`dmesg` 报
+`edge610-dsa: conduit eno1 is not available; load this module after ixgbe`，
+尽管 `/etc/init.d/edge610` 已按顺序 `modprobe ixgbe` 并传入 `conduit_name=eth0`。
+
+**根因**：OpenWrt 的 `/sbin/modprobe` 是指向 `kmodloader` 的符号链接，
+它**静默忽略 `name=value` 形式的参数**。证据：`edge610_switch_standalone`
+加载后 `/sys/module/.../parameters/` 显示 `x553_sgmii=N`、`serdes_autoneg=N`、
+`cpu_mac_ctl=12351`，全部是默认值而非脚本传入的 `1/1/0x203e`。
+
+**修复**：`/etc/init.d/edge610` 改用 `insmod /lib/modules/$(uname -r)/<mod>.ko <params>`，
+参数直通内核；`mv88e6xxx` 仍由脚本 `modprobe` 预先加载（insmod 不处理 softdep）。
+实测 `insmod edge610_dsa.ko conduit_name=eth0` 后 DSA 正常注册 `lan1-lan6`。
