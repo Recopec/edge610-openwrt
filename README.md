@@ -23,6 +23,20 @@ Actions 运行成功后下载 artifact `Edge610-OpenWrt-Image`（zip 内）：
 1. 打开 Actions → **Build Edge 610 OpenWrt Image** → *Run workflow*（main 分支）。
 2. 全程约 3.5~4 小时（4 核 runner 全源码构建 + 工具链）。失败时自动上传 `build-log` artifact（含 `build.log` / `dl.log`）。
 
+### 本地构建（推荐用于迭代）
+
+CI 每次都是全新 runner，必须重编 rustc + 工具链（约 70% 时间）。本地/VM 有缓存，**首次约 75 分钟，之后改包通常 3~10 分钟出镜像**。
+
+```bash
+# 要求：Ubuntu 24.04 x86_64，≥8 核，≥16GB 内存，≥60GB 空闲磁盘（ext4）
+PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
+```
+
+- `PROXY` 可选：GitHub / OpenWrt 源在部分网络下不稳定时填本机代理。
+- 脚本与 CI 完全同源（同 feeds pin、同 `.config` 种子、同 ixgbe autoload 剥离、同结尾校验），幂等可重跑。
+- 产物：`~/work/openwrt/bin/targets/x86/64/openwrt-x86-64-generic-ext4-combined-efi.img.gz`
+- 已内置下载容错：`CURL_OPTIONS` 单文件 600s 上限 + 低速 60s 中断，下载失败自动重试 3 次。
+
 ## 镜像内容
 
 | 组件 | 版本 / 说明 |
