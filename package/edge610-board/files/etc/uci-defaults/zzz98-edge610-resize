@@ -24,10 +24,12 @@ log() {
 
 if [ "$#" -eq 0 ]; then
 	# Only the flashed eMMC layout is grown: verify that / lives on $PART.
+	# busybox has no usable `stat`, so read major:minor from mountinfo
+	# (both mountinfo and sysfs report decimal major:minor).
 	dev="$(cat "$SYS/dev")"
-	hex="$(printf '%x:%x' "${dev%%:*}" "${dev##*:}")"
-	if [ "$(stat -c %t:%T / 2>/dev/null)" != "$hex" ]; then
-		log "/ is not on $PART, skipping"
+	rootdev="$(awk '$5 == "/" { print $3; exit }' /proc/self/mountinfo)"
+	if [ "$rootdev" != "$dev" ]; then
+		log "/ is not on $PART ($rootdev vs $dev), skipping"
 		exit 0
 	fi
 fi
