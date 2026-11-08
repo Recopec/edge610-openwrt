@@ -187,6 +187,7 @@ CONFIG_PACKAGE_lm-sensors=y
 CONFIG_PACKAGE_kmod-hwmon-coretemp=y
 CONFIG_PACKAGE_kmod-ath10k=y
 CONFIG_PACKAGE_ath10k-firmware-qca988x=y
+CONFIG_PACKAGE_wpad-basic-mbedtls=y
 CONFIG_PACKAGE_block-mount=y
 CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
 CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
