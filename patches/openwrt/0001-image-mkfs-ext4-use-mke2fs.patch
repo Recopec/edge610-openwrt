@@ -1,0 +1,34 @@
+Use mkfs.ext4 instead of make_ext4fs for the ext4 rootfs.
+
+make_ext4fs (abandoned Android tool) writes a resize inode whose reserved
+GDT layout the kernel's online ext4 resize rejects:
+
+  EXT4-fs warning: reserve_backup_gdb: reserved block 64 not at offset 63
+  EXT4-fs warning: ext4_resize_fs: error (-22) occurred during file system resize
+
+so `resize2fs` on the mounted rootfs always fails (openwrt/openwrt#7729).
+mke2fs produces a filesystem that grows online, which lets the first-boot
+uci-defaults script expand the rootfs to the whole eMMC.
+
+The build tree is populated with files owned by the build user, so the
+whole mkfs runs under fakeroot with a faked `chown -R 0:0`; otherwise the
+image would ship with uid 1000 ownership.
+
+--- a/include/image.mk
++++ b/include/image.mk
+@@ -317,11 +317,11 @@
+ define Image/mkfs/ext4
+-	$(STAGING_DIR_HOST)/bin/make_ext4fs -L rootfs \
+-		-l $(ROOTFS_PARTSIZE) -b $(CONFIG_TARGET_EXT4_BLOCKSIZE) \
+-		$(if $(CONFIG_TARGET_EXT4_RESERVED_PCT),-m $(CONFIG_TARGET_EXT4_RESERVED_PCT)) \
+-		$(if $(CONFIG_TARGET_EXT4_JOURNAL),,-J) \
+-		$(if $(SOURCE_DATE_EPOCH),-T $(SOURCE_DATE_EPOCH)) \
+-		$@ $(call mkfs_target_dir,$(1))/
++	rm -f $@
++	echo 'chown -R 0:0 $(call mkfs_target_dir,$(1))' > $@.fakeroot-script
++	echo '$(STAGING_DIR_HOST)/bin/mkfs.ext4 -q -F -L rootfs -b $(CONFIG_TARGET_EXT4_BLOCKSIZE) $(if $(CONFIG_TARGET_EXT4_RESERVED_PCT),-m $(CONFIG_TARGET_EXT4_RESERVED_PCT)) $(if $(CONFIG_TARGET_EXT4_JOURNAL),,-O ^has_journal) -d $(call mkfs_target_dir,$(1))/ $@ $(shell echo $$(($(ROOTFS_PARTSIZE)/1024)))K' >> $@.fakeroot-script
++	chmod +x $@.fakeroot-script
++	$(FAKEROOT) $@.fakeroot-script
+ endef
+ 
+ define Image/Manifest

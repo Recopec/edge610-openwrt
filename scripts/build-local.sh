@@ -41,6 +41,16 @@ if [ ! -d "$OW/.git" ]; then
   git clone --depth 1 --branch v25.12.6 https://github.com/openwrt/openwrt.git "$OW"
 fi
 
+# 1b. Patch OpenWrt's ext4 image builder --------------------------------
+# make_ext4fs writes a resize inode the kernel refuses to grow online
+# (openwrt/openwrt#7729); mke2fs produces a filesystem that resizes.
+if grep -q 'make_ext4fs' include/image.mk 2>/dev/null; then
+  log "patch include/image.mk (mkfs.ext4)"
+  git apply "$REPO/patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch" \
+    || { echo "image.mk patch failed"; exit 1; }
+fi
+! grep -q 'make_ext4fs' include/image.mk || { echo "make_ext4fs still present"; exit 1; }
+
 log "sync edge610-board package"
 rm -rf "$OW/package/edge610-board"
 cp -r "$REPO/package/edge610-board" "$OW/package/"
@@ -290,6 +300,7 @@ for sym in \
   CONFIG_PACKAGE_kmod-hwmon-coretemp=y \
   CONFIG_PACKAGE_kmod-ath10k=y \
   CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
+  CONFIG_PACKAGE_wpad-basic-mbedtls=y \
   CONFIG_PACKAGE_sfdisk=y \
   CONFIG_PACKAGE_partx-utils=y \
   CONFIG_PACKAGE_resize2fs=y \

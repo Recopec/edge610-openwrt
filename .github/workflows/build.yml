@@ -84,6 +84,9 @@ jobs:
             https://github.com/openwrt/openwrt.git openwrt
           cp -r package/edge610-board openwrt/package/
           test -f openwrt/package/edge610-board/Makefile
+          # make_ext4fs rootfs cannot be grown online (openwrt#7729); use mke2fs
+          git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch"
+          ! grep -q make_ext4fs openwrt/include/image.mk
 
       - name: Cache source downloads
         uses: actions/cache@v4
@@ -206,6 +209,7 @@ jobs:
           CONFIG_PACKAGE_kmod-hwmon-coretemp=y
           CONFIG_PACKAGE_kmod-ath10k=y
           CONFIG_PACKAGE_ath10k-firmware-qca988x=y
+          CONFIG_PACKAGE_wpad-basic-mbedtls=y
           CONFIG_PACKAGE_block-mount=y
           CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
           CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
@@ -306,6 +310,7 @@ jobs:
             CONFIG_PACKAGE_kmod-hwmon-coretemp=y \
             CONFIG_PACKAGE_kmod-ath10k=y \
             CONFIG_PACKAGE_ath10k-firmware-qca988x=y \
+            CONFIG_PACKAGE_wpad-basic-mbedtls=y \
             CONFIG_PACKAGE_sfdisk=y \
             CONFIG_PACKAGE_resize2fs=y \
             CONFIG_PACKAGE_luci-theme-argon=y \
