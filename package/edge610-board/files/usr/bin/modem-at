@@ -2,8 +2,17 @@
 # Send one AT command to the Edge 610's Sierra EM7565 and print the reply.
 # The AT port is discovered once (ttyUSB* that answers "AT") and cached in
 # /tmp/.modem-at-port.
+#
+# Usage: modem-at [-p] <AT command>
+#   -p  unlock password-protected commands first (AT!ENTERCND)
 CMD="$1"
 [ -n "$CMD" ] || exit 1
+PW=
+if [ "$CMD" = "-p" ]; then
+	PW=1
+	CMD="$2"
+	[ -n "$CMD" ] || exit 1
+fi
 
 PORTFILE=/tmp/.modem-at-port
 
@@ -23,4 +32,10 @@ find_port() {
 }
 
 P="$(find_port)" || { echo "AT port not found"; exit 1; }
-printf '%s\r' "$CMD" | timeout 3 socat - "$P",raw,echo=0 2>/dev/null
+
+if [ -n "$PW" ]; then
+	{ printf 'AT!ENTERCND="A710"\r'; sleep 1; printf '%s\r' "$CMD"; } | \
+		timeout 5 socat - "$P",raw,echo=0 2>/dev/null
+else
+	printf '%s\r' "$CMD" | timeout 3 socat - "$P",raw,echo=0 2>/dev/null
+fi

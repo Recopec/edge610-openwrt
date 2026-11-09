@@ -74,6 +74,7 @@ define Package/edge610-board/install
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/controller/modem.lua $(1)/usr/lib/lua/luci/controller/modem.lua
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/modem
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/status.htm $(1)/usr/lib/lua/luci/view/modem/status.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/gps.htm $(1)/usr/lib/lua/luci/view/modem/gps.htm
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/modem
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/model/cbi/modem/settings.lua $(1)/usr/lib/lua/luci/model/cbi/modem/settings.lua
 	$(INSTALL_DIR) $(1)/etc/openclash/core

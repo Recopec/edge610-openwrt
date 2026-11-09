@@ -1,0 +1,40 @@
+<%+header%>
+
+<h2 name="content"><%:GPS%></h2>
+
+<%
+local sys = require "luci.sys"
+local http = require "luci.http"
+
+local function at(cmd)
+	local out = sys.exec("/usr/bin/modem-at " .. cmd .. " 2>&1")
+	return luci.util.pcdata(out or "")
+end
+
+local out = nil
+if http.formvalue("gps_start") then
+	out = at("'AT+WANT=1'") .. at("'AT!GPSFIX=1,120,4294967280'")
+elseif http.formvalue("gps_stop") then
+	out = at("'AT!GPSEND=0,255'")
+end
+%>
+
+<fieldset class="cbi-section">
+	<legend><%:Sierra Wireless EM7565 GNSS%></legend>
+	<form method="post">
+		<input type="submit" class="cbi-button cbi-button-apply" name="gps_start" value="<%:Start%>"/>
+		<input type="submit" class="cbi-button cbi-button-reset" name="gps_stop" value="<%:Stop%>"/>
+		<input type="submit" class="cbi-button" name="gps_refresh" value="<%:Refresh%>"/>
+	</form>
+	<% if out and #out > 0 then %><pre><%=out%></pre><% end %>
+	<p class="cbi-value-description"><%:A fix takes 30-60 s outdoors with a GNSS antenna connected; press Refresh to re-read the status.%></p>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Status%></legend>
+	<pre><%=at("'AT!GPSSTATUS?'")%></pre>
+	<pre><%=at("'AT!GPSLOC?'")%></pre>
+	<pre><%=at("'AT!GPSSATINFO?'")%></pre>
+</fieldset>
+
+<%+footer%>
