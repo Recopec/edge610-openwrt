@@ -1,0 +1,24 @@
+<%+header%>
+
+<h2 name="content"><%:Modem%></h2>
+
+<%
+local sys = require "luci.sys"
+local function at(cmd)
+	local out = sys.exec("/usr/bin/modem-at '" .. cmd .. "' 2>&1")
+	return luci.util.pcdata(out or "")
+end
+%>
+
+<fieldset class="cbi-section">
+	<legend><%:Sierra Wireless EM7565%></legend>
+	<pre><%=at("ATI")%></pre>
+	<pre><%=at("AT+CPIN?")%></pre>
+	<pre><%=at("AT+CSQ")%></pre>
+	<pre><%=at("AT+CEREG?")%></pre>
+	<pre><%=at("AT+COPS?")%></pre>
+	<pre><%=at("AT!GSTATUS?")%></pre>
+	<pre><%=at("AT!LTEINFO?")%></pre>
+</fieldset>
+
+<%+footer%>

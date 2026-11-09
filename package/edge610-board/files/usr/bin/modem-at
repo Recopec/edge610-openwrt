@@ -1,0 +1,26 @@
+#!/bin/sh
+# Send one AT command to the Edge 610's Sierra EM7565 and print the reply.
+# The AT port is discovered once (ttyUSB* that answers "AT") and cached in
+# /tmp/.modem-at-port.
+CMD="$1"
+[ -n "$CMD" ] || exit 1
+
+PORTFILE=/tmp/.modem-at-port
+
+find_port() {
+	local p
+	if [ -s "$PORTFILE" ]; then
+		p="$(cat "$PORTFILE")"
+		[ -c "$p" ] && { echo "$p"; return 0; }
+	fi
+	for p in /dev/ttyUSB*; do
+		[ -c "$p" ] || continue
+		case "$(printf 'AT\r' | timeout 2 socat - "$p",raw,echo=0 2>/dev/null)" in
+			*OK*) echo "$p" > "$PORTFILE"; echo "$p"; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+P="$(find_port)" || { echo "AT port not found"; exit 1; }
+printf '%s\r' "$CMD" | timeout 3 socat - "$P",raw,echo=0 2>/dev/null

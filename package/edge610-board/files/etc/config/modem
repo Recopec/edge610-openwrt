@@ -1,0 +1,4 @@
+config modem 'main'
+	option sim '0'
+	option rat '06'
+	option band '00'

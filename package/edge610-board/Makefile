@@ -69,6 +69,15 @@ define Package/edge610-board/install
 	$(INSTALL_BIN) ./files/etc/hotplug.d/net/20-wwan-rawip $(1)/etc/hotplug.d/net/20-wwan-rawip
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
+	$(INSTALL_BIN) ./files/usr/bin/modem-at $(1)/usr/bin/modem-at
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/etc/config/modem $(1)/etc/config/modem
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/controller/modem.lua $(1)/usr/lib/lua/luci/controller/modem.lua
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/modem
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/status.htm $(1)/usr/lib/lua/luci/view/modem/status.htm
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/modem
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/model/cbi/modem/settings.lua $(1)/usr/lib/lua/luci/model/cbi/modem/settings.lua
 	$(INSTALL_DIR) $(1)/etc/openclash/core
 	$(INSTALL_BIN) ./files/etc/openclash/core/clash_meta $(1)/etc/openclash/core/clash_meta
 endef
