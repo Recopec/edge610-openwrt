@@ -92,14 +92,14 @@ AT!RESET
 实测：B8-only 时无小区可驻留（本地 B8 小区极弱）；B3+B8（`0x84`）时驻留 B3，
 `AT!LTEINFO?` 的 InterFreq 列表里能看到 EARFCN 3740（B8）RSRP -134。
 
-## 当前镜像缺什么
+## 镜像支持状态
 
-内核 `CONFIG_USB_SERIAL` 未开启，模组在默认镜像里不可用。要支持需要：
+从 `ec39bbf` 起构建已内置 LTE 支持：
 
-| 包 | 作用 |
+| 组件 | 状态 |
 | --- | --- |
-| `kmod-usb-serial` + `kmod-usb-serial-wwan` + `kmod-usb-serial-option` | AT 口 |
-| option 驱动补丁（`option.c` 表加 `{ USB_DEVICE(0x1199, 0x9091) }`） | 识别 EM7565 |
-| `kmod-usb-wdm` + `kmod-usb-net-qmi-wwan` | QMI 数据接口 |
-| `uqmi` | 拨号 |
-| 开机脚本 | 上面 4 条 AT 配置 + `raw_ip=1` |
+| `kmod-usb-serial` / `-wwan` / `-option` | ✅ 内置（option 驱动带 EM7565 表项，`patches/openwrt/0002-…patch`） |
+| `kmod-usb-wdm` + `kmod-usb-net-qmi-wwan` | ✅ 内置（`wwan0` / `cdc-wdm0`，自动加载） |
+| `uqmi` + `proto qmi` | ✅ 内置（LuCI 可建 qmi 接口） |
+| `raw_ip=1` | ✅ `/etc/hotplug.d/net/20-wwan-rawip` 自动设置 |
+| AT 配置（SIMHOTSWAPDIS/UIMS/SELRAT） | 已写入模组 NVRAM，换镜像后仍保留 |

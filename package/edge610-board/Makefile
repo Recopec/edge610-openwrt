@@ -65,6 +65,8 @@ define Package/edge610-board/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/etc/uci-defaults/zzz99-edge610-network $(1)/etc/uci-defaults/zzz99-edge610-network
 	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz98-edge610-resize $(1)/etc/uci-defaults/zzz98-edge610-resize
+	$(INSTALL_DIR) $(1)/etc/hotplug.d/net
+	$(INSTALL_BIN) ./files/etc/hotplug.d/net/20-wwan-rawip $(1)/etc/hotplug.d/net/20-wwan-rawip
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
 	$(INSTALL_DIR) $(1)/etc/openclash/core
