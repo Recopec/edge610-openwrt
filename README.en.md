@@ -78,6 +78,19 @@ make PORTABLE=1 PORT_DIR=linux \
 # copy coremark.exe to the device and run ./coremark
 ```
 
+## Other onboard hardware (measured)
+
+| Hardware | State |
+| --- | --- |
+| **Sierra Wireless EM7565** LTE-A Cat-12 module (USB `1199:9091`, SN `UF04360020011048`) | Not driven by the image; loading `qmi_wwan` registers `wwan0` + `cdc-wdm0`. Back panel MAIN/AUX = LTE main/aux antennas, **GPS = GNSS antenna** |
+| **GPS/GNSS** | The EM7565's positioning (GPS/GLONASS/BeiDou), used by SD-WAN for device location; readable via QMI LOC or `AT!GPS`, needs the GPS antenna |
+| **Intel QuickAssist (QAT)** `8086:19e2` | Crypto/compression co-processor; no driver in OpenWrt (needs out-of-tree Intel qat17), disabled |
+| **QCA988x WiFi 5** `168c:003c` | ath10k works; shipped config has `disabled '1'`, after `wifi reload` `phy0-ap0` (5 GHz/80 MHz/23 dBm) comes up |
+| **SD Host controller** `8086:19db` | Drives the onboard eMMC (HS400); no second mmc device |
+| **SMBus devices** | `0x22`/`0x24` = PIC (watchdog control, written 0 at boot); `0x40` = PSU/telemetry; `0x50–0x57` = EEPROM/FRU; `0x20/0x21` etc. are write-only |
+| **Temperatures** | coretemp 50–56 °C; 8 switch port sensors 55–57 °C |
+| **ME (HECI)** `8086:19d3` | Present, unused |
+
 ## Port speed limits
 
 | Interface | Limit | Basis |

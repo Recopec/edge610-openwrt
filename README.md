@@ -78,6 +78,19 @@ make PORTABLE=1 PORT_DIR=linux \
 # 把 coremark.exe 拷到设备执行 ./coremark
 ```
 
+## 其他板载硬件（实测）
+
+| 硬件 | 状态 |
+| --- | --- |
+| **Sierra Wireless EM7565** LTE-A Cat-12 模组（USB `1199:9091`，SN `UF04360020011048`） | 镜像未带驱动；手动加载 `qmi_wwan` 后注册出 `wwan0` + `cdc-wdm0`。背板 MAIN/AUX = LTE 主/副天线，**GPS = GNSS 天线** |
+| **GPS/GNSS** | 即 EM7565 的定位功能（GPS/GLONASS/BeiDou），原厂用于 SD-WAN 设备定位；OpenWrt 下可经 QMI LOC 或 `AT!GPS` 读取，需接 GPS 天线 |
+| **Intel QuickAssist (QAT)** `8086:19e2` | 加密/压缩协处理器；OpenWrt 无驱动（需 Intel 外挂 qat17），未启用 |
+| **QCA988x WiFi 5** `168c:003c` | ath10k 正常；默认配置 `disabled '1'`，`wifi reload` 后 `phy0-ap0`（5GHz/80MHz/23dBm）可用 |
+| **SD Host 控制器** `8086:19db` | 驱动板载 eMMC（HS400），无第二个 mmc 设备 |
+| **SMBus 设备** | `0x22`/`0x24` = PIC（看门狗控制，开机写 0 关停）；`0x40` = 电源/遥测；`0x50–0x57` = EEPROM/FRU；`0x20/0x21` 等只写不读 |
+| **温度** | coretemp 50–56 °C；8 个交换机端口传感器 55–57 °C |
+| **ME (HECI)** `8086:19d3` | 存在，无用途 |
+
 ## 速率上限（重要）
 
 | 接口 | 上限 | 依据 |
