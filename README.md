@@ -1,5 +1,7 @@
 # Edge 610 OpenWrt 固件自动构建
 
+**简体中文** | [English](README.en.md)
+
 为 **VMware SD-WAN Edge 610**（Dell EMC VEP1400 同款硬件）定制的 OpenWrt 镜像，GitHub Actions 一键全源码构建。
 
 - 目标机：Intel Atom **C3308**（2C/2T 1.6GHz，无 AVX/AVX2）/ 4GB DDR4 / 16GB eMMC（`/dev/mmcblk0`，14.6GiB 可用）/ 无显示输出（Micro-USB 串口 115200 8N1）
@@ -12,17 +14,21 @@
 | --- | --- |
 | ![状态概览](docs/screenshots/01-overview.png) | ![网络接口](docs/screenshots/02-network.png) |
 
-| OpenClash |
-| --- |
-| ![OpenClash](docs/screenshots/03-openclash.png) |
+| OpenClash | 实时流量 |
+| --- | --- |
+| ![OpenClash](docs/screenshots/03-openclash.png) | ![实时流量](docs/screenshots/04-realtime.png) |
 
-> 截图为实机 LuCI（Argon v3 + 中文），该机 LAN 已改为 `10.1.2.3/24`；镜像默认是 `192.168.1.1/24`。
+| 挂载点（根分区已扩容） | Docker |
+| --- | --- |
+| ![挂载点](docs/screenshots/05-mounts.png) | ![Docker](docs/screenshots/06-docker.png) |
+
+> 实机截图：Argon v3 主题 + 中文界面。该机 LAN 为 `10.1.2.3/24`，镜像默认 `192.168.1.1/24`。
 
 ## 硬件实测（本机）
 
 | 项目 | 实测值 |
 | --- | --- |
-| CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（交接文档里写的 C3338 是错的） |
+| CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（2C/2T，无 AVX/AVX2） |
 | 内存 | 4,003,672 kB ≈ 3.8 GiB |
 | eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 16M vfat `/boot`、p2 rootfs、p128 239K BIOS boot） |
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
