@@ -14,7 +14,7 @@
 | --- | --- |
 | ![状态概览](docs/screenshots/01-overview.png) | ![网络接口](docs/screenshots/02-network.png) |
 
-| OpenClash | 实时流量 |
+| OpenClash | 实时流量（千兆打满） |
 | --- | --- |
 | ![OpenClash](docs/screenshots/03-openclash.png) | ![实时流量](docs/screenshots/04-realtime.png) |
 

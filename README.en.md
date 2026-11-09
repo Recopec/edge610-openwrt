@@ -14,7 +14,7 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 | --- | --- |
 | ![Status overview](docs/screenshots/01-overview.png) | ![Network interfaces](docs/screenshots/02-network.png) |
 
-| OpenClash | Realtime traffic |
+| OpenClash | Realtime traffic (gigabit saturated) |
 | --- | --- |
 | ![OpenClash](docs/screenshots/03-openclash.png) | ![Realtime traffic](docs/screenshots/04-realtime.png) |
 
