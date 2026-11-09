@@ -8,7 +8,7 @@
 ## 阶段 0 — 交接文档（ImageBuilder 路线）
 
 交接文档给出 GitHub Actions + OpenWrt **ImageBuilder** 方案（23.05.5），目标：
-6×RJ45（Marvell DSA）+ 2×SFP（X553）、关闭硬件看门狗、内置 OpenClash + mihomo `amd64-v1`、
+6×RJ45（Marvell DSA）+ 2×SFP（X553）、关闭硬件看门狗、内置 OpenHsalc + mihomo `amd64-v1`、
 根分区 1024MB、刷入 16GB eMMC。
 
 仓库首个 workflow 即 ImageBuilder 方案，构建"成功"但产物不可用。
@@ -41,7 +41,7 @@
 
 - run `42362985831`：`make` 成功，产出镜像（53.6MB）、manifest、rootfs tar
 - 但验证步假设 `build_dir/.../root-x86_64` 存在 → 失败（该目录名与预期不符）
-- 改为**路径无关**校验：manifest 断言包、`find build_dir -path '*/lib/modules/*'` 找模块、rootfs tar 里查文件/跑 `clash_meta`
+- 改为**路径无关**校验：manifest 断言包、`find build_dir -path '*/lib/modules/*'` 找模块、rootfs tar 里查文件/跑 `hsalc_meta`
 
 ## 阶段 4 — 插件与工具链完善
 
@@ -103,7 +103,7 @@ fdc50000-fdc5ffff : INTC3000:00
 所以 P2SB 不可见时用 conduit netdev 的 device 兜底即可。
 
 **串口直传模块验证**（不刷机）：把镜像里的 stripped `.ko` 用 base64 经串口写入设备
-（设备无 `base64`/`od`/`xxd`，但 OpenClash 依赖的 `ruby` 可用 `String#unpack1("m")` 解码），
+（设备无 `base64`/`od`/`xxd`，但 OpenHsalc 依赖的 `ruby` 可用 `String#unpack1("m")` 解码），
 md5 对齐后 `insmod`：
 
 ```

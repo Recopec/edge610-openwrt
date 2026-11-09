@@ -10,13 +10,13 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 
 ## Screenshots
 
-| Status overview | Network interfaces |
-| --- | --- |
-| ![Status overview](docs/screenshots/01-overview.png) | ![Network interfaces](docs/screenshots/02-network.png) |
+| Status overview |
+| --- |
+| ![Status overview](docs/screenshots/01-overview.png) |
 
-| OpenClash | Realtime traffic (gigabit saturated) |
+| Network interfaces | Realtime traffic (gigabit saturated) |
 | --- | --- |
-| ![OpenClash](docs/screenshots/03-openclash.png) | ![Realtime traffic](docs/screenshots/04-realtime.png) |
+| ![Network interfaces](docs/screenshots/02-network.png) | ![Realtime traffic](docs/screenshots/04-realtime.png) |
 
 | Mount points (rootfs already grown) | Docker |
 | --- | --- |
@@ -86,8 +86,8 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | --- | --- |
 | OpenWrt | 25.12.6 (x86_64, kernel 6.12.112) |
 | LuCI | official feed |
-| OpenClash | 0.48.002 (official stable release tag) |
-| Mihomo core | v1.19.33 `linux-amd64-v1` (**no AVX2**, preinstalled at `/etc/openclash/core/clash_meta`) |
+| OpenHsalc | 0.48.002 (official stable release tag) |
+| Mihomo core | v1.19.33 `linux-amd64-v1` (**no AVX2**, preinstalled at `/etc/openhsalc/core/hsalc_meta`) |
 | DNS | `dnsmasq-full` (replaces the default dnsmasq) |
 | Switching | `kmod-dsa` + `kmod-dsa-mv88e6xxx` + this repo's `edge610_dsa` (ports named `lan1..lan6`) |
 | NIC driver | `kmod-ixgbe` (**autoload stripped**, loaded in order by the init script) |
@@ -127,7 +127,7 @@ package/edge610-board/
     ├── etc/init.d/edge610           watchdog off + ordered bring-up (standalone -> ixgbe -> DSA)
     ├── etc/modprobe.d/edge610.conf  board module parameters
     ├── etc/uci-defaults/zzz99-edge610-network  first-boot network (LAN only, no WAN)
-    └── etc/openclash/core/          clash_meta downloaded by CI (gitignored)
+    └── etc/openhsalc/core/          hsalc_meta downloaded by CI (gitignored)
 ```
 
 ### Key design notes
@@ -170,12 +170,12 @@ ip link                     # lan1..lan6 present (+ lo and the ethX ports)
 logread -e edge610          # watchdog cleared, conduit, port-up messages
 df -h /                     # ~14.3G when booted from eMMC (first-boot growth)
 sensors                     # Core 0 / Core 1 temperatures (kmod-hwmon-coretemp)
-/etc/openclash/core/clash_meta -v   # must print Mihomo Meta ... linux amd64 (amd64-v1)
+/etc/openhsalc/core/hsalc_meta -v   # must print Mihomo Meta ... linux amd64 (amd64-v1)
 ```
 
 - Idle for ≥10 minutes without a reboot → the watchdog is really off.
 - Plug a cable into **LAN1** and open `http://192.168.1.1` → LuCI.
-- Services → OpenClash: load a subscription and start the proxy.
+- Services → OpenHsalc: load a subscription and start the proxy.
 
 ## Build-time pitfalls
 
@@ -194,7 +194,7 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 | `ip link` shows no `lan1..lan6` | check `logread -e edge610` for `edge610_switch_standalone` / `edge610_dsa` errors; `dmesg \| grep -i -E 'dsa\|mv88e'`; `lsmod \| grep -E 'edge610\|mv88e\|dsa'` |
 | `P2SB BAR unavailable` in the log | this BIOS hides P2SB (`8086:19dd` is not in `lspci`). The module derives the BAR from `/proc/iomem` (`INTC3000:00`, usually `0xfd000000`); if that fails, pass it manually: `modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` and `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
 | Reboots every 4–5 minutes | watchdog still armed: `logread -e edge610` should not contain `iSMT SMBus adapter not found`. Check manually: `modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`, then `i2cset -y <bus> 0x22 0 0 b` |
-| Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openclash/core/clash_meta` |
+| Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openhsalc/core/hsalc_meta` |
 | No WAN | no WAN is preset: `br-lan` only contains `lan1..lan6`, and `eth2`/`eth3` (SFP) stay unconfigured. Create one in LuCI → Network → Interfaces, choosing `lan1..lan6` or `eth2/eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
 | More `ethX` ports than expected | X553 has four MACs and the enumerated count depends on the BIOS; trust the `conduit:` line and the physical cabling |
 
@@ -202,4 +202,4 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 
 - To change the image: edit `package/edge610-board/` or the `.config` seed in the workflow → commit/push → re-run Actions.
 - Key packages in the `.config` seed are asserted at build time (grep after defconfig); a missing package fails the build instead of producing a wrong image.
-- Final checks: the image exists and has a sane size, the manifest contains the key packages, the rootfs contains the modules and scripts, and `clash_meta` is executable and prints Mihomo.
+- Final checks: the image exists and has a sane size, the manifest contains the key packages, the rootfs contains the modules and scripts, and `hsalc_meta` is executable and prints Mihomo.

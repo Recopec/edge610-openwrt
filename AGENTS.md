@@ -20,7 +20,7 @@
 - 树外内核模块：`package/edge610-board/src/edge610_switch_standalone.c`、`edge610_dsa.c`
 - 板级脚本：`/etc/init.d/edge610`（START=19）：关看门狗 → switch_standalone → ixgbe → mv88e6xxx → dsa
 - 首启网络：`/etc/uci-defaults/zzz99-edge610-network` → `br-lan = lan1..lan6 @192.168.1.1`
-- OpenClash + `/etc/openclash/core/clash_meta`（amd64-v1，构建时下载）
+- OpenHsalc + `/etc/openhsalc/core/hsalc_meta`（amd64-v1，构建时下载）
 
 ## 构建
 
@@ -85,7 +85,7 @@ BIT(19)=1G / BIT(20)=2.5G。SFP 口的能力表只有 1G/10G，没有 2.5G。
 ip -br link | grep -E 'lan[1-6]|eth0'      # lan1..lan6 存在
 cat /sys/class/net/eth0/carrier            # 1
 df -h /                                    # 14.5G（装盘时已离线扩容）
-/etc/openclash/core/clash_meta -v          # 版本号，不能 Illegal instruction
+/etc/openhsalc/core/hsalc_meta -v          # 版本号，不能 Illegal instruction
 ```
 
 ## 仓库结构
