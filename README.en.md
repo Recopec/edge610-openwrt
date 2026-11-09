@@ -52,9 +52,12 @@ The C3308 has no PassMark entry (too obscure), so it was measured with **CoreMar
 
 | Item | Measured |
 | --- | --- |
-| CoreMark 1.0 | **7,786.51** iterations/sec (110,000 iterations, 14.13 s, CRC validated) |
+| CoreMark 1.0 (single) | **7,786.51** iterations/sec (110,000 iterations, 14.13 s, CRC validated) |
+| CoreMark 1.0 (2 threads) | **14,582.09** (`-DMULTITHREAD=2 -DUSE_FORK=1`, scaling 1.87×) |
+| Per MHz | 7,786 / 1600 ≈ **4.87 CoreMark/MHz** (Goldmont out-of-order core) |
 | Compiler | GCC 14.3.0 (OpenWrt toolchain), `-O2 -DPERFORMANCE_RUN=1 -lrt` |
-| Reference | Sibling C3338: PassMark single 1,028 / multi 1,834 (C3308 clocks lower, same class) |
+| Reference (single) | Raspberry Pi 4 @1.5 GHz: 8,257; RPi 3: 3,800; i5-3320M: 21,245; i3-10100: 30,532 |
+| Reference (PassMark) | Sibling C3338: single 1,028 / multi 1,834 (C3308 clocks lower, same class) |
 
 OpenSSL crypto (`openssl speed`, AES-NI active):
 

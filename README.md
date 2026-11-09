@@ -52,9 +52,12 @@ C3308 没有 PassMark 条目（太冷门），用 **CoreMark 1.0** 实测（本�
 
 | 项目 | 实测值 |
 | --- | --- |
-| CoreMark 1.0 | **7,786.51** iterations/sec（110,000 次迭代，14.13 s，CRC 校验通过） |
+| CoreMark 1.0（单线程） | **7,786.51** iterations/sec（110,000 次迭代，14.13 s，CRC 校验通过） |
+| CoreMark 1.0（2 线程） | **14,582.09**（`-DMULTITHREAD=2 -DUSE_FORK=1`，扩展比 1.87×） |
+| 每 MHz | 7,786 / 1600 ≈ **4.87 CoreMark/MHz**（Goldmont 乱序核） |
 | 编译器 | GCC 14.3.0（OpenWrt 工具链），`-O2 -DPERFORMANCE_RUN=1 -lrt` |
-| 对照 | 同系列 C3338：PassMark 单核 1,028 / 多核 1,834（C3308 频率更低，同一档） |
+| 对照（单线程） | Raspberry Pi 4 @1.5 GHz：8,257；RPi 3：3,800；i5-3320M：21,245；i3-10100：30,532 |
+| 对照（PassMark） | 同系列 C3338：单核 1,028 / 多核 1,834（C3308 频率更低，同一档） |
 
 OpenSSL 加解密（`openssl speed`，AES-NI 生效）：
 
