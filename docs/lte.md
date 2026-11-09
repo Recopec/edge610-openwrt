@@ -59,14 +59,20 @@ AT+CGACT=1,1
 AT+CGPADDR=1                   # 返回运营商分配的 IP
 ```
 
-设备侧关键：**qmi_wwan 接口必须切 raw-ip**，否则 TX 有包、RX 永远为 0：
+设备侧关键：qmi_wwan 的帧格式必须和模组一致。**默认是 802.3**（`raw_ip=0`），
+直接配置 IP 就能通；只有模组被切到 raw-ip（`uqmi --wda-set-data-format raw-ip`）时
+才需要 `echo 1 > /sys/class/net/wwan0/qmi/raw_ip`。
+
+镜像里的 `proto qmi`（`/lib/netifd/proto/qmi.sh`）会自动设置 802.3 并在必要时切 raw_ip，
+所以用 LuCI/uci 建 qmi 接口时不用手动处理。
 
 ```bash
-echo 1 > /sys/class/net/wwan0/qmi/raw_ip
+# 手动测试（802.3 默认模式，无需 raw_ip）
 ip addr add <IP>/32 dev wwan0
 ip link set wwan0 up
 ip route add <网关>/32 dev wwan0
-ping -I <IP> 223.5.5.5
+ip route add 223.5.5.5/32 via <网关> dev wwan0 src <IP>
+ping -c 3 223.5.5.5
 ```
 
 实测（联通卡）：
@@ -101,5 +107,5 @@ AT!RESET
 | `kmod-usb-serial` / `-wwan` / `-option` | ✅ 内置（option 驱动带 EM7565 表项，`patches/openwrt/0002-…patch`） |
 | `kmod-usb-wdm` + `kmod-usb-net-qmi-wwan` | ✅ 内置（`wwan0` / `cdc-wdm0`，自动加载） |
 | `uqmi` + `proto qmi` | ✅ 内置（LuCI 可建 qmi 接口） |
-| `raw_ip=1` | ✅ `/etc/hotplug.d/net/20-wwan-rawip` 自动设置 |
+| qmi_wwan 帧格式 | `proto qmi` 自动设 802.3（必要时切 raw-ip），无需手动处理 |
 | AT 配置（SIMHOTSWAPDIS/UIMS/SELRAT） | 已写入模组 NVRAM，换镜像后仍保留 |
