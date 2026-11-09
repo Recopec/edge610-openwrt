@@ -6,19 +6,43 @@
 - 交换：2× SFP（SoC 原生 X553，`ixgbe`）+ 6× RJ45（板载 Marvell 88E6190，DSA `lan1..lan6`）
 - 看门狗：板载 PIC 硬件 WDT（iSMT SMBus `0x22/0x24`），开机由脚本清除，否则 4~5 分钟硬重启
 
+## 界面预览
+
+| 状态概览 | 网络接口 |
+| --- | --- |
+| ![状态概览](docs/screenshots/01-overview.png) | ![网络接口](docs/screenshots/02-network.png) |
+
+| OpenClash |
+| --- |
+| ![OpenClash](docs/screenshots/03-openclash.png) |
+
+> 截图为实机 LuCI（Argon v3 + 中文），该机 LAN 已改为 `10.1.2.3/24`；镜像默认是 `192.168.1.1/24`。
+
 ## 硬件实测（本机）
 
 | 项目 | 实测值 |
 | --- | --- |
 | CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（交接文档里写的 C3338 是错的） |
 | 内存 | 4,003,672 kB ≈ 3.8 GiB |
-| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`，p1 128MB EFI + p2 根分区） |
+| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 16M vfat `/boot`、p2 rootfs、p128 239K BIOS boot） |
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
-| SFP 口映射 | `eth2` = `05:00.0`、`eth3` = `05:00.1`（第二个 X553 控制器的两个口）；**`eth1` = `03:00.1` 是交换 CPU 链路（port 9）**；`eth0` = `03:00.0`（port 10，本机型无链路） |
-| SFP 速率 | **最高 1G/2.5G，不支持 10G**：驱动能力表只有 `1000baseKX`/`2500baseT`，BIOS 只有 `Link Speed [Auto Negotiated]`，无 10G 档 |
+| 网口映射 | `eth0` = `03:00.0` = 交换 CPU 链路（本机 **CPU port 10**，conduit）；`eth1` = `03:00.1` 未使用；`eth2` = `05:00.0`、`eth3` = `05:00.1` = 两个 SFP 口 |
+| SFP 速率 | **只有 1G**（不支持 2.5G，也不支持 10G）。Dell 规格书：Edge 610 = `2×1G SFP`，620/640/680 才是 `2×10G SFP+`；四个 X553 全是 `8086:15c3` = `X550EM_A_KR_L`（1G 背板版），驱动对该 device ID 只返回 1G。实测强制 2.5GBASE-X（`x553_speed=2500` + 交换机 `MAC_CTL=0x303f`）链路仍锁定 1G |
 | WiFi | `168c:003c` QCA986x/988x（ath10k + `ath10k-firmware-qca988x`） |
 
 > 为什么不用 ImageBuilder：官方 x86 预编译内核关闭了 `CONFIG_NET_DSA` / `MV88E6XXX`，没有 `i2c-ismt`，也无法编译本机所需的外挂内核模块。因此本仓库改为 **全源码构建** OpenWrt 25.12.6。
+
+## 速率上限（重要）
+
+| 接口 | 上限 | 依据 |
+| --- | --- | --- |
+| 6×RJ45 `lan1..lan6` | **1G/口** | Marvell 88E6190 是千兆交换机 |
+| 2×SFP | **1G** | Dell 规格书 Edge 610 = `2×1G SFP`；X553 是 `8086:15c3`（KR_L，1G 背板版） |
+| 内部 CPU 链路（交换机 ↔ X553） | **1G** | 硬件可配 2.5GBASE-X，实测强制后链路仍锁 1G |
+
+- **不支持 2.5G**：SFP 驱动能力表只有 1G/10G；CPU 链路实测 2.5G 起不来（`x553_speed=2500` + `MAC_CTL=0x303f` 仍 1G）。
+- **不支持 10G**：10G SFP+ 只在 Edge 620/640/680（4/8/16 核）上；610 的 X553 被 strap 成 KR_L（1G）。
+- 想要 2.5G/10G：换 620 以上机型，或外接 USB 2.5G 网卡（镜像已含 `kmod-usb-net-rtl8152`）。
 
 ## 构建产物
 
@@ -70,9 +94,8 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
 | 安全/证书 | `acme`+`uhttpd`（Let's Encrypt HTTPS）、`banip`（爆破封禁）、`acl`（多用户权限） |
 | 虚拟化 | `lxc`（LXC 容器） |
-| 诊断工具 | `nmap` `arp-scan` `strace` `lsof` `sysstat` `rsync` `bash`（预置，便于无网排障） |
 | 加速/组网 | `kmod-tcp-bbr`（BBR 拥塞控制）、`zerotier`（组网，GUI 走 iStore）、`luci-app-wifischedule`（无线定时） |
-| 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证 2.5G）、`vnstat2`（流量历史） |
+| 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证千兆线速）、`vnstat2`（流量历史） |
 | 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`watchcat`（断网自愈）、`lldpd` |
 | DNS/去广告 | **不预置**（按需 `apk add luci-app-adguardhome` / `luci-app-smartdns` / `luci-app-adblock-fast`） |
 | 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`filebrowser`（aria2/transmission 按需 `apk add`） |
@@ -87,6 +110,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 
 ```
 .github/workflows/build.yml       全源码构建流水线（14 步，含断言与镜像校验）
+patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch  rootfs 改用 mke2fs（在线扩容）
 package/edge610-board/
 ├── Makefile                      三个内核包 + 板级包定义
 ├── src/
@@ -103,19 +127,20 @@ package/edge610-board/
 ### 关键设计
 
 - **加载顺序**：`ixgbe` 的 autoload 在构建时被删除，`/etc/init.d/edge610`（START=19，早于 network）依次执行：
-  `modprobe edge610_switch_standalone cpu_port=10 x553_sgmii=1 cpu_mac_ctl=0x203e serdes_autoneg=1` → `modprobe ixgbe` → `modprobe mv88e6xxx` → `modprobe edge610_dsa conduit_name=<ethX>`。
+  `insmod edge610_switch_standalone cpu_port=0 x553_sgmii=1 cpu_mac_ctl=0x203e serdes_autoneg=1` → `modprobe ixgbe` → `modprobe mv88e6xxx` → `insmod edge610_dsa conduit_name=<ethX> force_cpu_phyctl=0x203e`。
+  （busybox 的 `modprobe` 会静默丢弃 `name=value`，所以板级模块用 `insmod` 传参。）
 - **conduit 检测**：优先 PCI `0000:03:00.0` 的 netdev；回退取 ixgbe 中 MAC 最小的网口（conduit 是四个连续 X553 MAC 的第一个）。conduit 口只置 up，不配地址。
 - **看门狗**：扫描 `/sys/bus/i2c/devices/*/name` 中的 `iSMT` 适配器，向 `0x22`/`0x24` 写 `0x00`；失败仅记录日志，不阻塞启动。
 - **端口改名**：`edge610_dsa` 中端口名由上游 `ge1..ge6` 改为 `lan1..lan6`，与 OpenWrt DSA 惯例及网络默认配置一致。
-- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等）；剩余空间在**装盘时离线**扩展。
-  注意：OpenWrt 用 `make_ext4fs` 生成镜像，其 resize inode 布局与内核在线扩容不兼容（`reserve_backup_gdb: reserved block 64 not at offset 63`），
-  因此**不能**在已挂载的根文件系统上 `resize2fs`，必须在 U 盘系统里对未挂载的 eMMC 执行。
+- **根分区**：`CONFIG_TARGET_ROOTFS_PARTSIZE=1024`（默认 104MB 装不下 mihomo + ruby 等），首启由 `zzz98-edge610-resize` 在线扩到整盘。
+  前提是镜像用 `mkfs.ext4` 而不是 OpenWrt 默认的 `make_ext4fs` 生成：后者的 resize inode 布局会让内核在线扩容报
+  `reserve_backup_gdb: reserved block 64 not at offset 63`（[openwrt#7729](https://github.com/openwrt/openwrt/issues/7729)）。
+  本仓库用 `patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch` 替换 `Image/mkfs/ext4`（在 fakeroot 里 `chown -R 0:0`，保证镜像内属主为 root）。
 
 ## 刷机
 
-> 镜像必须用本仓库的构建（`Image/mkfs/ext4` 已用 `mkfs.ext4` 替换 `make_ext4fs`，
-> 见 `patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch`）。`make_ext4fs` 生成的
-> 文件系统内核拒绝在线扩容（openwrt/openwrt#7729），首启扩容会失败。
+> 必须用本仓库构建的镜像（已打 mke2fs 补丁）。用 OpenWrt 默认 `make_ext4fs` 生成的镜像，
+> 首启在线扩容会失败（openwrt/openwrt#7729）。
 
 1. 准备 U 盘：一个 OpenWrt 启动盘 + 一个 exfat 数据分区，把 `edge610-*.img.gz` 放进数据分区。
 2. 拆背板小铁片露出 Micro-USB 串口（CP210x），PuTTY：`115200 8N1`、无流控。
