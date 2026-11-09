@@ -96,3 +96,6 @@ scripts/build-local.sh       本地构建（与 CI 等价）
 .github/workflows/build.yml  CI 构建
 docs/bringup-log.md          时间线与证据
 ```
+
+文档策略：`docs/*.md` 中文为主，配套 `*.en.md` 英文版（`README.en.md` 只链英文版），
+两个版本顶部互相加链接。新增/修改文档时两边都要更新。
