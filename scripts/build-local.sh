@@ -56,7 +56,7 @@ fi
 # 1c. EM7565 (1199:9091) is missing from option's device table; without it
 # the modem exposes no AT ports (qmi_wwan still works).
 cp "$REPO/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \
-  target/linux/generic/patches-6.12/999-usb-serial-option-em7565.patch
+  target/linux/x86/patches-6.12/999-usb-serial-option-em7565.patch
 
 log "sync edge610-board package"
 rm -rf "$OW/package/edge610-board"
