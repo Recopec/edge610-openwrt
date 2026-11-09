@@ -62,6 +62,9 @@ MODULE_PARM_DESC(cpu_port, "88E6190 CPU port: 9 (alternate) or 10 (primary)");
 static bool x553_sgmii;
 module_param(x553_sgmii, bool, 0444);
 MODULE_PARM_DESC(x553_sgmii, "Temporarily select X553 SGMII/1G mode");
+static ushort x553_speed = 1000;
+module_param(x553_speed, ushort, 0444);
+MODULE_PARM_DESC(x553_speed, "X553 SGMII speed in Mbps: 1000 (default) or 2500");
 
 static unsigned long p2sb_bar_addr;
 module_param(p2sb_bar_addr, ulong, 0444);
@@ -335,13 +338,15 @@ static int x553_select_sgmii(unsigned int fn)
 		return -ENOMEM;
 	}
 	nwsel = readl(bar + X553_NW_MNG_IF_SEL);
-	new_nwsel = (nwsel & ~GENMASK(21, 17)) | BIT(19) | BIT(25);
+	/* NW_MNG_IF_SEL speed field: BIT(19)=1G, BIT(20)=2.5G, BIT(21)=10G */
+	new_nwsel = (nwsel & ~GENMASK(21, 17)) |
+		    (x553_speed == 2500 ? BIT(20) : BIT(19)) | BIT(25);
 	writel(new_nwsel, bar + X553_NW_MNG_IF_SEL);
 	readl(bar + X553_NW_MNG_IF_SEL);
 	pci_iounmap(dev, bar);
 	pci_dev_put(dev);
-	pr_info(DRV ": X553 fn%u NW_MNG_IF_SEL 0x%08x -> 0x%08x\n",
-		fn, nwsel, new_nwsel);
+	pr_info(DRV ": X553 fn%u NW_MNG_IF_SEL 0x%08x -> 0x%08x (speed %u)\n",
+		fn, nwsel, new_nwsel, x553_speed);
 	return 0;
 }
 
