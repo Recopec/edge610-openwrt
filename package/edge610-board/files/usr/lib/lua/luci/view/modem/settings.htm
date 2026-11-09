@@ -1,0 +1,152 @@
+<%+header%>
+
+<h2 name="content"><%:Modem settings%></h2>
+
+<%
+local sys = require "luci.sys"
+local http = require "luci.http"
+local uci = require "luci.model.uci".cursor()
+
+-- LTE bands supported by the EM7565 (product spec Table 1-1).
+-- AT!BAND extended masks: bit = band-1 in Lmask1 (bands 1-64),
+-- bit = band-65 in Lmask2 (bands 65-128).
+local bands = {
+	{ 1,  "B1 (2100 MHz)" },   { 2,  "B2 (1900 MHz)" },   { 3,  "B3 (1800 MHz)" },
+	{ 4,  "B4 (1700 MHz)" },   { 5,  "B5 (850 MHz)" },    { 7,  "B7 (2600 MHz)" },
+	{ 8,  "B8 (900 MHz)" },    { 9,  "B9 (1800 MHz)" },   { 12, "B12 (700 MHz)" },
+	{ 13, "B13 (700 MHz)" },   { 18, "B18 (850 MHz)" },   { 19, "B19 (850 MHz)" },
+	{ 20, "B20 (800 MHz)" },   { 26, "B26 (850 MHz)" },   { 28, "B28 (700 MHz)" },
+	{ 29, "B29 (700 MHz, DL only)" }, { 30, "B30 (2300 MHz, DL only)" },
+	{ 32, "B32 (1500 MHz, DL only)" }, { 41, "B41 (2600 MHz TDD)" },
+	{ 42, "B42 (3500 MHz TDD)" }, { 43, "B43 (3700 MHz TDD)" },
+	{ 46, "B46 (5200 MHz LAA)" }, { 48, "B48 (3500 MHz CBRS)" },
+	{ 66, "B66 (AWS-3)" },
+}
+
+local sim = uci:get("modem", "main", "sim") or "0"
+local rat = uci:get("modem", "main", "rat") or "06"
+local cur = {}
+for b in (uci:get("modem", "main", "band") or ""):gmatch("%d+") do
+	cur[tonumber(b)] = true
+end
+
+-- Lua 5.1 here has 32-bit integers, so build the 64-bit masks as hex strings.
+local function hex64(bits)
+	local d = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+	for _, b in ipairs(bits) do
+		local q = math.floor(b / 4)
+		d[16 - q] = d[16 - q] + 2 ^ (b % 4)
+	end
+	local h = "0123456789abcdef"
+	local out = ""
+	for i = 1, 16 do
+		out = out .. h:sub(d[i] + 1, d[i] + 1)
+	end
+	return out
+end
+
+local msg
+if http.formvalue("apply") then
+	local nsim = http.formvalue("sim") or "0"
+	local nrat = http.formvalue("rat") or "06"
+	local sel = http.formvalue("band")
+	if type(sel) ~= "table" then
+		sel = sel and { sel } or {}
+	end
+
+	local list, l1, l2 = {}, {}, {}
+	for _, v in ipairs(sel) do
+		local b = tonumber(v)
+		if b and b >= 1 and b <= 128 then
+			list[#list + 1] = tostring(b)
+			if b <= 64 then
+				l1[#l1 + 1] = b - 1
+			else
+				l2[#l2 + 1] = b - 65
+			end
+		end
+	end
+
+	uci:set("modem", "main", "sim", nsim)
+	uci:set("modem", "main", "rat", nrat)
+	uci:set("modem", "main", "band", table.concat(list, " "))
+	uci:commit("modem")
+
+	sim, rat, cur = nsim, nrat, {}
+	for _, v in ipairs(list) do
+		cur[tonumber(v)] = true
+	end
+
+	local function at(cmd)
+		sys.exec("/usr/bin/modem-at " .. cmd .. " 2>&1")
+	end
+
+	-- -p unlocks password-protected commands in the same AT session
+	if #list == 0 or #list == #bands then
+		at("-p 'AT!BAND=00'")
+	else
+		at("-p 'AT!BAND=0B,\"custom\",0," .. hex64(l1) .. "," .. hex64(l2) .. ",0,0,0'")
+		at("-p 'AT!BAND=0B'")
+	end
+	at("'AT!UIMS=" .. nsim .. "'")
+	at("-p 'AT!SELRAT=" .. nrat .. "'")
+	at("'AT!RESET'")
+
+	msg = "Saved; the modem has been reset."
+end
+%>
+
+<fieldset class="cbi-section">
+	<legend><%:Sierra Wireless EM7565%></legend>
+	<form method="post">
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="sim"><%:SIM slot%></label>
+			<div class="cbi-value-field">
+				<select name="sim" id="sim">
+					<option value="0"<% if sim == "0" then %> selected<% end %>><%:SIM1 (upper slot)%></option>
+					<option value="1"<% if sim == "1" then %> selected<% end %>><%:SIM2 (lower slot, not wired on the Edge 610)%></option>
+				</select>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="rat"><%:Radio mode%></label>
+			<div class="cbi-value-field">
+				<select name="rat" id="rat">
+					<option value="00"<% if rat == "00" then %> selected<% end %>><%:Automatic%></option>
+					<option value="06"<% if rat == "06" then %> selected<% end %>><%:LTE only%></option>
+				</select>
+			</div>
+		</div>
+		<div class="cbi-value cbi-value-last">
+			<label class="cbi-value-title"><%:Band lock%></label>
+			<div class="cbi-value-field">
+				<div class="band-grid">
+					<% for _, b in ipairs(bands) do %>
+					<label><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/> <%=b[2]%></label>
+					<% end %>
+				</div>
+				<div class="cbi-value-description"><%:Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active.%></div>
+			</div>
+		</div>
+		<div class="cbi-page-actions">
+			<input type="submit" name="apply" class="cbi-button cbi-button-apply" value="<%:Save & Apply%>"/>
+		</div>
+	</form>
+	<% if msg then %><div class="alert-message success"><%=msg%></div><% end %>
+</fieldset>
+
+<style>
+.band-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 4px 18px;
+}
+.band-grid label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+}
+</style>
+
+<%+footer%>
