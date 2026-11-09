@@ -156,7 +156,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | Virtualization | `lxc` |
 | Acceleration / mesh | `kmod-tcp-bbr` (BBR congestion control), `zerotier` (via iStore GUI), `luci-app-wifischedule` |
 | Time / speed / traffic | `chrony` (precise time), `librespeed` (LAN speed test, verifies gigabit line rate), `vnstat2` (traffic history) |
-| Networking | `mwan3` (multi-WAN, pairs with the two SFP ports), `pbr` (policy routing), `upnp`, `nlbwmon`, `wol`, `udpxy` (IPTV multicast-to-unicast), `omcproxy`, `watchcat` (auto recovery), `lldpd` |
+| Networking | `mwan3` (multi-WAN, pairs with the two SFP ports), `pbr` (policy routing), `upnp`, `nlbwmon`, `wol`, `udpxy` (IPTV multicast-to-unicast), `omcproxy`, `lldpd` |
 | DNS / ad blocking | **not preset** (`apk add luci-app-adguardhome` / `luci-app-smartdns` / `luci-app-adblock-fast` as needed) |
 | Storage / sharing | `ksmbd` (SMB), `hd-idle`, `filebrowser` (aria2/transmission via `apk add`) |
 | Disks / filesystems | `kmod-fs-exfat` / `vfat` / `ntfs3`, `kmod-usb-printer`, `e2fsprogs`, `smartmontools`, `hdparm` |

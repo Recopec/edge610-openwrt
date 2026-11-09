@@ -261,7 +261,6 @@ CONFIG_PACKAGE_luci-app-nlbwmon=y
 CONFIG_PACKAGE_luci-app-wol=y
 CONFIG_PACKAGE_luci-app-udpxy=y
 CONFIG_PACKAGE_luci-app-omcproxy=y
-CONFIG_PACKAGE_luci-app-watchcat=y
 CONFIG_PACKAGE_luci-app-lldpd=y
 CONFIG_PACKAGE_luci-app-ksmbd=y
 CONFIG_PACKAGE_ksmbd-server=y
