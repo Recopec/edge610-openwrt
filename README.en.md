@@ -24,6 +24,14 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 
 > Captured on real hardware: Argon v3 theme, Chinese UI. The box in the screenshots uses `10.1.2.3/24`; the image defaults to `192.168.1.1/24`.
 
+## Hardware photos
+
+| Front | Rear |
+| --- | --- |
+| ![Front](docs/hardware/front.jpg) | ![Rear](docs/hardware/back.jpg) |
+
+> Rear panel, left to right: MAIN/GPS antenna connectors, 2× SFP (labelled 1/2), GE1/GE2, GE3/GE4, AUX; the Micro-USB console sits behind the small metal cover.
+
 ## Hardware (measured)
 
 | Item | Value |
