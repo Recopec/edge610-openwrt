@@ -84,6 +84,8 @@ jobs:
             https://github.com/openwrt/openwrt.git openwrt
           cp -r package/edge610-board openwrt/package/
           test -f openwrt/package/edge610-board/Makefile
+          cp -r package/luci-app-modemdata openwrt/package/
+          test -f openwrt/package/luci-app-modemdata/Makefile
           # make_ext4fs rootfs cannot be grown online (openwrt#7729); use mke2fs
           git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch"
           ! grep -q make_ext4fs openwrt/include/image.mk
@@ -234,6 +236,9 @@ jobs:
           CONFIG_PACKAGE_kmod-usb-serial=y
           CONFIG_PACKAGE_kmod-usb-serial-wwan=y
           CONFIG_PACKAGE_kmod-usb-serial-option=y
+          CONFIG_PACKAGE_sms-tool=y
+          CONFIG_PACKAGE_comgt=y
+          CONFIG_PACKAGE_luci-app-modemdata=y
           CONFIG_PACKAGE_kmod-usb-wdm=y
           CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
           CONFIG_PACKAGE_uqmi=y
