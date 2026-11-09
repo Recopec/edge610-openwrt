@@ -1,5 +1,7 @@
 # Edge 610 固件开发时间线（Bring-up Log）
 
+> English version: [bringup-log.en.md](bringup-log.en.md)
+
 记录从"交接文档"到"硬件端到端跑通"的完整过程、关键发现与证据，供后续维护参考。
 时间均为 UTC，2026-11-07 / 11-08 两天。
 

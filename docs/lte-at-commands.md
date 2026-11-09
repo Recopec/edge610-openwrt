@@ -1,5 +1,7 @@
 # EM7565 官方 AT 命令总览（41111748 Rev.2）
 
+> English version: [lte-at-commands.en.md](lte-at-commands.en.md)
+
 > 来源：*AirPrime EM75xx AT Command Reference* Rev.2（Jan.2019，140 页）。
 > Sierra 私有命令（`AT!...`）在手册第 3–11 章有完整语法；3GPP 标准命令在第 12 章只给支持矩阵。
 > 大部分 `AT!` 命令需要先 `AT!ENTERCND="A710"`。

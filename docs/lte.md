@@ -1,5 +1,7 @@
 # 板载 LTE 模组（EM7565）实测
 
+> English version: [lte.en.md](lte.en.md)
+
 > 本机 DMI：`EDGE610VWL`（Verizon LTE 版），板载 Sierra Wireless EM7565。
 > 实测日期 2026-11-09，OpenWrt 25.12.6，内核 6.12.112。
 
