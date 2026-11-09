@@ -112,6 +112,8 @@ AT!RESET
 
 锁频保存时按 `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` 写入（Lmask1 = band−1，
 Lmask2 = band−65，B66 在 Lmask2 的 bit1），随后 `AT!BAND=0B` + `AT!RESET`。
+注意 GWmask（UMTS 频段掩码）固定写 0：**自定义频段集生效时 3G 不可用**；
+要用 3G 就不要勾选任何频段（回到 `AT!BAND=00` 全频段）。
 
 ## 镜像支持状态
 

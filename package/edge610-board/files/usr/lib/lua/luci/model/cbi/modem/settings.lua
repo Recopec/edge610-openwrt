@@ -31,7 +31,7 @@ local bands = {
 }
 
 o = s:option(MultiValue, "band", translate("Band lock"),
-	translate("Tick the LTE bands to allow. Leave all unticked to use every band."))
+	translate("Tick the LTE bands to allow. Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active."))
 o.widget = "checkbox"
 o.delimiter = " "
 o.rmempty = true

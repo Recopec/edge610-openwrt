@@ -115,6 +115,8 @@ shows EARFCN 3740 (B8) at RSRP -134.
 
 Applying the band lock writes `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` (Lmask1 = band−1,
 Lmask2 = band−65, B66 is bit 1 of Lmask2), then `AT!BAND=0B` and `AT!RESET`.
+The UMTS mask (GWmask) is written as 0: **3G is unavailable while a custom band set is active**;
+leave every band unticked (back to `AT!BAND=00`, all bands) if you need 3G.
 
 ## Image support status
 
