@@ -1,3 +1,8 @@
-
 config general
 	option main_modem ''
+
+config defmodems
+	option modem '/dev/ttyUSB1'
+	option modemdata 'serial'
+	option comm_port '/dev/ttyUSB1'
+	option user_desc 'EM7565'
