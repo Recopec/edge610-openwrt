@@ -103,6 +103,19 @@ Measured: with B8-only there was no cell to camp on (local B8 cells are very wea
 with B3+B8 (`0x84`) the modem camps on B3 and the InterFreq list of `AT!LTEINFO?`
 shows EARFCN 3740 (B8) at RSRP -134.
 
+## LuCI pages
+
+**Status → Modem** has three tabs:
+
+| Tab | Content |
+| --- | --- |
+| Status | Raw replies of seven AT commands (ATI / CPIN? / CSQ / CEREG? / COPS? / !GSTATUS? / !LTEINFO?) |
+| Settings | SIM slot, radio mode (auto / LTE only), band lock: all 23 LTE bands the EM7565 supports as checkboxes (multi-select); nothing ticked = all bands |
+| GPS | `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?`, Start (`AT+WANT=1` + `AT!GPSFIX=1,120,4294967280`) / Stop (`AT!GPSEND=0,255`) |
+
+Applying the band lock writes `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` (Lmask1 = band−1,
+Lmask2 = band−65, B66 is bit 1 of Lmask2), then `AT!BAND=0B` and `AT!RESET`.
+
 ## Image support status
 
 LTE support has been built in since `ec39bbf`:

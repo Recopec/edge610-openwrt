@@ -100,6 +100,19 @@ AT!RESET
 实测：B8-only 时无小区可驻留（本地 B8 小区极弱）；B3+B8（`0x84`）时驻留 B3，
 `AT!LTEINFO?` 的 InterFreq 列表里能看到 EARFCN 3740（B8）RSRP -134。
 
+## LuCI 页面
+
+「状态 → Modem」下三个标签页：
+
+| 标签 | 内容 |
+| --- | --- |
+| Status | 7 条 AT 命令的原始回显（ATI / CPIN? / CSQ / CEREG? / COPS? / !GSTATUS? / !LTEINFO?） |
+| Settings | SIM 槽、RAT（自动/仅 LTE）、锁频：列出 EM7565 支持的 23 个 LTE 频段（复选框，可多选）；全不选 = 全频段 |
+| GPS | `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?`，Start（`AT+WANT=1` + `AT!GPSFIX=1,120,4294967280`）/ Stop（`AT!GPSEND=0,255`） |
+
+锁频保存时按 `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` 写入（Lmask1 = band−1，
+Lmask2 = band−65，B66 在 Lmask2 的 bit1），随后 `AT!BAND=0B` + `AT!RESET`。
+
 ## 镜像支持状态
 
 从 `ec39bbf` 起构建已内置 LTE 支持：
