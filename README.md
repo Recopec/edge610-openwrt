@@ -143,6 +143,40 @@ package/edge610-board/
   `reserve_backup_gdb: reserved block 64 not at offset 63`（[openwrt#7729](https://github.com/openwrt/openwrt/issues/7729)）。
   本仓库用 `patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch` 替换 `Image/mkfs/ext4`（在 fakeroot 里 `chown -R 0:0`，保证镜像内属主为 root）。
 
+## 只装板级包（不刷机）
+
+如果机器上已经跑着 **OpenWrt 25.12.6 / kernel 6.12.112**，可以只装板级包，不必刷整镜像。
+
+构建（在 OpenWrt 源码树里，已含本仓库的 `package/edge610-board`）：
+
+```sh
+make package/edge610-board/compile V=s
+```
+
+产物：
+
+| 文件 | 说明 |
+| --- | --- |
+| `bin/packages/x86_64/base/edge610-board-*.apk` | 板级包：init 脚本 + modprobe 参数 + 首启网络 + mihomo 内核（约 25 MB） |
+| `bin/targets/x86/64/packages/kmod-edge610-switch-*.apk` | 交换芯片初始化模块 |
+| `bin/targets/x86/64/packages/kmod-edge610-dsa-*.apk` | DSA 注册模块 |
+| `bin/targets/x86/64/packages/kmod-i2c-ismt-*.apk` | 看门狗总线驱动 |
+
+安装：
+
+```sh
+apk add --allow-untrusted ./kmod-i2c-ismt-*.apk ./kmod-edge610-switch-*.apk \
+    ./kmod-edge610-dsa-*.apk ./edge610-board-*.apk
+/etc/init.d/edge610 enable
+reboot
+```
+
+注意：
+
+- **kmod 与内核版本严格绑定**（`6.12.112`），内核不一致会加载失败。
+- 官方镜像里 `ixgbe` 开机自动加载，会抢在 `/etc/init.d/edge610` 之前 probe，X553 的 SGMII 模式来不及设置。
+  只用包的话需要先删掉 ixgbe 的 autoload（`/etc/modules.d/` 中与 ixgbe 相关的文件），由 init 脚本按序加载；否则请直接用整镜像。
+
 ## 刷机
 
 > 必须用本仓库构建的镜像（已打 mke2fs 补丁）。用 OpenWrt 默认 `make_ext4fs` 生成的镜像，

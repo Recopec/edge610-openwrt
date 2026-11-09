@@ -143,6 +143,40 @@ package/edge610-board/
   `reserve_backup_gdb: reserved block 64 not at offset 63` ([openwrt#7729](https://github.com/openwrt/openwrt/issues/7729)).
   This repo replaces `Image/mkfs/ext4` via `patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch` (running under fakeroot with `chown -R 0:0` so files stay root-owned).
 
+## Board packages only (no reflash)
+
+If the box already runs **OpenWrt 25.12.6 / kernel 6.12.112**, you can install just the board packages instead of flashing the full image.
+
+Build (inside the OpenWrt source tree, with this repo's `package/edge610-board`):
+
+```sh
+make package/edge610-board/compile V=s
+```
+
+Outputs:
+
+| File | Description |
+| --- | --- |
+| `bin/packages/x86_64/base/edge610-board-*.apk` | board package: init script + modprobe parameters + first-boot network + mihomo core (~25 MB) |
+| `bin/targets/x86/64/packages/kmod-edge610-switch-*.apk` | switch initialisation module |
+| `bin/targets/x86/64/packages/kmod-edge610-dsa-*.apk` | DSA registration module |
+| `bin/targets/x86/64/packages/kmod-i2c-ismt-*.apk` | watchdog bus driver |
+
+Install:
+
+```sh
+apk add --allow-untrusted ./kmod-i2c-ismt-*.apk ./kmod-edge610-switch-*.apk \
+    ./kmod-edge610-dsa-*.apk ./edge610-board-*.apk
+/etc/init.d/edge610 enable
+reboot
+```
+
+Notes:
+
+- **kmod packages are locked to the kernel version** (`6.12.112`); a different kernel will refuse to load them.
+- On a stock image `ixgbe` autoloads at boot and probes *before* `/etc/init.d/edge610`, so the X553 SGMII mode is never applied.
+  With packages only, first remove the ixgbe autoload entry (`/etc/modules.d/`, ixgbe-related file) and let the init script load it in order; otherwise use the full image.
+
 ## Flashing
 
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
