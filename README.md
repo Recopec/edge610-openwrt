@@ -82,7 +82,7 @@ make PORTABLE=1 PORT_DIR=linux \
 
 | 硬件 | 状态 |
 | --- | --- |
-| **Sierra Wireless EM7565** LTE-A Cat-12 模组（USB `1199:9091`，SN `UF04360020011048`） | 镜像未带驱动；手动加载 `qmi_wwan` 后注册出 `wwan0` + `cdc-wdm0`。背板 MAIN/AUX = LTE 主/副天线，**GPS = GNSS 天线** |
+| **Sierra Wireless EM7565** LTE-A Cat-12 模组（USB `1199:9091`，SN `UF04360020011048`） | 镜像未带驱动；手动加载 `qmi_wwan` 后注册出 `wwan0` + `cdc-wdm0`。背板 MAIN/AUX = LTE 主/副天线，**GPS = GNSS 天线**。实测详见 [docs/lte.md](docs/lte.md) |
 | **GPS/GNSS** | 即 EM7565 的定位功能（GPS/GLONASS/BeiDou），原厂用于 SD-WAN 设备定位；OpenWrt 下可经 QMI LOC 或 `AT!GPS` 读取，需接 GPS 天线 |
 | **Intel QuickAssist (QAT)** `8086:19e2` | 加密/压缩协处理器；OpenWrt 无驱动（需 Intel 外挂 qat17），未启用 |
 | **QCA988x WiFi 5** `168c:003c` | ath10k 正常；默认配置 `disabled '1'`，`wifi reload` 后 `phy0-ap0`（5GHz/80MHz/23dBm）可用 |
