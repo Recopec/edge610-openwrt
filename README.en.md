@@ -46,6 +46,35 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 
 > Why not ImageBuilder: the official x86 prebuilt kernel has `CONFIG_NET_DSA` / `MV88E6XXX` disabled, ships no `i2c-ismt`, and cannot compile the out-of-tree modules this board needs. This repo therefore builds OpenWrt 25.12.6 from source.
 
+## CPU benchmark
+
+The C3308 has no PassMark entry (too obscure), so it was measured with **CoreMark 1.0** (this device, OpenWrt 25.12.6, idle):
+
+| Item | Measured |
+| --- | --- |
+| CoreMark 1.0 | **7,786.51** iterations/sec (110,000 iterations, 14.13 s, CRC validated) |
+| Compiler | GCC 14.3.0 (OpenWrt toolchain), `-O2 -DPERFORMANCE_RUN=1 -lrt` |
+| Reference | Sibling C3338: PassMark single 1,028 / multi 1,834 (C3308 clocks lower, same class) |
+
+OpenSSL crypto (`openssl speed`, AES-NI active):
+
+| Algorithm | 1 KB | 16 KB |
+| --- | --- | --- |
+| AES-128-CBC | 411 MB/s | 418 MB/s |
+| AES-256-GCM | 403 MB/s | 547 MB/s |
+| SHA-256 | 300 MB/s | 381 MB/s |
+| ChaCha20-Poly1305 | 261 MB/s | 271 MB/s |
+
+Reproduce:
+
+```bash
+git clone --depth 1 https://github.com/eembc/coremark.git && cd coremark
+make PORTABLE=1 PORT_DIR=linux \
+  CC=<staging_dir>/toolchain-x86_64_gcc-14.3.0_musl/bin/x86_64-openwrt-linux-musl-gcc \
+  ITERATIONS=100000
+# copy coremark.exe to the device and run ./coremark
+```
+
 ## Port speed limits
 
 | Interface | Limit | Basis |

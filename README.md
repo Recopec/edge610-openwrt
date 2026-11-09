@@ -46,6 +46,35 @@
 
 > 为什么不用 ImageBuilder：官方 x86 预编译内核关闭了 `CONFIG_NET_DSA` / `MV88E6XXX`，没有 `i2c-ismt`，也无法编译本机所需的外挂内核模块。因此本仓库改为 **全源码构建** OpenWrt 25.12.6。
 
+## CPU 性能实测
+
+C3308 没有 PassMark 条目（太冷门），用 **CoreMark 1.0** 实测（本机 OpenWrt 25.12.6，空闲系统）：
+
+| 项目 | 实测值 |
+| --- | --- |
+| CoreMark 1.0 | **7,786.51** iterations/sec（110,000 次迭代，14.13 s，CRC 校验通过） |
+| 编译器 | GCC 14.3.0（OpenWrt 工具链），`-O2 -DPERFORMANCE_RUN=1 -lrt` |
+| 对照 | 同系列 C3338：PassMark 单核 1,028 / 多核 1,834（C3308 频率更低，同一档） |
+
+OpenSSL 加解密（`openssl speed`，AES-NI 生效）：
+
+| 算法 | 1 KB | 16 KB |
+| --- | --- | --- |
+| AES-128-CBC | 411 MB/s | 418 MB/s |
+| AES-256-GCM | 403 MB/s | 547 MB/s |
+| SHA-256 | 300 MB/s | 381 MB/s |
+| ChaCha20-Poly1305 | 261 MB/s | 271 MB/s |
+
+复现：
+
+```bash
+git clone --depth 1 https://github.com/eembc/coremark.git && cd coremark
+make PORTABLE=1 PORT_DIR=linux \
+  CC=<staging_dir>/toolchain-x86_64_gcc-14.3.0_musl/bin/x86_64-openwrt-linux-musl-gcc \
+  ITERATIONS=100000
+# 把 coremark.exe 拷到设备执行 ./coremark
+```
+
 ## 速率上限（重要）
 
 | 接口 | 上限 | 依据 |
