@@ -84,6 +84,7 @@ make PORTABLE=1 PORT_DIR=linux \
 | --- | --- |
 | **Sierra Wireless EM7565** LTE-A Cat-12 module (USB `1199:9091`, SN `UF04360020011048`) | Not driven by the image; loading `qmi_wwan` registers `wwan0` + `cdc-wdm0`. Back panel MAIN/AUX = LTE main/aux antennas, **GPS = GNSS antenna**. Full test notes: [docs/lte.md](docs/lte.md) |
 | **GPS/GNSS** | The EM7565's positioning (GPS/GLONASS/BeiDou), used by SD-WAN for device location; readable via QMI LOC or `AT!GPS`, needs the GPS antenna |
+| **Cell parameters** | PCI/ECGI/TAC/neighbours/signal/APN command reference: [docs/lte-cell-info.md](docs/lte-cell-info.md) |
 | **Intel QuickAssist (QAT)** `8086:19e2` | Crypto/compression co-processor; no driver in OpenWrt (needs out-of-tree Intel qat17), disabled |
 | **QCA988x WiFi 5** `168c:003c` | ath10k works; shipped config has `disabled '1'`, after `wifi reload` `phy0-ap0` (5 GHz/80 MHz/23 dBm) comes up |
 | **SD Host controller** `8086:19db` | Drives the onboard eMMC (HS400); no second mmc device |
