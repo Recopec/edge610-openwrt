@@ -65,6 +65,20 @@ sync
 6. **无线需要 wpad**：只装 `kmod-ath10k` + 固件不够，必须 `wpad-basic-mbedtls`
    （提供 wpa_supplicant/hostapd），否则只能 `iw` 扫描、无法关联。
 
+## 2.5G 实验结论（2026-11-09）
+
+X553 的 SGMII 链路**只能跑 1G**，实测三种配置都不行：
+
+| 配置 | 结果 |
+| --- | --- |
+| `NW_MNG_IF_SEL` 2.5G 位（`0x02102002`）+ 交换机 1G `MAC_CTL=0x203e` | eth0 **1G** |
+| `NW_MNG_IF_SEL` 2.5G 位 + 交换机 2.5G `MAC_CTL=0x303f`（ForceSpeed+AltSpeed+speed3） | eth0 **1G**（交换机 status=0x2f4a 认 2.5G，X553 侧仍 1G） |
+| 不带 `x553_sgmii`（BIOS 默认 `0x00102002`） | **无链路** |
+
+驱动里有 `x553_speed` 参数（1000/2500，默认 1000），对应 `NW_MNG_IF_SEL` 的
+BIT(19)=1G / BIT(20)=2.5G。SFP 口的能力表只有 1G/10G，没有 2.5G。
+结论：前面板 1G；内部 CPU 链路也只能 1G。
+
 ## 验证清单
 
 ```sh
