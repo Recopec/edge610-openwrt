@@ -153,7 +153,13 @@ jobs:
           echo "Downloading Mihomo core from: $CORE_URL"
           # The Atom C3338 has no AVX2: the asset MUST be the v1 build.
           echo "$CORE_URL" | grep -q "linux-amd64-v1"
-          curl -fL -o /tmp/mihomo.gz "$CORE_URL"
+          # GitHub release downloads occasionally return 5xx; retry and fall
+          # back to the pinned release.
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 600 \
+            -o /tmp/mihomo.gz "$CORE_URL" \
+            || curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 600 \
+              -o /tmp/mihomo.gz \
+              "https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1-go120-v1.19.33.gz"
           gzip -dc /tmp/mihomo.gz > etc/openclash/core/clash_meta
           chmod 755 etc/openclash/core/clash_meta
           file etc/openclash/core/clash_meta | grep -q "ELF 64-bit"
