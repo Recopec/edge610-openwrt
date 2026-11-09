@@ -34,6 +34,7 @@ o = s:option(MultiValue, "band", translate("Band lock"),
 	translate("Tick the LTE bands to allow. Leave all unticked to use every band."))
 o.widget = "checkbox"
 o.delimiter = " "
+o.rmempty = true
 for _, b in ipairs(bands) do
 	o:value(tostring(b[1]), b[2])
 end
