@@ -14,9 +14,13 @@ The build tree is populated with files owned by the build user, so the
 whole mkfs runs under fakeroot with a faked `chown -R 0:0`; otherwise the
 image would ship with uid 1000 ownership.
 
+diff --git a/include/image.mk b/include/image.mk
+index 7888dfb..d6773ec 100644
 --- a/include/image.mk
 +++ b/include/image.mk
-@@ -317,11 +317,11 @@
+@@ -315,14 +315,14 @@ define Image/mkfs/ubifs
+ endef
+ 
  define Image/mkfs/ext4
 -	$(STAGING_DIR_HOST)/bin/make_ext4fs -L rootfs \
 -		-l $(ROOTFS_PARTSIZE) -b $(CONFIG_TARGET_EXT4_BLOCKSIZE) \
@@ -31,4 +35,7 @@ image would ship with uid 1000 ownership.
 +	$(FAKEROOT) $@.fakeroot-script
  endef
  
- define Image/Manifest
++
+ # Don't use the mkfs.erofs builtin $SOURCE_DATE_EPOCH behavior
+ define Image/mkfs/erofs
+ 	env -u SOURCE_DATE_EPOCH $(STAGING_DIR_HOST)/bin/mkfs.erofs -z$(EROFSCOMP) \
