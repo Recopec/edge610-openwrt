@@ -87,6 +87,10 @@ jobs:
           # make_ext4fs rootfs cannot be grown online (openwrt#7729); use mke2fs
           git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch"
           ! grep -q make_ext4fs openwrt/include/image.mk
+          # EM7565 (1199:9091) is missing from option's table; without it the
+          # modem has no AT ports (qmi_wwan still works).
+          cp "$GITHUB_WORKSPACE/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \
+            openwrt/target/linux/generic/patches-6.12/999-usb-serial-option-em7565.patch
 
       - name: Cache source downloads
         uses: actions/cache@v4
@@ -220,6 +224,13 @@ jobs:
           CONFIG_PACKAGE_kmod-fs-vfat=y
           CONFIG_PACKAGE_kmod-fs-ntfs3=y
           CONFIG_PACKAGE_kmod-usb-printer=y
+          # Onboard Sierra Wireless EM7565 LTE modem (AT + QMI)
+          CONFIG_PACKAGE_kmod-usb-serial=y
+          CONFIG_PACKAGE_kmod-usb-serial-wwan=y
+          CONFIG_PACKAGE_kmod-usb-serial-option=y
+          CONFIG_PACKAGE_kmod-usb-wdm=y
+          CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+          CONFIG_PACKAGE_uqmi=y
           CONFIG_PACKAGE_e2fsprogs=y
           CONFIG_PACKAGE_smartmontools=y
           CONFIG_PACKAGE_hdparm=y
@@ -405,8 +416,10 @@ jobs:
           /tmp/rootcheck/etc/openclash/core/clash_meta -v | tee /tmp/core-v.txt
           grep -qi mihomo /tmp/core-v.txt || { echo "clash_meta does not report Mihomo"; exit 1; }
           grep -q "lan6" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "network defaults do not reference lan6"; exit 1; }
-          grep -q "config interface 'wan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "SFP WAN interface missing"; exit 1; }
-          grep -q "option device 'eth2'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN is not wired to eth2 (SFP1)"; exit 1; }
+          grep -q "config interface 'lan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "LAN interface missing"; exit 1; }
+          grep -q "list ports 'lan6'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "LAN bridge missing lan6"; exit 1; }
+          # No WAN is preconfigured on purpose (the box boots as a pure LAN switch).
+          ! grep -q "config interface 'wan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN must not be preconfigured"; exit 1; }
           ! grep -qE "^config [a-z]+ '[^']*-[^']*'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "uci section name contains '-': /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network"; exit 1; }
 
           # DSA port rename baked into the compiled module.

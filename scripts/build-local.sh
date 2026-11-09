@@ -41,6 +41,8 @@ if [ ! -d "$OW/.git" ]; then
   git clone --depth 1 --branch v25.12.6 https://github.com/openwrt/openwrt.git "$OW"
 fi
 
+cd "$OW"
+
 # 1b. Patch OpenWrt's ext4 image builder --------------------------------
 # make_ext4fs writes a resize inode the kernel refuses to grow online
 # (openwrt/openwrt#7729); mke2fs produces a filesystem that resizes.
@@ -50,6 +52,11 @@ if grep -q 'make_ext4fs' include/image.mk 2>/dev/null; then
     || { echo "image.mk patch failed"; exit 1; }
 fi
 ! grep -q 'make_ext4fs' include/image.mk || { echo "make_ext4fs still present"; exit 1; }
+
+# 1c. EM7565 (1199:9091) is missing from option's device table; without it
+# the modem exposes no AT ports (qmi_wwan still works).
+cp "$REPO/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \
+  target/linux/generic/patches-6.12/999-usb-serial-option-em7565.patch
 
 log "sync edge610-board package"
 rm -rf "$OW/package/edge610-board"
@@ -198,6 +205,13 @@ CONFIG_PACKAGE_kmod-fs-exfat=y
 CONFIG_PACKAGE_kmod-fs-vfat=y
 CONFIG_PACKAGE_kmod-fs-ntfs3=y
 CONFIG_PACKAGE_kmod-usb-printer=y
+# Onboard Sierra Wireless EM7565 LTE modem (AT + QMI)
+CONFIG_PACKAGE_kmod-usb-serial=y
+CONFIG_PACKAGE_kmod-usb-serial-wwan=y
+CONFIG_PACKAGE_kmod-usb-serial-option=y
+CONFIG_PACKAGE_kmod-usb-wdm=y
+CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+CONFIG_PACKAGE_uqmi=y
 CONFIG_PACKAGE_e2fsprogs=y
 CONFIG_PACKAGE_smartmontools=y
 CONFIG_PACKAGE_hdparm=y

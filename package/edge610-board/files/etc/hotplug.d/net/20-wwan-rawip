@@ -1,0 +1,6 @@
+#!/bin/sh
+# Sierra Wireless EM7565 (qmi_wwan) runs in raw-ip mode: the netdev must be
+# switched to raw-ip framing or TX goes out while RX is silently dropped.
+[ "$ACTION" = "add" ] || exit 0
+[ -e "/sys/class/net/$INTERFACE/qmi/raw_ip" ] || exit 0
+echo 1 > "/sys/class/net/$INTERFACE/qmi/raw_ip"
