@@ -373,8 +373,32 @@ function sms()
 		m.text = ucs2(table.concat(m.text, "\n"))
 	end
 
+	-- a long SMS arrives as several parts; the modem stores each part
+	-- separately but they share the sender and the SCTS
+	local merged, order = {}, {}
+	for _, m in ipairs(list) do
+		local key = tostring(m.from) .. "|" .. tostring(m.time)
+		local g = merged[key]
+		if not g then
+			g = { from = m.from, time = m.time, stat = m.stat, index = m.index, text = {}, parts = 0 }
+			merged[key] = g
+			order[#order + 1] = key
+		end
+		g.text[#g.text + 1] = m.text
+		g.parts = g.parts + 1
+		if m.index < g.index then
+			g.index = m.index
+		end
+	end
+	local out = {}
+	for _, key in ipairs(order) do
+		local g = merged[key]
+		g.text = table.concat(g.text, "")
+		out[#out + 1] = g
+	end
+
 	http.prepare_content("application/json")
-	http.write_json({ messages = list })
+	http.write_json({ messages = out })
 end
 
 function smsdel()
@@ -410,6 +434,72 @@ function atrun()
 	http.write(out or "")
 end
 
+local function utf8_to_ucs2hex(s)
+	local out, i = {}, 1
+	while i <= #s do
+		local c = s:byte(i)
+		local cp, n
+		if c < 0x80 then
+			cp, n = c, 1
+		elseif c < 0xE0 then
+			cp, n = (c - 0xC0) * 0x40 + (s:byte(i + 1) - 0x80), 2
+		elseif c < 0xF0 then
+			cp, n = (c - 0xE0) * 0x1000 + (s:byte(i + 1) - 0x80) * 0x40 + (s:byte(i + 2) - 0x80), 3
+		else
+			cp, n = (c - 0xF0) * 0x40000 + (s:byte(i + 1) - 0x80) * 0x1000 +
+				(s:byte(i + 2) - 0x80) * 0x40 + (s:byte(i + 3) - 0x80), 4
+		end
+		out[#out + 1] = string.format("%04X", cp)
+		i = i + n
+	end
+	return table.concat(out)
+end
+
+function smsend()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+
+	local num = trim(http.formvalue("number") or "")
+	local txt = http.formvalue("text") or ""
+	if not num:match("^%+?%d+$") or #txt == 0 or #txt > 400 then
+		http.status(400, "Bad Request")
+		http.prepare_content("application/json")
+		http.write_json({ ok = false, error = "bad input" })
+		return
+	end
+
+	local cs, payload, arg = "GSM", txt, num
+	if txt:match("[^\32-\126]") then
+		-- non-GSM text: build a SMS-SUBMIT PDU with a UCS2 body
+		local n = num:gsub("[^%d%+]", "")
+		local intl = n:sub(1, 1) == "+"
+		if intl then
+			n = n:sub(2)
+		end
+		local bcd = {}
+		for i = 1, #n, 2 do
+			local a = n:sub(i, i)
+			local b = n:sub(i + 1, i + 1)
+			if b == "" then
+				b = "F"
+			end
+			bcd[#bcd + 1] = string.format("%X%X", tonumber(b), tonumber(a))
+		end
+		local da = string.format("%02X%02X%s", #n, intl and 0x91 or 0x81, table.concat(bcd))
+		local ud = utf8_to_ucs2hex(txt)
+		-- 0x11 = SMS-SUBMIT with a relative VP, so the AA VP octet is valid
+		local tpdu = "1100" .. da .. "0008AA" .. string.format("%02X", #ud / 2) .. ud
+		cs = "PDU"
+		payload = "00" .. tpdu          -- 00 = use the default SMSC
+		arg = tostring(#tpdu / 2)       -- CMGS length excludes the SMSC part
+	end
+
+	local out = sys.exec("/usr/bin/modem-sms-send '" .. arg .. "' " .. cs .. " '" .. payload:gsub("'", "'\\''") .. "' 2>&1") or ""
+	local ok = out:match("OK") and not out:match("ERROR") and not out:match("\+CMS ERROR")
+	http.prepare_content("application/json")
+	http.write_json({ ok = ok, output = trim(out) })
+end
+
 function index()
 	if not nixio.fs.access("/usr/bin/modem-at") then
 		return
@@ -427,6 +517,7 @@ function index()
 	entry({"admin", "status", "modem", "sms"}, template("modem/sms"), _("SMS"), 40).leaf = true
 	entry({"admin", "status", "modem", "sms", "list"}, call("sms")).leaf = true
 	entry({"admin", "status", "modem", "sms", "delete"}, call("smsdel")).leaf = true
+	entry({"admin", "status", "modem", "sms", "send"}, call("smsend")).leaf = true
 	entry({"admin", "status", "modem", "at"}, template("modem/at"), _("AT"), 45).leaf = true
 	entry({"admin", "status", "modem", "at", "run"}, call("atrun")).leaf = true
 end

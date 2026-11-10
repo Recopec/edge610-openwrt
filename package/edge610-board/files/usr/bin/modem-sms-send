@@ -1,0 +1,61 @@
+#!/bin/sh
+# Send (or just store) one SMS.
+# Usage: modem-sms-send <number> <charset> <text> [--store]
+#   charset: GSM | UCS2  (text already encoded in that charset, UCS2 as hex)
+#   --store: write to the modem's storage (AT+CMGW) instead of sending
+NUM="$1"
+CS="$2"
+TXT="$3"
+MODE="$4"
+[ -n "$NUM" ] && [ -n "$TXT" ] || { echo "usage: modem-sms-send <number> <charset> <text> [--store]"; exit 2; }
+
+PORTFILE=/tmp/.modem-at-port
+P=
+[ -s "$PORTFILE" ] && P="$(cat "$PORTFILE")"
+if [ ! -c "$P" ]; then
+	for p in /dev/ttyUSB*; do
+		[ -c "$p" ] || continue
+		case "$(printf 'AT\r' | timeout 2 socat - "$p",raw,echo=0 2>/dev/null)" in
+			*OK*) P="$p"; echo "$p" > "$PORTFILE"; break ;;
+		esac
+	done
+fi
+[ -c "$P" ] || { echo "AT port not found"; exit 1; }
+
+stty -F "$P" raw -echo 2>/dev/null
+
+read_until() {
+	timeout 20 sh -c 'while IFS= read -r -t 1 l <&3; do printf "%s\n" "$l"; case "$l" in OK|ERROR*) break;; esac; done' 3<&3
+}
+
+(
+	flock -w 10 9 || exit 1
+	exec 3<>"$P"
+	# drain leftovers
+	timeout 1 cat <&3 >/dev/null 2>&1
+
+	if [ "$CS" = "PDU" ]; then
+		printf 'AT+CMGF=0\r' >&3
+		read_until
+		if [ "$MODE" = "--store" ]; then
+			printf 'AT+CMGW=%s\r' "$NUM" >&3
+		else
+			printf 'AT+CMGS=%s\r' "$NUM" >&3
+		fi
+	else
+		printf 'AT+CMGF=1\r' >&3
+		read_until
+		printf 'AT+CSCS="%s"\r' "$CS" >&3
+		read_until
+		if [ "$MODE" = "--store" ]; then
+			printf 'AT+CMGW="%s"\r' "$NUM" >&3
+		else
+			printf 'AT+CMGS="%s"\r' "$NUM" >&3
+		fi
+	fi
+	# wait for the "> " prompt (no newline, so just give the modem a moment)
+	sleep 1
+	printf '%s\032' "$TXT" >&3
+	read_until
+	exec 3>&-
+) 9>/tmp/.modem-at.lock

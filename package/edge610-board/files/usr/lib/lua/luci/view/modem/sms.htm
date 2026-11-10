@@ -6,10 +6,12 @@ local T = {
 	en = {
 		title = "SMS", refresh = "Refresh", from = "From", time = "Time", text = "Text",
 		del = "Delete", empty = "No messages", loading = "Loading…", delall = "Delete all",
+		send = "Send", number = "Number", message = "Message", sending = "Sending…", sent = "Sent",
 	},
 	zh = {
 		title = "短信", refresh = "刷新", from = "发送方", time = "时间", text = "内容",
 		del = "删除", empty = "没有短信", loading = "加载中…", delall = "全部删除",
+		send = "发送", number = "号码", message = "内容", sending = "发送中…", sent = "已发送",
 	},
 }
 local t = T[lang] or T.en
@@ -22,6 +24,15 @@ local t = T[lang] or T.en
 	<span id="sms-state" class="md-muted"><%=t.loading%></span>
 </div>
 
+<div class="cbi-section">
+	<div class="sms-send">
+		<input id="sms-num" type="text" placeholder="<%=t.number%>" />
+		<textarea id="sms-text" rows="2" placeholder="<%=t.message%>"></textarea>
+		<button id="sms-send" class="btn cbi-button cbi-button-apply"><%=t.send%></button>
+		<span id="sms-send-state" class="md-muted"></span>
+	</div>
+</div>
+
 <div id="sms-list" class="cbi-section"></div>
 
 <style>
@@ -31,12 +42,16 @@ local t = T[lang] or T.en
 .sms-text{white-space:pre-wrap;word-break:break-word}
 .sms-unread{font-weight:600}
 .md-muted{color:#888;font-size:.85rem}
+.sms-send{display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap}
+.sms-send input{width:180px}
+.sms-send textarea{flex:1 1 320px;font-family:inherit}
 </style>
 
 <script>
 (function() {
 	var LIST = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "list")%>';
 	var DEL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delete")%>';
+	var SEND = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "send")%>';
 	var L = {
 		from: '<%=t.from%>', time: '<%=t.time%>', text: '<%=t.text%>',
 		del: '<%=t.del%>', empty: '<%=t.empty%>'
@@ -79,6 +94,23 @@ local t = T[lang] or T.en
 	}
 
 	document.getElementById('sms-refresh').addEventListener('click', load);
+
+	document.getElementById('sms-send').addEventListener('click', function() {
+		var num = document.getElementById('sms-num').value.trim();
+		var txt = document.getElementById('sms-text').value;
+		var st = document.getElementById('sms-send-state');
+		if (!num || !txt) return;
+		st.textContent = '<%=t.sending%>';
+		fetch(SEND, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+			body: 'number=' + encodeURIComponent(num) + '&text=' + encodeURIComponent(txt)
+		}).then(function(r) { return r.json(); }).then(function(d) {
+			st.textContent = d.ok ? '<%=t.sent%>' : 'ERR ' + (d.output || d.error || '');
+			if (d.ok) { document.getElementById('sms-text').value = ''; load(); }
+		}).catch(function() { st.textContent = 'ERR'; });
+	});
 	load();
 })();
 </script>
