@@ -18,15 +18,17 @@ local T = {
 		hint = "Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active. Changing the set redials the data call; a band with no coverage leaves the link down until another set is applied.",
 		save = "Save & Apply",
 		apn = "APN", pdptype = "PDP type", auth = "Authentication",
+		modemcur = "modem:", curband = "now serving",
 		auth_none = "None", pap = "PAP", chap = "CHAP",
 		user = "Username", pass = "Password",
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved.", nochange = "nothing changed.",
 		reconnect = "wwan is re-dialling in the background.",
+		apnstored = "Dial settings handed to netifd.",
 		sec_sim = "SIM and radio", sec_dial = "Data call", sec_scan = "Network selection",
 		sec_band = "Band lock",
-		dialhint = "Leave the APN empty to use the operator default. Nothing here redials by itself: reconnect the data connection or reset the modem to pick the values up.",
+		dialhint = "Leave the APN empty to use the operator default. Saving writes it to the dialer configuration (/etc/config/network) and redials the data call: netifd writes the APN into the modem on every connect, so writing the modem directly does not stick.",
 		all = "All", none = "None", chosen = "selected", allbands = "All bands",
 		hint_scan = "Scanning asks the modem for nearby networks; it takes up to 60 s and blocks other AT commands meanwhile.",
 		resetmodem = "Reset modem",
@@ -45,15 +47,17 @@ local T = {
 		hint = "全部不勾选表示使用全部频段；锁定频段会清空 UMTS 掩码，锁定期间 3G 不可用。改动集合后会自动重拨数据连接；锁到没有覆盖的频段会让链路断开，直到换回其他集合。",
 		save = "保存并应用",
 		apn = "APN", pdptype = "PDP 类型", auth = "鉴权方式",
+		modemcur = "模组当前：", curband = "当前服务",
 		auth_none = "无", pap = "PAP", chap = "CHAP",
 		user = "用户名", pass = "密码",
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存。", nochange = "没有变化。",
 		reconnect = "已在后台重拨 wwan。",
+		apnstored = "拨号参数已交给 netifd。",
 		sec_sim = "SIM 与制式", sec_dial = "数据拨号", sec_scan = "网络选择",
 		sec_band = "锁频",
-		dialhint = "APN 留空表示使用运营商默认值。这里改完不会自动重新拨号，需要重新连接或复位模组才会生效。",
+		dialhint = "APN 留空表示使用运营商默认值。保存会写入拨号配置（/etc/config/network）并自动重拨：模组侧的 APN 每次连接都由 netifd 写入，直接写模组不会保留。",
 		all = "全选", none = "清空", chosen = "已选", allbands = "全部频段",
 		hint_scan = "扫描会向模组查询周边网络，最长 60 秒，期间其他 AT 指令会被阻塞。",
 		resetmodem = "复位模组",
@@ -80,16 +84,32 @@ local bands = {
 
 local sim = uci:get("modem", "main", "sim") or "0"
 local rat = uci:get("modem", "main", "rat") or "06"
-local apn = uci:get("modem", "main", "apn") or ""
-if apn == "" then
-	local o = sys.exec("/usr/bin/modem-at 'AT+CGDCONT?' 2>/dev/null") or ""
-	local m = o:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
-	if m then apn = m end
-end
-local pdptype = uci:get("modem", "main", "pdptype") or "IP"
-local auth = uci:get("modem", "main", "auth") or "0"
-local user = uci:get("modem", "main", "user") or ""
-local pass = uci:get("modem", "main", "pass") or ""
+-- One AT call yields the band the modem is on (drives the chip marker) and the
+-- context it actually uses. The saved uci values can drift from the modem — a
+-- rejected AT+CGDCONT leaves them apart and every later save would be a no-op —
+-- so the page has to show what the modem has, not what was stored.
+local ato = sys.exec("/usr/bin/modem-at 'AT!GSTATUS?;+CGDCONT?' 2>/dev/null") or ""
+local liveband = tonumber(ato:match("LTE band:%s*B(%d+)") or "")
+local livepdptype, liveapn = ato:match('+CGDCONT:%s*1%s*,%s*"([^"]*)"%s*,%s*"([^"]*)"')
+
+local apn = uci:get("network", "wwan", "apn")
+if not apn or apn == "" then apn = uci:get("modem", "main", "apn") end
+if not apn or apn == "" then apn = liveapn or "" end
+
+-- netifd owns the dial: qmi.sh rewrites profile 1 from /etc/config/network on
+-- every connect (uqmi --modify-profile --apn ...), so an AT+CGDCONT write is
+-- silently replaced at the next dial. The form edits the dialer's values.
+local NETPDP = { IP = "ip", IPV6 = "ipv6", IPV4V6 = "ipv4v6" }
+local PAGEPDP = { ip = "IP", ipv6 = "IPV6", ipv4v6 = "IPV4V6" }
+local NETAUTH = { ["0"] = "none", ["1"] = "pap", ["2"] = "chap" }
+local PAGEAUTH = { none = "0", pap = "1", chap = "2", both = "2" }
+
+local netpdptype = uci:get("network", "wwan", "pdptype") or livepdptype or "ip"
+local pdptype = PAGEPDP[netpdptype:lower()] or "IP"
+local netauth = uci:get("network", "wwan", "auth") or "none"
+local auth = PAGEAUTH[netauth] or "0"
+local user = uci:get("network", "wwan", "username") or uci:get("modem", "main", "user") or ""
+local pass = uci:get("network", "wwan", "password") or uci:get("modem", "main", "pass") or ""
 local cur = {}
 for b in (uci:get("modem", "main", "band") or ""):gmatch("%d+") do
 	cur[tonumber(b)] = true
@@ -166,23 +186,26 @@ if http.formvalue("apply") then
 	if nrat ~= rat then
 		add("rat", "-p 'AT!SELRAT=" .. nrat .. "'")
 	end
-	local apn_changed = napn ~= apn or npdptype ~= pdptype
+	-- Store where the dialer reads them. A bare AT+CGDCONT would be undone by
+	-- qmi.sh on the next connect, which is why saving an APN appeared to do
+	-- nothing: the page kept a value the modem never used.
+	local apn_changed = napn ~= apn or npdptype ~= pdptype or nauth ~= auth
+		or nuser ~= user or npass ~= pass
+		or (napn ~= "" and (napn ~= (liveapn or "")
+			or (PAGEPDP[(livepdptype or ""):lower()] or "") ~= npdptype))
 	if apn_changed then
-		add("apn", "'AT+CGDCONT=1,\"" .. npdptype .. "\",\"" .. napn .. "\"'")
-	end
-	if nauth ~= auth or nuser ~= user or npass ~= pass then
-		if nauth ~= "0" then
-			add("auth", "'AT+CGAUTH=1," .. nauth .. ",\"" .. nuser .. "\",\"" .. npass .. "\"'")
-		else
-			add("auth", "'AT+CGAUTH=1,0'")
+		uci:set("network", "wwan", "apn", napn)
+		uci:set("network", "wwan", "pdptype", NETPDP[npdptype] or "ip")
+		uci:set("network", "wwan", "auth", NETAUTH[nauth] or "none")
+		uci:set("network", "wwan", "username", nuser)
+		uci:set("network", "wwan", "password", npass)
+		uci:commit("network")
+		-- Drop the modem copy so the two cannot drift apart again.
+		for _, k in ipairs({ "apn", "pdptype", "auth", "user", "pass" }) do
+			uci:delete("modem", "main", k)
 		end
 	end
 
-	uci:set("modem", "main", "apn", napn)
-	uci:set("modem", "main", "pdptype", npdptype)
-	uci:set("modem", "main", "auth", nauth)
-	uci:set("modem", "main", "user", nuser)
-	uci:set("modem", "main", "pass", npass)
 	uci:set("modem", "main", "sim", nsim)
 	uci:set("modem", "main", "rat", nrat)
 	uci:set("modem", "main", "band", newband)
@@ -198,11 +221,11 @@ if http.formvalue("apply") then
 		res[#res + 1] = r[1] .. ": " .. (last ~= "" and last or "?")
 	end
 
-	-- A new band set, radio mode or UIM slot tears the call down and the modem
-	-- comes back on a fresh session, but netifd keeps routing from the previous
-	-- address until modem-wan-watch notices (up to 30 s of a dead backup link).
-	-- Redial here instead of waiting for the watcher.
-	local redial = oldband ~= newband or nsim ~= sim or nrat ~= rat
+	-- A new band set, radio mode, UIM slot or APN tears the call down and the
+	-- modem comes back on a fresh session, but netifd keeps routing from the
+	-- previous address until modem-wan-watch notices (up to 30 s of a dead
+	-- backup link). Redial here instead of waiting for the watcher.
+	local redial = oldband ~= newband or nsim ~= sim or nrat ~= rat or apn_changed
 	if redial then
 		sys.exec("( /sbin/ifdown wwan; /usr/bin/modem-at 'AT+CGACT=0,1' >/dev/null 2>&1;"
 			.. " sleep 2; /sbin/ifup wwan ) >/dev/null 2>&1 &")
@@ -214,7 +237,7 @@ if http.formvalue("apply") then
 	end
 	apn, pdptype, auth, user, pass = napn, npdptype, nauth, nuser, npass
 	if #runs == 0 then
-		msg = t.saved .. " " .. t.nochange
+		msg = t.saved .. " " .. (apn_changed and t.apnstored or t.nochange)
 	else
 		msg = t.saved .. " " .. table.concat(res, "; ")
 	end
@@ -272,6 +295,9 @@ end
 				<div class="md-field">
 					<label for="apn"><%=t.apn%></label>
 					<input type="text" name="apn" id="apn" value="<%=apn%>" placeholder="cmnet"/>
+					<% if liveapn then %>
+					<p class="md-hint" style="margin:.3rem 0 0"><span class="md-tag<%= (apn ~= liveapn or (livepdptype and pdptype ~= livepdptype)) and " warn" or " off" %>"><%=t.modemcur%> <%=liveapn%> / <%=livepdptype or "-"%></span></p>
+					<% end %>
 				</div>
 				<div class="md-field">
 					<label for="pdptype"><%=t.pdptype%></label>
@@ -304,11 +330,11 @@ end
 </div>
 
 <section class="md-card">
-	<h3><%=t.sec_band%><span class="md-act"><span id="md-band-count" class="md-tag"></span></span></h3>
+	<h3><%=t.sec_band%><span class="md-act"><% if liveband then %><span class="md-tag ok"><%=t.curband%> B<%=liveband%></span> <% end %><span id="md-band-count" class="md-tag"></span></span></h3>
 	<div class="md-body">
 		<div class="md-chips">
 			<% for _, b in ipairs(bands) do %>
-			<label class="md-chip"><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/><span><%=b[2]%></span></label>
+			<label class="md-chip<%= liveband == b[1] and " md-cur" or "" %>"<% if liveband == b[1] then %> title="<%=t.curband%>"<% end %>><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/><span><%=b[2]%></span></label>
 			<% end %>
 		</div>
 		<div class="md-actions-row">

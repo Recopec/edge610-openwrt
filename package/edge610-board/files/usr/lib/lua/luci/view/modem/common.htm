@@ -101,9 +101,11 @@
 .md-body .md-chips{padding:.1rem 0 .2rem}
 .md-chip{position:relative;display:block;margin:0;min-width:0}
 .md-chip input{position:absolute;left:0;top:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.md-chip span{display:block;padding:.34rem .4rem;border:1px solid #e4e7ec;border-radius:8px;background:#fff;font-size:.76rem;color:#475467;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-chip span{position:relative;display:block;padding:.34rem .4rem;border:1px solid #e4e7ec;border-radius:8px;background:#fff;font-size:.76rem;color:#475467;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .md-chip input:checked+span{background:#eef1ff;border-color:#9aa8ff;color:#3538cd;font-weight:500}
 .md-chip input:focus-visible+span{box-shadow:0 0 0 3px rgba(94,114,228,.18)}
+.md-chip.md-cur span{border-color:#12b76a;box-shadow:inset 0 0 0 1px #12b76a;padding-right:1rem}
+.md-chip.md-cur span:after{content:"";position:absolute;top:.42rem;right:.34rem;width:6px;height:6px;border-radius:50%;background:#12b76a}
 
 .md-actions-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.6rem 1.1rem .9rem}
 .md-body .md-actions-row{padding:0 0 .6rem}
