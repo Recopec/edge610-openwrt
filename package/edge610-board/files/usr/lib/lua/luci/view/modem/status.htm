@@ -23,6 +23,7 @@ local T = {
 		ip = "IP", rx = "RX", tx = "TX", power = "Mode",
 		prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
 		state = "Link", cid = "CID",
+		pri = "PRI", customer = "Customer",
 		sim_settings = "SIM, RAT and band lock",
 	},
 	zh = {
@@ -45,6 +46,7 @@ local T = {
 		ip = "IP", rx = "接收", tx = "发送", power = "模式",
 		prio = "优先级", tlow = "低门限", thigh = "高门限",
 		state = "链路", cid = "上下文",
+		pri = "PRI", customer = "客户",
 		sim_settings = "SIM / 制式 / 锁频",
 	},
 }
@@ -226,7 +228,9 @@ local v = V[lang] or V.en
 		tlow: '<%=t.tlow%>',
 		thigh: '<%=t.thigh%>',
 		state: '<%=t.state%>',
-		cid: '<%=t.cid%>'
+		cid: '<%=t.cid%>',
+		pri: '<%=t.pri%>',
+		customer: '<%=t.customer%>'
 	};
 	var V = {
 		'Attached': '<%=v.Attached%>',
@@ -385,7 +389,9 @@ local v = V[lang] or V.en
 			row(L.bandlock, esc(tv(net.bandlock))) +
 			row(L.selrat, esc(tv(net.selrat))) +
 			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +
-			row(L.apn, esc(net.apn)));
+			row(L.apn, esc(net.apn)) +
+			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : '')) +
+			row(L.customer, esc(hw.pri_customer)));
 
 		body('c-neigh', neighRows(d));
 

@@ -55,8 +55,8 @@ local function identity()
 	if f then
 		local s = f:read("*a") or ""
 		f:close()
-		local ts, man, mod, rev, imei, sv, fsn, imsi, iccid =
-			s:match("^(%d+)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)$")
+		local ts, man, mod, rev, imei, sv, fsn, imsi, iccid, pripn, prirev, pricus =
+			s:match("^(%d+)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)$")
 		if ts and t - tonum(ts) < 120 and (mod ~= "" or imei ~= "") then
 			return {
 				manufacturer = man ~= "" and man or nil,
@@ -67,11 +67,16 @@ local function identity()
 				fsn = fsn ~= "" and fsn or nil,
 				imsi = imsi ~= "" and imsi or nil,
 				iccid = iccid ~= "" and iccid or nil,
+				pri_pn = pripn ~= "" and pripn or nil,
+				pri_rev = prirev ~= "" and prirev or nil,
+				pri_customer = pricus ~= "" and pricus or nil,
 			}
 		end
 	end
 
 	local o = at("ATI;+CIMI;+ICCID")
+	local sys = require "luci.sys"
+	local pri = sys.exec("/usr/bin/modem-at -p 'AT!PRIID?' 2>/dev/null") or ""
 	local res = {
 		manufacturer = o:match("Manufacturer:%s*([^\r\n]+)"),
 		model = o:match("Model:%s*([^\r\n]+)"),
@@ -85,13 +90,17 @@ local function identity()
 			end
 		end)(),
 		iccid = o:match("ICCID:%s*([%w]+)"),
+		pri_pn = pri:match("PRI Part Number:%s*(%w+)"),
+		pri_rev = pri:match("Revision:%s*([%w%.]+)"),
+		pri_customer = trim(pri:match("Customer:%s*([^\r\n]+)")),
 	}
 	local w = (res.model or res.imei) and io.open(ID_CACHE, "w")
 	if w then
-		w:write(string.format("%d|%s|%s|%s|%s|%s|%s|%s|%s", t,
+		w:write(string.format("%d|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s", t,
 			res.manufacturer or "", res.model or "", res.revision or "",
 			res.imei or "", res.imei_sv or "", res.fsn or "",
-			res.imsi or "", res.iccid or ""))
+			res.imsi or "", res.iccid or "",
+			res.pri_pn or "", res.pri_rev or "", res.pri_customer or ""))
 		w:close()
 	end
 	return res
