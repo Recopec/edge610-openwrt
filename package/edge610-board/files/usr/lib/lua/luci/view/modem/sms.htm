@@ -7,11 +7,13 @@ local T = {
 		title = "SMS", refresh = "Refresh", from = "From", time = "Time", text = "Text",
 		del = "Delete", empty = "No messages", loading = "Loading…", delall = "Delete all",
 		send = "Send", number = "Number", message = "Message", sending = "Sending…", sent = "Sent",
+		sent_title = "Sent messages", sent_empty = "Nothing sent yet",
 	},
 	zh = {
 		title = "短信", refresh = "刷新", from = "发送方", time = "时间", text = "内容",
 		del = "删除", empty = "没有短信", loading = "加载中…", delall = "全部删除",
 		send = "发送", number = "号码", message = "内容", sending = "发送中…", sent = "已发送",
+		sent_title = "已发送", sent_empty = "还没有发送记录",
 	},
 }
 local t = T[lang] or T.en
@@ -35,6 +37,11 @@ local t = T[lang] or T.en
 
 <div id="sms-list" class="cbi-section"></div>
 
+<div class="cbi-section">
+	<h3><%=t.sent_title%></h3>
+	<div id="sms-sent" class="md-muted"><%=t.loading%></div>
+</div>
+
 <style>
 .sms-table{width:100%;border-collapse:collapse;font-size:.9rem}
 .sms-table th{text-align:left;color:#888;font-weight:500;font-size:.8rem;border-bottom:1px solid #eee;padding:.4rem .3rem}
@@ -52,6 +59,7 @@ local t = T[lang] or T.en
 	var LIST = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "list")%>';
 	var DEL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delete")%>';
 	var SEND = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "send")%>';
+	var SENT = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "sent")%>';
 	var L = {
 		from: '<%=t.from%>', time: '<%=t.time%>', text: '<%=t.text%>',
 		del: '<%=t.del%>', empty: '<%=t.empty%>'
@@ -95,6 +103,22 @@ local t = T[lang] or T.en
 
 	document.getElementById('sms-refresh').addEventListener('click', load);
 
+	function loadSent() {
+		var el = document.getElementById('sms-sent');
+		fetch(SENT, {credentials: 'same-origin', cache: 'no-store'})
+			.then(function(r) { return r.json(); })
+			.then(function(d) {
+				var msgs = d.messages || [];
+				if (!msgs.length) { el.innerHTML = '<div class="md-muted">' + '<%=t.sent_empty%>' + '</div>'; return; }
+				var h = '<table class="sms-table"><thead><tr><th>' + L.time + '</th><th><%=t.number%></th><th>' + L.text + '</th></tr></thead><tbody>';
+				msgs.slice().reverse().forEach(function(m) {
+					h += '<tr><td>' + esc(new Date(m.t * 1000).toLocaleString()) + '</td><td>' + esc(m.number) + '</td><td class="sms-text">' + esc(m.text) + '</td></tr>';
+				});
+				el.innerHTML = h + '</tbody></table>';
+			})
+			.catch(function() { el.textContent = 'ERR'; });
+	}
+
 	document.getElementById('sms-send').addEventListener('click', function() {
 		var num = document.getElementById('sms-num').value.trim();
 		var txt = document.getElementById('sms-text').value;
@@ -108,10 +132,11 @@ local t = T[lang] or T.en
 			body: 'number=' + encodeURIComponent(num) + '&text=' + encodeURIComponent(txt)
 		}).then(function(r) { return r.json(); }).then(function(d) {
 			st.textContent = d.ok ? '<%=t.sent%>' : 'ERR ' + (d.output || d.error || '');
-			if (d.ok) { document.getElementById('sms-text').value = ''; load(); }
+			if (d.ok) { document.getElementById('sms-text').value = ''; load(); loadSent(); }
 		}).catch(function() { st.textContent = 'ERR'; });
 	});
 	load();
+	loadSent();
 })();
 </script>
 

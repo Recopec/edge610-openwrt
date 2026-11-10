@@ -705,8 +705,34 @@ function smsend()
 
 	local out = sys.exec("/usr/bin/modem-sms-send '" .. arg .. "' " .. cs .. " '" .. payload:gsub("'", "'\\''") .. "' 2>&1") or ""
 	local ok = out:match("OK") and not out:match("ERROR") and not out:match("\+CMS ERROR")
+	if ok then
+		local esc = txt:gsub("\\", "\\\\"):gsub("\t", "\\t"):gsub("\n", "\\n")
+		local f = io.open("/etc/modem-sms-sent", "a")
+		if f then
+			f:write(os.time() .. "\t" .. num .. "\t" .. esc .. "\n")
+			f:close()
+		end
+	end
 	http.prepare_content("application/json")
 	http.write_json({ ok = ok, output = trim(out) })
+end
+
+function smssent()
+	local http = require "luci.http"
+	local out = {}
+	local f = io.open("/etc/modem-sms-sent", "r")
+	if f then
+		for l in f:lines() do
+			local t, n, x = l:match("^(%d+)\t([^\t]*)\t(.*)$")
+			if t then
+				x = x:gsub("\\n", "\n"):gsub("\\t", "\t"):gsub("\\\\", "\\")
+				out[#out + 1] = { t = tonum(t), number = n, text = x }
+			end
+		end
+		f:close()
+	end
+	http.prepare_content("application/json")
+	http.write_json({ messages = out })
 end
 
 function index()
@@ -727,6 +753,7 @@ function index()
 	entry({"admin", "status", "modem", "sms", "list"}, call("sms")).leaf = true
 	entry({"admin", "status", "modem", "sms", "delete"}, call("smsdel")).leaf = true
 	entry({"admin", "status", "modem", "sms", "send"}, call("smsend")).leaf = true
+	entry({"admin", "status", "modem", "sms", "sent"}, call("smssent")).leaf = true
 	entry({"admin", "status", "modem", "at"}, template("modem/at"), _("AT"), 45).leaf = true
 	entry({"admin", "status", "modem", "at", "run"}, call("atrun")).leaf = true
 end
