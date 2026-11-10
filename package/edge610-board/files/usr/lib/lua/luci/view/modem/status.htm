@@ -5,6 +5,7 @@ local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*
 local T = {
 	en = {
 		conn = "Connection", hardware = "Hardware", data = "Data connection",
+		k_link = "Link", k_signal = "Signal", k_data = "Traffic", k_modem = "Modem",
 		operator = "Operator", netname = "Network name", plmn = "PLMN", mode = "Technology", reg = "Registration",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -13,7 +14,8 @@ local T = {
 		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
 		simslot = "SIM slot", apn = "APN",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
-		ready = "ready",
+		ready = "ready", connected = "connected", disconnected = "disconnected",
+		down = "down", up = "up", session = "session", total = "total",
 		offline = "AT port not found", attached = "attached", detached = "detached",
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
 		ip = "IP (modem)", rx = "RX (wwan0)", tx = "TX (wwan0)", power = "Mode",
@@ -21,6 +23,7 @@ local T = {
 	},
 	zh = {
 		conn = "连接", hardware = "硬件", data = "数据连接",
+		k_link = "链路", k_signal = "信号", k_data = "流量", k_modem = "模组",
 		operator = "运营商", netname = "网络名称", plmn = "PLMN", mode = "制式", reg = "注册状态",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -29,7 +32,8 @@ local T = {
 		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
 		simslot = "SIM 槽", apn = "APN",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
-		ready = "就绪",
+		ready = "就绪", connected = "已连接", disconnected = "未连接",
+		down = "下行", up = "上行", session = "会话", total = "累计",
 		offline = "AT 端口未找到", attached = "已连接", detached = "已断开",
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
 		ip = "IP（模组）", rx = "接收（wwan0）", tx = "发送（wwan0）", power = "模式",
@@ -77,10 +81,36 @@ local v = V[lang] or V.en
 	</div>
 </div>
 
+<div class="md-hero">
+	<div class="md-kpi">
+		<div class="md-kpi-label"><%=t.k_link%></div>
+		<div class="md-kpi-value" id="k-link"><span class="md-muted">…</span></div>
+		<div class="md-kpi-sub" id="k-link-sub">-</div>
+	</div>
+	<div class="md-kpi">
+		<div class="md-kpi-label"><%=t.k_signal%></div>
+		<div class="md-kpi-value"><span id="k-rsrp">-</span><small>dBm</small></div>
+		<div class="md-meter" id="k-meter"><i></i><i></i><i></i><i></i><i></i></div>
+		<div class="md-kpi-sub" id="k-sig-sub">-</div>
+		<svg class="md-spark" id="k-spark" viewBox="0 0 100 26" preserveAspectRatio="none"></svg>
+	</div>
+	<div class="md-kpi">
+		<div class="md-kpi-label"><%=t.k_data%></div>
+		<div class="md-kpi-value"><span id="k-rate-dn">-</span><small id="k-rate-dn-u"></small></div>
+		<div class="md-kpi-sub"><%=t.up%> <b id="k-rate-up">-</b></div>
+		<div class="md-kpi-sub" id="k-data-sub">-</div>
+	</div>
+	<div class="md-kpi">
+		<div class="md-kpi-label"><%=t.k_modem%></div>
+		<div class="md-kpi-value"><span id="k-temp">-</span><small>°C</small></div>
+		<div class="md-kpi-sub" id="k-mod-sub">-</div>
+	</div>
+</div>
+
 <div id="md-grid" class="md-grid">
+	<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	<div class="md-card" id="c-mod"><h3><%=t.modemstate%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-	<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	<div class="md-card" id="c-data">
 		<h3><%=t.data%><span class="md-act">
 			<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
@@ -103,7 +133,8 @@ local v = V[lang] or V.en
 		modemstate: '<%=t.modemstate%>', resets: '<%=t.resets%>', clock: '<%=t.clock%>', bandlock: '<%=t.bandlock%>', selrat: '<%=t.selrat%>',
 		simslot: '<%=t.simslot%>', apn: '<%=t.apn%>',
 		unreg: '<%=t.unreg%>', searching: '<%=t.searching%>', registered: '<%=t.registered%>',
-		ready: '<%=t.ready%>',
+		ready: '<%=t.ready%>', connected: '<%=t.connected%>', disconnected: '<%=t.disconnected%>',
+		down: '<%=t.down%>', up: '<%=t.up%>', session: '<%=t.session%>', total: '<%=t.total%>',
 		offline: '<%=t.offline%>', attached: '<%=t.attached%>', detached: '<%=t.detached%>',
 		ip: '<%=t.ip%>', rx: '<%=t.rx%>', tx: '<%=t.tx%>', power: '<%=t.power%>',
 		state: '<%=t.state%>', cid: '<%=t.cid%>', pri: '<%=t.pri%>', customer: '<%=t.customer%>'
@@ -119,6 +150,91 @@ local v = V[lang] or V.en
 	};
 	function tv(s) { return s == null ? s : (V[s] || s); }
 
+	// --- live rates -------------------------------------------------------
+	// wwan0 counters are cumulative, so keep the previous sample and divide.
+	var prev = null, rate = { dn: null, up: null };
+	var hist = [];                       // last 60 RSRP samples for the sparkline
+
+	function fmtRate(bps) {
+		if (bps == null) return ['-', ''];
+		if (bps < 1000) return [String(Math.round(bps)), 'bit/s'];
+		if (bps < 1e6) return [(bps / 1e3).toFixed(0), 'Kbit/s'];
+		return [(bps / 1e6).toFixed(1), 'Mbit/s'];
+	}
+
+	function spark() {
+		var el = document.getElementById('k-spark');
+		if (hist.length < 2) { el.innerHTML = ''; return; }
+		var lo = -140, hi = -50, pts = [];
+		for (var i = 0; i < hist.length; i++) {
+			var x = i / (hist.length - 1) * 100;
+			var y = 24 - (Math.max(lo, Math.min(hi, hist[i])) - lo) / (hi - lo) * 22;
+			pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+		}
+		var last = hist[hist.length - 1];
+		var col = sigColor(last);
+		el.innerHTML = '<polyline fill="none" stroke="' + col + '" stroke-width="1.4" points="' + pts.join(' ') + '"/>';
+	}
+
+	function sigColor(v) {
+		if (v == null) return '#98a2b3';
+		if (v >= -85) return '#12b76a';
+		if (v >= -95) return '#4caf50';
+		if (v >= -105) return '#f79009';
+		return '#f04438';
+	}
+
+	function meter(v) {
+		var n = v == null ? 0 : v >= -85 ? 5 : v >= -95 ? 4 : v >= -105 ? 3 : v >= -115 ? 2 : 1;
+		var col = sigColor(v);
+		var seg = document.querySelectorAll('#k-meter i');
+		for (var i = 0; i < seg.length; i++) {
+			seg[i].style.background = i < n ? col : '#eef1f6';
+		}
+	}
+
+	function hero(d) {
+		var sig = d.sig || {}, net = d.net || {}, hw = d.modem || {}, wan = d.wan || {};
+		var act = {2: 'UMTS', 4: 'HSDPA', 5: 'HSUPA', 6: 'HSPA', 7: 'LTE'}[net.act] || net.sysmode || '';
+		var on = wan.attach === 1 && wan.context === 1;
+		var band = (d.cell && d.cell.band) || '';
+
+		document.getElementById('k-link').innerHTML =
+			'<span class="md-tag ' + (on ? 'ok' : 'err') + '">' + (on ? L.connected : L.disconnected) + '</span>';
+		document.getElementById('k-link-sub').textContent =
+			[net.operator || net.plmn, act, band, tv(net.ps)].filter(Boolean).join(' · ') || '-';
+
+		var rsrp = sig.rsrp;
+		document.getElementById('k-rsrp').textContent = rsrp == null ? '-' : rsrp;
+		document.getElementById('k-rsrp').style.color = sigColor(rsrp);
+		meter(rsrp);
+		document.getElementById('k-sig-sub').textContent =
+			'SINR ' + (sig.sinr == null ? '-' : sig.sinr + ' dB') +
+			' · RSRQ ' + (sig.rsrq == null ? '-' : sig.rsrq + ' dB');
+		if (rsrp != null) { hist.push(rsrp); if (hist.length > 60) hist.shift(); }
+		spark();
+
+		if (prev && wan.rx != null && wan.tx != null) {
+			var dt = (Date.now() - prev.t) / 1000;
+			if (dt > 0.5) {
+				rate.dn = Math.max(0, (wan.rx - prev.rx) * 8 / dt);
+				rate.up = Math.max(0, (wan.tx - prev.tx) * 8 / dt);
+			}
+		}
+		prev = { t: Date.now(), rx: wan.rx, tx: wan.tx };
+
+		var dn = fmtRate(rate.dn), up = fmtRate(rate.up);
+		document.getElementById('k-rate-dn').textContent = dn[0];
+		document.getElementById('k-rate-dn-u').textContent = dn[1];
+		document.getElementById('k-rate-up').textContent = up[0] + (up[1] ? ' ' + up[1] : '');
+		document.getElementById('k-data-sub').textContent =
+			L.total + ' ↓ ' + fmtBytes(wan.rx) + ' ↑ ' + fmtBytes(wan.tx);
+
+		document.getElementById('k-temp').textContent = sig.temp == null ? '-' : sig.temp;
+		document.getElementById('k-mod-sub').textContent =
+			L.uptime + ' ' + fmtUptime(hw.uptime) + ' · ' + L.resets + ' ' + (hw.reset_count == null ? '-' : hw.reset_count);
+	}
+
 	function render(d) {
 		var sig = d.sig || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {}, wan = d.wan || {};
 		var reg = net.reg;
@@ -126,6 +242,8 @@ local v = V[lang] or V.en
 			: reg === 2 ? '<span class="md-tag warn">' + L.searching + '</span>'
 			: '<span class="md-tag err">' + L.unreg + '</span>';
 		var act = {2: 'UMTS', 4: 'HSDPA', 5: 'HSUPA', 6: 'HSPA', 7: 'LTE'}[net.act] || net.sysmode || '-';
+
+		hero(d);
 
 		body('c-conn',
 			row(L.operator, esc(net.operator || net.plmn)) +
@@ -142,31 +260,27 @@ local v = V[lang] or V.en
 			row(L.ims, esc(tv(net.ims))) +
 			row(L.power, esc(tv(net.mode))));
 
-		var hwRows = [
-			row(L.model, esc(((hw.manufacturer || '') + ' ' + (hw.model || '')).replace(/,?\s*Incorporated/, '').trim())),
+		body('c-hw',
+			row(L.model, esc(((hw.manufacturer || '') + ' ' + (hw.model || '')).replace(/,?\s*Incorporated/, '').trim())) +
 			row(L.fw, hw.revision
 				? '<span title="' + esc(hw.revision) + '">' + esc(hw.revision.split(' ')[0]) + '</span>'
-				: '-'),
-			row(L.imei, esc(hw.imei), 'md-mono'),
-			row(L.imei_sv, esc(hw.imei_sv)),
-			row(L.fsn, esc(hw.fsn), 'md-mono'),
-			row(L.imsi, esc(hw.imsi), 'md-mono'),
-			row(L.iccid, esc(hw.iccid), 'md-mono')
-		];
-		body('c-hw', hwRows.join(''));
+				: '-') +
+			row(L.imei, esc(hw.imei), 'md-mono') +
+			row(L.imei_sv, esc(hw.imei_sv)) +
+			row(L.fsn, esc(hw.fsn), 'md-mono') +
+			row(L.imsi, esc(hw.imsi), 'md-mono') +
+			row(L.iccid, esc(hw.iccid), 'md-mono'));
 
-		var modRows = [
-			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')),
-			row(L.uptime, fmtUptime(hw.uptime)),
-			row(L.resets, esc(hw.reset_count)),
-			row(L.clock, hw.clock_epoch ? new Date(hw.clock_epoch * 1000).toLocaleString() + ' (NITZ)' : esc(hw.clock)),
-			row(L.bandlock, esc(tv(net.bandlock))),
-			row(L.selrat, esc(tv(net.selrat))),
-			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null),
-			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : ''), 'md-mono'),
-			row(L.customer, esc(hw.pri_customer))
-		];
-		body('c-mod', modRows.join(''));
+		body('c-mod',
+			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')) +
+			row(L.uptime, fmtUptime(hw.uptime)) +
+			row(L.resets, esc(hw.reset_count)) +
+			row(L.clock, hw.clock_epoch ? new Date(hw.clock_epoch * 1000).toLocaleString() + ' (NITZ)' : esc(hw.clock)) +
+			row(L.bandlock, esc(tv(net.bandlock))) +
+			row(L.selrat, esc(tv(net.selrat))) +
+			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +
+			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : ''), 'md-mono') +
+			row(L.customer, esc(hw.pri_customer)));
 
 		var on = wan.attach === 1 && wan.context === 1;
 		document.getElementById('md-data-toggle').checked = on;
@@ -175,7 +289,7 @@ local v = V[lang] or V.en
 		st.className = 'md-tag ' + (on ? 'ok' : 'err');
 		document.getElementById('md-data-info').innerHTML = '<table class="md-table">' +
 			row(L.ip, esc(wan.ip_modem || wan.ip)) +
-			row(L.state, esc(tv(wan.operstate))) +
+			row(L.session, fmtUptime(wan.uptime)) +
 			row(L.cid, esc(wan.cid)) +
 			row(L.rx, fmtBytes(wan.rx)) +
 			row(L.tx, fmtBytes(wan.tx)) +

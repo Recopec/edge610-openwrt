@@ -164,6 +164,10 @@ local function wan_state()
 	local sys = require "luci.sys"
 	local o = sys.exec("ip -4 -o addr show dev wwan0 2>/dev/null")
 	res.ip = o and o:match("inet%s+([%d%.]+)")
+	-- Session age: operstate is always "unknown" for qmi_wwan, so netifd's
+	-- uptime is the only useful freshness signal for the mobile link.
+	local u = sys.exec("ubus -S call network.interface.wwan status 2>/dev/null")
+	res.uptime = u and tonum(u:match('"uptime":(%d+)'))
 	return res
 end
 

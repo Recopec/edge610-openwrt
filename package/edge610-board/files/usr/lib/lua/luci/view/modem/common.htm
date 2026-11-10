@@ -3,6 +3,20 @@
 .md-toolbar #md-state{margin-left:auto;font-variant-numeric:tabular-nums}
 .md-muted{color:#98a2b3;font-size:.85rem}
 
+/* KPI strip: the one screen-level question (is the link healthy?) lives here. */
+.md-hero{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-top:.75rem}
+@media(max-width:1180px){.md-hero{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.md-hero{grid-template-columns:minmax(0,1fr)}}
+.md-kpi{display:flex;flex-direction:column;gap:.28rem;background:#fff;border:1px solid #e6e8ee;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);padding:.7rem .9rem;min-height:104px}
+.md-kpi-label{font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3}
+.md-kpi-value{display:flex;align-items:baseline;gap:.3rem;font-size:1.5rem;font-weight:600;line-height:1.15;color:#101828;font-variant-numeric:tabular-nums}
+.md-kpi-value small{font-size:.78rem;font-weight:500;color:#667085}
+.md-kpi-sub{font-size:.8rem;color:#667085;margin-top:auto;font-variant-numeric:tabular-nums}
+.md-kpi-sub b{color:#101828;font-weight:500}
+.md-meter{display:flex;gap:3px}
+.md-meter i{display:block;flex:1 1 auto;height:6px;border-radius:2px;background:#eef1f6}
+.md-spark{width:100%;height:26px;display:block;margin-top:.15rem}
+
 /* Cards: real grid instead of CSS columns, so the cards line up and the empty
    space does not end up in the middle of a column. */
 .md-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:.75rem;align-items:start}
