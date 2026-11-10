@@ -9,7 +9,8 @@ local T = {
 		legend = "Sierra Wireless EM7565",
 		simslot = "SIM slot",
 		sim1 = "SIM1 (upper slot)",
-		sim2 = "SIM2 (lower slot, not wired on the Edge 610)",
+		sim_auto = "Automatic",
+		sim2err = "AT!UIMS=2 (lower slot) is rejected by this firmware",
 		rat = "Radio mode",
 		auto = "Automatic",
 		lte = "LTE only",
@@ -29,7 +30,8 @@ local T = {
 		legend = "Sierra Wireless EM7565",
 		simslot = "SIM 槽",
 		sim1 = "SIM1（上槽）",
-		sim2 = "SIM2（下槽，Edge 610 未接线）",
+		sim_auto = "自动",
+		sim2err = "AT!UIMS=2（下槽）这个固件直接报 ERROR",
 		rat = "制式",
 		auto = "自动",
 		lte = "仅 LTE",
@@ -64,7 +66,7 @@ local bands = {
 	{ 66, "B66 (AWS-3)" },
 }
 
-local sim = uci:get("modem", "main", "sim") or "0"
+local sim = uci:get("modem", "main", "sim") or "1"
 local rat = uci:get("modem", "main", "rat") or "06"
 local apn = uci:get("modem", "main", "apn") or ""
 if apn == "" then
@@ -102,7 +104,8 @@ if http.formvalue("reset") then
 	msg = t.reset_done
 end
 if http.formvalue("apply") then
-	local nsim = http.formvalue("sim") or "0"
+	local nsim = http.formvalue("sim") or "1"
+	if nsim ~= "0" then nsim = "1" end
 	local nrat = http.formvalue("rat") or "06"
 	local sel = http.formvalue("band")
 	if type(sel) ~= "table" then
@@ -204,9 +207,10 @@ end
 			<label class="cbi-value-title" for="sim"><%=t.simslot%></label>
 			<div class="cbi-value-field">
 				<select name="sim" id="sim">
-					<option value="0"<% if sim == "0" then %> selected<% end %>><%=t.sim1%></option>
-					<option value="1"<% if sim == "1" then %> selected<% end %>><%=t.sim2%></option>
+					<option value="1"<% if sim ~= "0" then %> selected<% end %>><%=t.sim1%></option>
+					<option value="0"<% if sim == "0" then %> selected<% end %>><%=t.sim_auto%></option>
 				</select>
+				<div class="cbi-value-description"><%=t.sim2err%></div>
 			</div>
 		</div>
 		<div class="cbi-value">
