@@ -228,13 +228,13 @@ end
 		<div class="md-body">
 			<% if #sats > 0 then %>
 			<table class="md-neigh">
-				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h"><%=t.cno%></th></tr></thead>
+				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h" title="C/N0 (dB-Hz) — the modem names this field SNR and its manual says dB, but the reported values are carrier-to-noise density"><%=t.cno%></th></tr></thead>
 				<tbody>
 				<% for _, s in ipairs(sats) do %>
 				<tr><td><%=s.sv%></td><td><%=s.el%>°</td><td><%=s.az%>°</td>
 					<td class="md-cno-h">
 						<span class="md-cno"><span style="width:<%=math.min(100, math.floor((s.cno or 0) * 2.4))%>%;background:<%=cnoColor(s.cno)%>"></span></span>
-						<span class="md-cnov"><%=s.cno or "-"%></span><span class="md-cnou">dB</span>
+						<span class="md-cnov"><%=s.cno or "-"%></span><span class="md-cnou">dB-Hz</span>
 					</td></tr>
 				<% end %>
 				</tbody>
