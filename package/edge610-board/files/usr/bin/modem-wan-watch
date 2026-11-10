@@ -1,0 +1,80 @@
+#!/bin/sh
+# Keep wwan0's IPv4 in sync with the modem's active PDP context.
+#
+# netifd only learns the address when qmi.sh sets up the call.  The modem can
+# re-activate the context on its own (network-initiated deactivate, APN change,
+# AT+CGACT from the settings page), and then wwan0 keeps routing from the old
+# source address while the PDP uses a new one - packets leave and never return.
+#
+# Read-only until it has to act: one AT query per cycle.
+
+IFACE=wwan
+INTERVAL=30
+MINGAP=120
+MAXGAP=900
+
+gap=$MINGAP
+last=0
+
+log() { logger -t modem-wan "$*"; }
+
+pdp_addr() {
+	/usr/bin/modem-at 'AT+CGPADDR' 2>/dev/null | tr -d '\r' |
+		sed -n 's/^+CGPADDR:[[:space:]]*1,\([0-9.]*\).*/\1/p' | head -n1
+}
+
+if_addr() {
+	ip -4 -o addr show dev wwan0 2>/dev/null | awk 'NR==1 {print $4}' | cut -d/ -f1
+}
+
+while :; do
+	sleep "$INTERVAL"
+
+	# ubus -S answers compact JSON, plain call answers with tabs.
+	st=$(ubus -S call network.interface.$IFACE status 2>/dev/null | tr -d ' \t')
+	case "$st" in
+	*'"up":true'*) ;;
+	*) gap=$MINGAP; continue ;;
+	esac
+	# Let netifd finish whatever it is doing before touching the interface.
+	case "$st" in
+	*'"pending":true'*) continue ;;
+	esac
+
+	# Never race the settings page or the data toggle for the AT port.
+	( flock -n 9 || exit 1 ) 9>/tmp/.modem-at.lock || continue
+
+	mdm=$(pdp_addr)
+	ifv=$(if_addr)
+
+	# No PDP (data switched off) or no answer: nothing to reconcile.
+	case "$mdm" in
+	"" | 0.0.0.0) gap=$MINGAP; continue ;;
+	esac
+
+	[ "$mdm" = "$ifv" ] && { gap=$MINGAP; continue; }
+
+	now=$(date +%s)
+	[ $((now - last)) -ge "$gap" ] || continue
+
+	log "wwan0=$ifv modem=$mdm, re-dialling $IFACE"
+	ifdown "$IFACE" 2>/dev/null
+	# Drop a context opened outside netifd (AT tools, modem auto-connect);
+	# uqmi --start-network fails while one is active.
+	/usr/bin/modem-at 'AT+CGACT=0,1' >/dev/null 2>&1
+	sleep 2
+	ifup "$IFACE" 2>/dev/null
+
+	# Give netifd time to attach, start the call and run DHCP.
+	sleep 20
+	mdm=$(pdp_addr)
+	ifv=$(if_addr)
+	if [ -n "$mdm" ] && [ "$mdm" != "0.0.0.0" ] && [ "$mdm" = "$ifv" ]; then
+		log "recovered: wwan0=$ifv"
+		gap=$MINGAP
+	else
+		gap=$((gap * 2))
+		[ "$gap" -gt "$MAXGAP" ] && gap=$MAXGAP
+	fi
+	last=$(date +%s)
+done

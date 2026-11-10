@@ -322,10 +322,22 @@ function setdata()
 	local http = require "luci.http"
 	local sys = require "luci.sys"
 
+	-- When the modem is bound as a WAN interface, let netifd own the call:
+	-- an AT-activated context fights uqmi --start-network and the interface
+	-- ends up without an address.
+	local bound = (sys.exec("ubus -S list network.interface.wwan 2>/dev/null") or "") ~= ""
+
 	if http.formvalue("enable") == "1" then
 		sys.exec("/usr/bin/modem-at 'AT+CGATT=1' >/dev/null 2>&1")
-		sys.exec("/usr/bin/modem-at 'AT+CGACT=1,1' >/dev/null 2>&1")
+		if bound then
+			sys.exec("ifup wwan >/dev/null 2>&1")
+		else
+			sys.exec("/usr/bin/modem-at 'AT+CGACT=1,1' >/dev/null 2>&1")
+		end
 	else
+		if bound then
+			sys.exec("ifdown wwan >/dev/null 2>&1")
+		end
 		sys.exec("/usr/bin/modem-at 'AT+CGACT=0,1' >/dev/null 2>&1")
 		sys.exec("/usr/bin/modem-at 'AT+CGATT=0' >/dev/null 2>&1")
 	end

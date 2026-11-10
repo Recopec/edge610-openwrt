@@ -60,6 +60,9 @@ endef
 define Package/edge610-board/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/edge610 $(1)/etc/init.d/edge610
+	$(INSTALL_BIN) ./files/etc/init.d/modem-wan-watch $(1)/etc/init.d/modem-wan-watch
+	$(INSTALL_DIR) $(1)/etc/rc.d
+	$(LN) ../init.d/modem-wan-watch $(1)/etc/rc.d/S95modem-wan-watch
 	$(INSTALL_DIR) $(1)/etc/modprobe.d
 	$(INSTALL_DATA) ./files/etc/modprobe.d/edge610.conf $(1)/etc/modprobe.d/edge610.conf
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
@@ -68,14 +71,21 @@ define Package/edge610-board/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
 	$(INSTALL_BIN) ./files/usr/bin/modem-at $(1)/usr/bin/modem-at
+	$(INSTALL_BIN) ./files/usr/bin/modem-sms-send $(1)/usr/bin/modem-sms-send
+	$(INSTALL_BIN) ./files/usr/bin/modem-wan-watch $(1)/usr/bin/modem-wan-watch
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/modem $(1)/etc/config/modem
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/controller/modem.lua $(1)/usr/lib/lua/luci/controller/modem.lua
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/modem
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/status.htm $(1)/usr/lib/lua/luci/view/modem/status.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/signal.htm $(1)/usr/lib/lua/luci/view/modem/signal.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/common.htm $(1)/usr/lib/lua/luci/view/modem/common.htm
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/gps.htm $(1)/usr/lib/lua/luci/view/modem/gps.htm
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/settings.htm $(1)/usr/lib/lua/luci/view/modem/settings.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/settings_form.htm $(1)/usr/lib/lua/luci/view/modem/settings_form.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/sms.htm $(1)/usr/lib/lua/luci/view/modem/sms.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/at.htm $(1)/usr/lib/lua/luci/view/modem/at.htm
 	$(INSTALL_DIR) $(1)/etc/openclash/core
 	$(INSTALL_BIN) ./files/etc/openclash/core/clash_meta $(1)/etc/openclash/core/clash_meta
 endef
