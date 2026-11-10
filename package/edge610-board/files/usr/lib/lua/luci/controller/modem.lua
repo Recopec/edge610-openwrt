@@ -275,6 +275,52 @@ function setdata()
 	http.write_json({ ok = true })
 end
 
+-- Network scan (AT+COPS=? blocks for up to a minute, so run it detached).
+function scan()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+
+	local f = io.open("/tmp/.modem-scan", "r")
+	if f then
+		local s = f:read("*a") or ""
+		f:close()
+		local list = {}
+		for st, name, plmn, act in s:gmatch('%((%d),"([^"]*)","[^"]*","(%d+)",(%d+)%)') do
+			list[#list + 1] = { status = tonum(st), name = name, plmn = plmn, act = tonum(act) }
+		end
+		if #list > 0 then
+			http.prepare_content("application/json")
+			http.write_json({ operators = list })
+			return
+		end
+		local started = tonum(s:match("^(%d+)"))
+		if started and os.time() - started < 90 then
+			http.prepare_content("application/json")
+			http.write_json({ running = true })
+			return
+		end
+	end
+
+	os.remove("/tmp/.modem-scan")
+	sys.exec("nohup sh -c 'printf \"%d\\n\" $(date +%s); /usr/bin/modem-at -t 90 \"AT+COPS=?\" 2>&1' > /tmp/.modem-scan 2>&1 &")
+	http.prepare_content("application/json")
+	http.write_json({ running = true })
+end
+
+-- Automatic or manual network selection.
+function setnet()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+	local plmn = http.formvalue("plmn")
+	if plmn and plmn:match("^%d+$") then
+		sys.exec("/usr/bin/modem-at 'AT+COPS=1,2,\"" .. plmn .. "\"' >/dev/null 2>&1")
+	else
+		sys.exec("/usr/bin/modem-at 'AT+COPS=0' >/dev/null 2>&1")
+	end
+	http.prepare_content("application/json")
+	http.write_json({ ok = true })
+end
+
 function index()
 	if not nixio.fs.access("/usr/bin/modem-at") then
 		return
@@ -286,4 +332,6 @@ function index()
 	entry({"admin", "status", "modem", "gps"}, template("modem/gps"), _("GPS"), 30).leaf = true
 	entry({"admin", "status", "modem", "data"}, call("data")).leaf = true
 	entry({"admin", "status", "modem", "setdata"}, call("setdata")).leaf = true
+	entry({"admin", "status", "modem", "scan"}, call("scan")).leaf = true
+	entry({"admin", "status", "modem", "setnet"}, call("setnet")).leaf = true
 end

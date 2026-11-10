@@ -16,6 +16,11 @@ local T = {
 		bandlock = "Band lock",
 		hint = "Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active.",
 		save = "Save & Apply",
+		apn = "APN", pdptype = "PDP type", auth = "Authentication",
+		auth_none = "None", pap = "PAP", chap = "CHAP",
+		user = "Username", pass = "Password",
+		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
+		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved; the modem has been reset.",
 	},
 	zh = {
@@ -29,6 +34,11 @@ local T = {
 		bandlock = "锁频",
 		hint = "全部不勾选表示使用全部频段；锁定频段会清空 UMTS 掩码，锁定期间 3G 不可用。",
 		save = "保存并应用",
+		apn = "APN", pdptype = "PDP 类型", auth = "鉴权方式",
+		auth_none = "无", pap = "PAP", chap = "CHAP",
+		user = "用户名", pass = "密码",
+		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
+		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存，模组已复位。",
 	},
 }
@@ -52,6 +62,16 @@ local bands = {
 
 local sim = uci:get("modem", "main", "sim") or "0"
 local rat = uci:get("modem", "main", "rat") or "06"
+local apn = uci:get("modem", "main", "apn") or ""
+if apn == "" then
+	local o = sys.exec("/usr/bin/modem-at 'AT+CGDCONT?' 2>/dev/null") or ""
+	local m = o:match('+CGDCONT:%s*%d+,"%a+","([^"]*)"')
+	if m then apn = m end
+end
+local pdptype = uci:get("modem", "main", "pdptype") or "IP"
+local auth = uci:get("modem", "main", "auth") or "0"
+local user = uci:get("modem", "main", "user") or ""
+local pass = uci:get("modem", "main", "pass") or ""
 local cur = {}
 for b in (uci:get("modem", "main", "band") or ""):gmatch("%d+") do
 	cur[tonumber(b)] = true
@@ -94,6 +114,19 @@ if http.formvalue("apply") then
 		end
 	end
 
+	local napn = http.formvalue("apn") or ""
+	local npdptype = http.formvalue("pdptype") or "IP"
+	local nauth = http.formvalue("auth") or "0"
+	local nuser = http.formvalue("user") or ""
+	local npass = http.formvalue("pass") or ""
+	if npdptype ~= "IPV6" and npdptype ~= "IPV4V6" then npdptype = "IP" end
+	if nauth ~= "1" and nauth ~= "2" then nauth = "0" end
+	uci:set("modem", "main", "apn", napn)
+	uci:set("modem", "main", "pdptype", npdptype)
+	uci:set("modem", "main", "auth", nauth)
+	uci:set("modem", "main", "user", nuser)
+	uci:set("modem", "main", "pass", npass)
+
 	uci:set("modem", "main", "sim", nsim)
 	uci:set("modem", "main", "rat", nrat)
 	uci:set("modem", "main", "band", table.concat(list, " "))
@@ -117,8 +150,17 @@ if http.formvalue("apply") then
 	end
 	at("'AT!UIMS=" .. nsim .. "'")
 	at("-p 'AT!SELRAT=" .. nrat .. "'")
+	at("'AT+CGDCONT=1,\"" .. npdptype .. "\",\"" .. napn .. "\"'")
+	if nauth ~= "0" then
+		at("'AT+CGAUTH=1," .. nauth .. ",\"" .. nuser .. "\",\"" .. npass .. "\"'")
+	else
+		at("'AT+CGAUTH=1,0'")
+	end
+	at("'AT+CGACT=0,1'")
+	at("'AT+CGACT=1,1'")
 	at("'AT!RESET'")
 
+	apn, pdptype, auth, user, pass = napn, npdptype, nauth, nuser, npass
 	msg = t.saved
 end
 %>
@@ -144,6 +186,52 @@ end
 				</select>
 			</div>
 		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="apn"><%=t.apn%></label>
+			<div class="cbi-value-field">
+				<input type="text" name="apn" id="apn" value="<%=apn%>" placeholder="cmnet"/>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="pdptype"><%=t.pdptype%></label>
+			<div class="cbi-value-field">
+				<select name="pdptype" id="pdptype">
+					<option value="IP"<% if pdptype == "IP" then %> selected<% end %>>IPv4</option>
+					<option value="IPV6"<% if pdptype == "IPV6" then %> selected<% end %>>IPv6</option>
+					<option value="IPV4V6"<% if pdptype == "IPV4V6" then %> selected<% end %>>IPv4/IPv6</option>
+				</select>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="auth"><%=t.auth%></label>
+			<div class="cbi-value-field">
+				<select name="auth" id="auth">
+					<option value="0"<% if auth == "0" then %> selected<% end %>><%=t.auth_none%></option>
+					<option value="1"<% if auth == "1" then %> selected<% end %>><%=t.pap%></option>
+					<option value="2"<% if auth == "2" then %> selected<% end %>><%=t.chap%></option>
+				</select>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="user"><%=t.user%></label>
+			<div class="cbi-value-field">
+				<input type="text" name="user" id="user" value="<%=user%>"/>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title" for="pass"><%=t.pass%></label>
+			<div class="cbi-value-field">
+				<input type="password" name="pass" id="pass" value="<%=pass%>"/>
+			</div>
+		</div>
+		<div class="cbi-value">
+			<label class="cbi-value-title"><%=t.net%></label>
+			<div class="cbi-value-field">
+				<button type="button" id="md-scan" class="btn cbi-button cbi-button-action"><%=t.scan%></button>
+				<button type="button" id="md-auto" class="btn cbi-button"><%=t.auto_net%></button>
+				<div id="md-scan-result" class="md-muted" style="margin-top:.5rem"></div>
+			</div>
+		</div>
 		<div class="cbi-value cbi-value-last">
 			<label class="cbi-value-title"><%=t.bandlock%></label>
 			<div class="cbi-value-field">
@@ -161,6 +249,59 @@ end
 	</form>
 	<% if msg then %><div class="alert-message success"><%=msg%></div><% end %>
 </fieldset>
+
+<script>
+(function() {
+	var SCAN = '<%=luci.dispatcher.build_url("admin", "status", "modem", "scan")%>';
+	var SETNET = '<%=luci.dispatcher.build_url("admin", "status", "modem", "setnet")%>';
+	var scanBtn = document.getElementById('md-scan');
+	var autoBtn = document.getElementById('md-auto');
+	var out = document.getElementById('md-scan-result');
+	if (!scanBtn || !out) return;
+
+	var tries = 0;
+	function poll() {
+		if (++tries > 60) { window.mdPaused = false; out.textContent = '<%=t.no_net%>'; return; }
+		fetch(SCAN, {credentials: 'same-origin', cache: 'no-store'})
+			.then(function(r) { return r.json(); })
+			.then(function(d) {
+				if (d.running) { setTimeout(poll, 2000); return; }
+				window.mdPaused = false;
+				var ops = d.operators || [];
+				if (!ops.length) { out.textContent = '<%=t.no_net%>'; return; }
+				var h = '<table class="md-table"><thead><tr><th>PLMN</th><th>Name</th><th>Act</th><th>Status</th><th></th></tr></thead><tbody>';
+				ops.forEach(function(o) {
+					h += '<tr><td>' + o.plmn + '</td><td>' + o.name + '</td><td>' + o.act + '</td><td>' + o.status + '</td>' +
+						'<td><button type="button" class="btn cbi-button" data-plmn="' + o.plmn + '"><%=t.lock%></button></td></tr>';
+				});
+				h += '</tbody></table>';
+				out.innerHTML = h;
+				Array.prototype.forEach.call(out.querySelectorAll('button[data-plmn]'), function(b) {
+					b.addEventListener('click', function() {
+						fetch(SETNET, {method: 'POST', credentials: 'same-origin',
+							headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+							body: 'plmn=' + b.getAttribute('data-plmn')})
+							.then(function() { location.reload(); });
+					});
+				});
+			})
+			.catch(function() { window.mdPaused = false; out.textContent = '<%=t.no_net%>'; });
+	}
+
+	scanBtn.addEventListener('click', function() {
+		window.mdPaused = true;
+		out.textContent = '<%=t.scanning%>';
+		fetch(SCAN, {credentials: 'same-origin', cache: 'no-store'})
+			.then(function(r) { return r.json(); })
+			.then(function() { poll(); });
+	});
+	autoBtn.addEventListener('click', function() {
+		fetch(SETNET, {method: 'POST', credentials: 'same-origin',
+			headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'plmn='})
+			.then(function() { location.reload(); });
+	});
+})();
+</script>
 
 <style>
 .band-grid {

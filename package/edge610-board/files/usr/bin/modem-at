@@ -5,6 +5,11 @@
 #
 # Usage: modem-at [-p] <AT command>
 #   -p  unlock password-protected commands first (AT!ENTERCND)
+TIMEOUT=3
+if [ "$1" = "-t" ]; then
+	TIMEOUT="$2"
+	shift 2
+fi
 CMD="$1"
 [ -n "$CMD" ] || exit 1
 PW=
@@ -33,9 +38,12 @@ find_port() {
 
 P="$(find_port)" || { echo "AT port not found"; exit 1; }
 
+LINGER=
+[ "$TIMEOUT" -gt 3 ] && LINGER="-t $TIMEOUT"
+
 if [ -n "$PW" ]; then
 	{ printf 'AT!ENTERCND="A710"\r'; sleep 1; printf '%s\r' "$CMD"; } | \
-		timeout 5 socat - "$P",raw,echo=0 2>/dev/null
+		timeout "$((TIMEOUT + 2))" flock -w 10 /tmp/.modem-at.lock socat $LINGER - "$P",raw,echo=0 2>/dev/null
 else
-	printf '%s\r' "$CMD" | timeout 3 socat - "$P",raw,echo=0 2>/dev/null
+	printf '%s\r' "$CMD" | timeout "$TIMEOUT" flock -w 10 /tmp/.modem-at.lock socat $LINGER - "$P",raw,echo=0 2>/dev/null
 fi

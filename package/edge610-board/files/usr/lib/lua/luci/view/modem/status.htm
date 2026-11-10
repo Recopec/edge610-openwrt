@@ -417,6 +417,7 @@ local v = V[lang] or V.en
 	}
 
 	function tick() {
+		if (window.mdPaused) { schedule(2000); return; }
 		if (inflight) return;
 		inflight = true;
 		var ms = parseInt(document.getElementById('md-interval').value, 10) * 1000;
