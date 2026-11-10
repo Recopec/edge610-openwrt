@@ -401,49 +401,188 @@ local function ucs2(s)
 	return s
 end
 
+local GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\27ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+local GSM7EXT = { [0x0A] = "\f", [0x14] = "^", [0x28] = "{", [0x29] = "}", [0x2F] = "\\", [0x3C] = "[", [0x3D] = "~", [0x3E] = "]", [0x40] = "|", [0x65] = "€" }
+
+-- GSM 03.38 septet unpacking; skip is the number of leading septets to drop
+local function unpack7(hex, skip)
+	local bytes = {}
+	for i = 1, #hex, 2 do
+		bytes[#bytes + 1] = tonumber(hex:sub(i, i + 1), 16) or 0
+	end
+	local sept = {}
+	local acc, bits = 0, 0
+	for i = 1, #bytes do
+		acc = acc + bytes[i] * 2 ^ bits
+		bits = bits + 8
+		while bits >= 7 do
+			sept[#sept + 1] = acc % 128
+			acc = math.floor(acc / 128)
+			bits = bits - 7
+		end
+	end
+	local out, esc = {}, false
+	for i = (skip or 0) + 1, #sept do
+		local c = sept[i]
+		if esc then
+			out[#out + 1] = GSM7EXT[c] or "?"
+			esc = false
+		elseif c == 0x1B then
+			esc = true
+		else
+			out[#out + 1] = GSM7:sub(c + 1, c + 1)
+		end
+	end
+	return table.concat(out)
+end
+
+local function bcd_num(hex, len, toa)
+	local d = {}
+	for i = 1, #hex, 2 do
+		local b = tonumber(hex:sub(i, i + 1), 16) or 0
+		d[#d + 1] = b % 16
+		local hi = math.floor(b / 16)
+		if hi ~= 15 then
+			d[#d + 1] = hi
+		end
+	end
+	local out = table.concat(d):sub(1, len)
+	if toa == 0x91 then
+		out = "+" .. out
+	end
+	return out
+end
+
+local function scts_str(h)
+	local function pair(p)
+		return (tonumber(p:sub(2, 2), 16) or 0) * 10 + (tonumber(p:sub(1, 1), 16) or 0)
+	end
+	local tz = tonumber(h:sub(13, 14), 16) or 0
+	local sign = (tz % 16) >= 8 and "-" or "+"
+	local q = math.floor(tz / 16) * 10 + (tz % 8)
+	return string.format("%02d/%02d/%02d,%02d:%02d:%02d%s%d",
+		pair(h:sub(1, 2)), pair(h:sub(3, 4)), pair(h:sub(5, 6)),
+		pair(h:sub(7, 8)), pair(h:sub(9, 10)), pair(h:sub(11, 12)),
+		sign, math.floor(q / 4))
+end
+
+-- returns from, scts, text, ref, total, seq for a SMS-DELIVER PDU
+local function pdu_parse(hex)
+	local i = 1
+	local smsc_len = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2 + smsc_len * 2
+	local fo = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2
+	if fo % 2 == 1 then
+		return nil
+	end
+	local oa_len = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2
+	local toa = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2
+	local oa_hex = hex:sub(i, i + math.ceil(oa_len / 2) * 2 - 1)
+	i = i + math.ceil(oa_len / 2) * 2
+	local from = bcd_num(oa_hex, oa_len, toa)
+	i = i + 2
+	local dcs = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2
+	local when = scts_str(hex:sub(i, i + 13))
+	i = i + 14
+	local udl = tonumber(hex:sub(i, i + 1), 16) or 0
+	i = i + 2
+	local ud = hex:sub(i, i + udl * 2 - 1)
+
+	local ref, total, seq, udh_octets = nil, nil, nil, 0
+	local udhl = tonumber(ud:sub(1, 2), 16) or 0
+	if udhl > 0 then
+		udh_octets = udhl + 1
+		local j = 3
+		while j <= udhl * 2 + 1 do
+			local iei = tonumber(ud:sub(j, j + 1), 16) or 0
+			local iedl = tonumber(ud:sub(j + 2, j + 3), 16) or 0
+			if iei == 0x00 and iedl == 3 then
+				ref = tonumber(ud:sub(j + 4, j + 5), 16)
+				total = tonumber(ud:sub(j + 6, j + 7), 16)
+				seq = tonumber(ud:sub(j + 8, j + 9), 16)
+			end
+			j = j + 4 + iedl * 2
+		end
+	end
+
+	local text
+	local coding = dcs % 0x10
+	if coding == 0x08 then
+		text = ucs2(ud:sub(udh_octets * 2 + 1))
+	elseif coding == 0x00 then
+		text = unpack7(ud, udh_octets > 0 and math.ceil(udh_octets * 8 / 7) or 0)
+	else
+		text = ud:sub(udh_octets * 2 + 1)
+	end
+	return from, when, text, ref, total, seq
+end
+
 function sms()
 	local http = require "luci.http"
 	local sys = require "luci.sys"
 
-	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=1;+CMGL=\"ALL\"' 2>/dev/null") or ""
-	local list, cur = {}, nil
+	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=0;+CMGL=4' 2>/dev/null") or ""
+	local raw, cur = {}, nil
 	for _, l in ipairs(lines(o)) do
-		-- +CMGL: <idx>,"<stat>","<from>",<alpha>,"<time>"
-		local idx, stat, from, ts = l:match('^%+CMGL:%s*(%d+),"([^"]*)","([^"]*)",[^,]*,"([^"]*)"')
+		local idx, stat = l:match("^%+CMGL:%s*(%d+),(%d+)")
 		if idx then
-			if cur then list[#list + 1] = cur end
-			cur = { index = tonum(idx), stat = stat, from = from, time = ts, text = {} }
-		elseif cur and not l:match("^OK$") and not l:match("^AT") then
-			cur.text[#cur.text + 1] = l
+			cur = { index = tonum(idx), stat = tonum(stat) }
+			raw[#raw + 1] = cur
+		elseif cur and l:match("^[0-9A-Fa-f]+$") then
+			cur.pdu = l
+			cur = nil
 		end
-	end
-	if cur then list[#list + 1] = cur end
-	for _, m in ipairs(list) do
-		m.text = ucs2(table.concat(m.text, "\n"))
 	end
 
-	-- a long SMS arrives as several parts; the modem stores each part
-	-- separately but they share the sender and the SCTS
-	local merged, order = {}, {}
+	local list = {}
+	for _, r in ipairs(raw) do
+		if r.pdu then
+			local from, when, text, ref, total, seq = pdu_parse(r.pdu)
+			if from then
+				local stat = ({ [0] = "REC UNREAD", [1] = "REC READ", [2] = "STO UNSENT", [3] = "STO SENT" })[r.stat] or tostring(r.stat)
+				list[#list + 1] = {
+					index = r.index, stat = stat, from = from, time = when,
+					text = text, ref = ref, total = total, seq = seq,
+				}
+			end
+		end
+	end
+
+	-- a long SMS arrives as several parts; group by concat reference (or by
+	-- sender + timestamp when the carrier did not add a UDH) and order by
+	-- the UDH sequence number
+	local groups, order = {}, {}
 	for _, m in ipairs(list) do
-		local key = tostring(m.from) .. "|" .. tostring(m.time)
-		local g = merged[key]
+		local key = m.ref and ("ref:" .. m.ref .. ":" .. m.from) or (m.from .. "|" .. m.time)
+		local g = groups[key]
 		if not g then
-			g = { from = m.from, time = m.time, stat = m.stat, index = m.index, text = {}, parts = 0 }
-			merged[key] = g
+			g = { from = m.from, time = m.time, stat = m.stat, index = m.index, parts = {} }
+			groups[key] = g
 			order[#order + 1] = key
 		end
-		g.text[#g.text + 1] = m.text
-		g.parts = g.parts + 1
+		g.parts[#g.parts + 1] = m
 		if m.index < g.index then
 			g.index = m.index
 		end
 	end
 	local out = {}
 	for _, key in ipairs(order) do
-		local g = merged[key]
-		g.text = table.concat(g.text, "")
-		out[#out + 1] = g
+		local g = groups[key]
+		table.sort(g.parts, function(a, b)
+			return (a.seq or a.index) < (b.seq or b.index)
+		end)
+		local text = {}
+		for _, p in ipairs(g.parts) do
+			text[#text + 1] = p.text
+		end
+		out[#out + 1] = {
+			index = g.index, stat = g.stat, from = g.from, time = g.time,
+			text = table.concat(text), parts = #g.parts,
+		}
 	end
 
 	http.prepare_content("application/json")
