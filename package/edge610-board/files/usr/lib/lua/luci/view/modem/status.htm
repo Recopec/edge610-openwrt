@@ -27,6 +27,8 @@
 .md-card h3{margin:0 0 .7rem;font-size:.95rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.5rem}
 .md-table{width:100%;border-collapse:collapse;font-size:.88rem}
 .md-table td{padding:.22rem 0;vertical-align:top}
+.md-table th{font-size:.78rem;color:#888;text-align:right;font-weight:500;padding:.2rem 0}
+.md-table th:first-child{text-align:left}
 .md-l{color:#777;white-space:nowrap;padding-right:1rem}
 .md-v{text-align:right;font-weight:600;word-break:break-all}
 .md-bar{height:7px;background:#eee;border-radius:4px;overflow:hidden;margin:.2rem 0 .1rem}
@@ -37,6 +39,9 @@
 .md-tag.ok{background:#e8f5e9;color:#2e7d32}
 .md-tag.warn{background:#fff8e1;color:#b26a00}
 .md-tag.err{background:#fdecea;color:#c62828}
+.md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
+.md-neigh td:first-child{text-align:left}
+.md-neigh tr.md-serv td{font-weight:600}
 </style>
 
 <script>
@@ -47,6 +52,7 @@
 		signal: '<%:Signal%>',
 		cell: '<%:Cell%>',
 		hardware: '<%:Hardware%>',
+		neigh: '<%:Neighbour cells%>',
 		operator: '<%:Operator%>',
 		plmn: '<%:PLMN%>',
 		mode: '<%:Technology%>',
@@ -54,23 +60,29 @@
 		sim: '<%:SIM%>',
 		ps: 'PS',
 		emm: 'EMM',
+		rrc: 'RRC',
 		band: '<%:Band%>',
 		bw: '<%:Bandwidth%>',
 		pci: 'PCI',
 		earfcn: 'EARFCN',
 		tac: 'TAC',
 		eci: 'ECI',
+		scc: 'SCC',
 		model: '<%:Model%>',
 		fw: '<%:Firmware%>',
 		imei: 'IMEI',
 		imsi: 'IMSI',
 		iccid: 'ICCID',
 		temp: '<%:Temperature%>',
+		uptime: '<%:Uptime%>',
+		resets: '<%:Resets%>',
 		csq: 'CSQ',
 		rsrp: 'RSRP',
 		rsrq: 'RSRQ',
 		sinr: 'SINR',
 		rssi: 'RSSI',
+		txpower: '<%:Tx power%>',
+		serving: '<%:serving%>',
 		unreg: '<%:Not registered%>',
 		searching: '<%:Searching%>',
 		registered: '<%:Registered%>',
@@ -113,6 +125,38 @@
 
 	function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+	function arr(v) { return Array.isArray(v) ? v : []; }
+
+	function fmtUptime(s) {
+		if (s == null) return null;
+		var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+		return (h > 0 ? h + 'h ' : '') + m + 'm';
+	}
+
+	function neighCard(d) {
+		var serving = d.cell && d.cell.pci;
+		var intra = arr(d.neigh && d.neigh.intra);
+		var inter = arr(d.neigh && d.neigh.inter);
+		var h = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th></tr></thead><tbody>';
+		intra.forEach(function(n) {
+			h += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
+				(n.pci === serving ? ' <span class="md-tag ok">' + L.serving + '</span>' : '') +
+				'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td></tr>';
+		});
+		h += '</tbody></table>';
+		if (inter.length) {
+			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP</th><th>RSRQ</th></tr></thead><tbody>';
+			inter.forEach(function(n) {
+				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td></tr>';
+			});
+			h += '</tbody></table>';
+		}
+		if (!intra.length && !inter.length) {
+			h += '<div class="md-muted">-</div>';
+		}
+		return '<div class="md-card"><h3>' + L.neigh + '</h3>' + h + '</div>';
+	}
+
 	function render(d) {
 		var sig = d.sig || {}, cell = d.cell || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {};
 		var reg = net.reg;
@@ -127,7 +171,8 @@
 			row(L.reg, regTxt) +
 			row(L.sim, esc(sim.state)) +
 			row('PS', esc(net.ps)) +
-			row('EMM', esc(net.emm));
+			row('EMM', esc(net.emm)) +
+			row(L.rrc, esc(net.rrc));
 
 		var csq = sig.csq;
 		var csqQ = csq == null ? null : qual(csq, [[20, L.excellent, '#4caf50'], [15, L.good, '#8bc34a'], [10, L.fair, '#ffc107'], [0, L.poor, '#f44336']]);
@@ -139,7 +184,8 @@
 			bar(L.rsrp, sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100), rsrpQ) +
 			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
 			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
-			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null);
+			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
+			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-');
 
 		var eci = cell.ci ? (parseInt(cell.ci, 16) + ' (' + cell.ci + ')') : null;
 		var cells = row(L.band, esc(cell.band)) +
@@ -147,17 +193,24 @@
 			row(L.pci, esc(cell.pci)) +
 			row(L.earfcn, cell.earfcn_dl ? 'DL ' + cell.earfcn_dl + ' / UL ' + (cell.earfcn_ul || '-') : null) +
 			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
-			row(L.eci, esc(eci));
+			row(L.eci, esc(eci)) +
+			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null);
+		arr(cell.scc).forEach(function(s) {
+			cells += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
+		});
 
 		var hwRows = row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))) +
 			row(L.fw, esc(hw.revision)) +
 			row(L.imei, esc(hw.imei)) +
-			row(L.imsi, esc(sim.imsi)) +
-			row(L.iccid, esc(sim.iccid)) +
-			row(L.temp, sig.temp != null ? sig.temp + ' °C' : null);
+			row(L.imsi, esc(hw.imsi)) +
+			row(L.iccid, esc(hw.iccid)) +
+			row(L.temp, sig.temp != null ? sig.temp + ' °C' : null) +
+			row(L.uptime, fmtUptime(hw.uptime)) +
+			row(L.resets, esc(hw.reset_count));
 
 		document.getElementById('md-grid').innerHTML =
-			card(L.conn, conn) + card(L.signal, signals) + card(L.cell, cells) + card(L.hardware, hwRows);
+			card(L.conn, conn) + card(L.signal, signals) + card(L.cell, cells) +
+			card(L.hardware, hwRows) + neighCard(d);
 	}
 
 	var timer = null;

@@ -1,13 +1,34 @@
 module("luci.controller.modem", package.seeall)
 
+local ID_CACHE = "/tmp/.modem-id"
+
 local function at(cmd)
 	local sys = require "luci.sys"
 	return sys.exec("/usr/bin/modem-at '" .. cmd .. "' 2>/dev/null") or ""
 end
 
+local function lines(s)
+	local t = {}
+	for l in s:gmatch("[^\r\n]+") do
+		l = l:gsub("^%s+", ""):gsub("%s+$", "")
+		if #l > 0 then t[#t + 1] = l end
+	end
+	return t
+end
+
+local function trim(s)
+	if not s then return nil end
+	return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function split(s)
+	local t = {}
+	for x in s:gmatch("%S+") do t[#t + 1] = x end
+	return t
+end
+
 local function tonum(v)
-	local n = tonumber(v)
-	return n
+	return tonumber(v)
 end
 
 local function unquote(s)
@@ -17,8 +38,7 @@ end
 
 local function parse_cereg(line)
 	if not line then return {} end
-	local f = {}
-	for x in line:gmatch("[^,]+") do f[#f + 1] = x end
+	local f = split(line:gsub(",", " "))
 	return {
 		stat = tonum(f[2]),
 		tac = unquote(f[3]),
@@ -28,19 +48,59 @@ local function parse_cereg(line)
 	}
 end
 
+-- Identity changes only when the SIM or firmware does; cache it.
+local function identity()
+	local t = os.time()
+	local f = io.open(ID_CACHE, "r")
+	if f then
+		local s = f:read("*a") or ""
+		f:close()
+		local ts, man, mod, rev, imei, imsi, iccid =
+			s:match("^(%d+)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)$")
+		if ts and t - tonum(ts) < 120 then
+			return {
+				manufacturer = man ~= "" and man or nil,
+				model = mod ~= "" and mod or nil,
+				revision = rev ~= "" and rev or nil,
+				imei = imei ~= "" and imei or nil,
+				imsi = imsi ~= "" and imsi or nil,
+				iccid = iccid ~= "" and iccid or nil,
+			}
+		end
+	end
+
+	local o = at("ATI;+CIMI;+ICCID")
+	local res = {
+		manufacturer = o:match("Manufacturer:%s*([^\r\n]+)"),
+		model = o:match("Model:%s*([^\r\n]+)"),
+		revision = o:match("Revision:%s*([^\r\n]+)"),
+		imei = o:match("IMEI:%s*(%d+)"),
+		imsi = (function()
+			for _, l in ipairs(lines(o)) do
+				if l:match("^%d+$") and #l >= 14 and #l <= 16 then return l end
+			end
+		end)(),
+		iccid = o:match("ICCID:%s*([%w]+)"),
+	}
+	local w = io.open(ID_CACHE, "w")
+	if w then
+		w:write(string.format("%d|%s|%s|%s|%s|%s|%s", t,
+			res.manufacturer or "", res.model or "", res.revision or "",
+			res.imei or "", res.imsi or "", res.iccid or ""))
+		w:close()
+	end
+	return res
+end
+
 function data()
 	local http = require "luci.http"
 
 	local res = {
 		sim = {}, net = {}, sig = {}, cell = {}, modem = {},
+		neigh = { intra = {}, inter = {} },
 	}
 
-	-- Identity -----------------------------------------------------------
-	local id = at("ATI")
-	res.modem.manufacturer = id:match("Manufacturer:%s*([^\r\n]+)")
-	res.modem.model = id:match("Model:%s*([^\r\n]+)")
-	res.modem.revision = id:match("Revision:%s*([^\r\n]+)")
-	res.modem.imei = id:match("IMEI:%s*(%d+)")
+	res.modem = identity()
 
 	-- SIM / registration / operator / CSQ ---------------------------------
 	local basic = at("AT+CPIN?;+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG?")
@@ -58,36 +118,81 @@ function data()
 	res.cell.tac = cereg.tac
 	res.cell.ci = cereg.ci
 
-	-- IMSI / ICCID ---------------------------------------------------------
-	res.sim.imsi = at("AT+CIMI"):match("(%d%d%d%d%d%d%d%d%d%d%d%d%d%d+)")
-	res.sim.iccid = at("AT+ICCID"):match("ICCID:%s*([%w]+)")
+	-- Radio + neighbour cells ----------------------------------------------
+	local radio = at("AT!GSTATUS?;!LTEINFO?")
+	res.sig.temp = tonum(radio:match("Temperature:%s*(%d+)"))
+	res.modem.uptime = tonum(radio:match("Current Time:%s*(%d+)"))
+	res.modem.reset_count = tonum(radio:match("Reset Counter:%s*(%d+)"))
+	res.net.sysmode = trim(radio:match("System mode:%s*(%a+)"))
+	res.net.ps = trim(radio:match("PS state:%s*([%a ]+)"))
+	res.net.emm = trim(radio:match("EMM state:%s*([%a ]+)"))
+	res.net.rrc = trim(radio:match("RRC state:%s*([%a ]+)"))
+	res.sig.txpower = tonum(radio:match("Tx Power:%s*(-?%d+)"))
+	res.cell.band = radio:match("LTE band:%s*(%w+)")
+	res.cell.bw = tonum(radio:match("LTE bw:%s*(%d+)"))
+	res.cell.earfcn_dl = tonum(radio:match("LTE Rx chan:%s*(%d+)"))
+	res.cell.earfcn_ul = tonum(radio:match("LTE Tx chan:%s*(%d+)"))
+	res.sig.rssi = tonum(radio:match("PCC RxM RSSI:%s*(-?%d+)"))
+	res.sig.rsrp = tonum(radio:match("PCC RxM RSRP:%s*(-?%d+)"))
+	res.sig.rsrq = tonum(radio:match("RSRQ %(dB%):%s*(-?[%d%.]+)"))
+	res.sig.sinr = tonum(radio:match("SINR %(dB%):%s*(-?[%d%.]+)"))
 
-	-- Radio status ---------------------------------------------------------
-	local gs = at("AT!GSTATUS?")
-	res.sig.temp = tonum(gs:match("Temperature:%s*(%d+)"))
-	res.net.sysmode = gs:match("System mode:%s*(%a+)")
-	res.net.ps = gs:match("PS state:%s*([%a ]+)")
-	res.net.emm = gs:match("EMM state:%s*([%a ]+)")
-	res.cell.band = gs:match("LTE band:%s*(%w+)")
-	res.cell.bw = tonum(gs:match("LTE bw:%s*(%d+)"))
-	res.cell.earfcn_dl = tonum(gs:match("LTE Rx chan:%s*(%d+)"))
-	res.cell.earfcn_ul = tonum(gs:match("LTE Tx chan:%s*(%d+)"))
-	res.sig.rssi = tonum(gs:match("PCC RxM RSSI:%s*(-?%d+)"))
-	res.sig.rsrp = tonum(gs:match("PCC RxM RSRP:%s*(-?%d+)"))
-	res.sig.rsrq = tonum(gs:match("RSRQ %(dB%):%s*(-?[%d%.]+)"))
-	res.sig.sinr = tonum(gs:match("SINR %(dB%):%s*(-?[%d%.]+)"))
+	-- carrier aggregation (secondary cells)
+	local scc = {}
+	for n, state in radio:gmatch("LTE SSC(%d) state:%s*([^\r\n]+)") do
+		if not state:match("NOT ASSIGNED") then
+			local band = radio:match("LTE SSC" .. n .. " band:%s*(%w+)")
+			local bw = tonum(radio:match("LTE SSC" .. n .. " bw:%s*(%d+)"))
+			local dl = tonum(radio:match("LTE SSC" .. n .. " Rx chan:%s*(%d+)"))
+			scc[#scc + 1] = {
+				n = tonum(n), state = state, band = band, bw = bw, earfcn_dl = dl,
+			}
+		end
+	end
+	if #scc > 0 then res.cell.scc = scc end
 
-	-- PCI from the LTE info table ------------------------------------------
-	local lte = at("AT!LTEINFO?")
-	local serving = lte:match("Serving:[^\r\n]*[\r\n]+%s*([^\r\n]+)")
-	if serving then
-		local f = {}
-		for x in serving:gmatch("%S+") do f[#f + 1] = x end
-		res.cell.pci = tonum(f[10])
-		res.cell.tac = res.cell.tac or f[4]
-		res.cell.ci = res.cell.ci or f[5]
-		if not res.cell.band and f[6] then
-			res.cell.band = "B" .. f[6]
+	-- Serving row + intra/inter neighbours
+	local mode
+	for _, l in ipairs(lines(radio)) do
+		if l:match("^Serving:") then
+			mode = "serving"
+		elseif l:match("^IntraFreq:") then
+			mode = "intra"
+		elseif l:match("^InterFreq:") then
+			mode = "inter"
+		elseif l:match("^WCDMA:") then
+			mode = "wcdma"
+		elseif mode == "serving" and l:match("^%d") then
+			local f = split(l)
+			-- EARFCN MCC MNC TAC CID Bd D U SNR PCI RSRQ RSRP RSSI RXLV
+			res.cell.mcc = f[2]
+			res.cell.mnc = f[3]
+			res.cell.tac = res.cell.tac or f[4]
+			res.cell.ci = res.cell.ci or f[5]
+			res.cell.pci = tonum(f[10])
+			res.cell.snr = tonum(f[9])
+			if not res.cell.band and f[6] then
+				res.cell.band = "B" .. f[6]
+			end
+		elseif mode == "intra" then
+			local pci, rsrq, rsrp, rssi, rxlev =
+				l:match("^(%d+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?%d+)$")
+			if pci then
+				res.neigh.intra[#res.neigh.intra + 1] = {
+					pci = tonum(pci), rsrq = tonum(rsrq), rsrp = tonum(rsrp),
+					rssi = tonum(rssi), rxlev = tonum(rxlev),
+				}
+			end
+		elseif mode == "inter" then
+			local earfcn, prio, pci, rsrq, rsrp, rssi, rxlev =
+				l:match("^(%d+)%s+%d+%s+%d+%s+(%d+)%s+(%d+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?%d+)$")
+			if earfcn then
+				res.neigh.inter[#res.neigh.inter + 1] = {
+					earfcn = tonum(earfcn), prio = tonum(prio), pci = tonum(pci),
+					rsrq = tonum(rsrq), rsrp = tonum(rsrp), rssi = tonum(rssi),
+					rxlev = tonum(rxlev),
+				}
+			end
 		end
 	end
 
