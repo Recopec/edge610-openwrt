@@ -1,78 +1,84 @@
 <style>
-.md-toolbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.md-toolbar #md-state{margin-left:auto;font-variant-numeric:tabular-nums}
-.md-muted{color:#98a2b3;font-size:.85rem}
+/* Shared shell for the modem pages: cards, spec grids, tags, controls.
+   Colours are the same neutral ramp the theme uses (grey 25…900). */
+.md-muted{color:#98a2b3;font-size:.82rem}
+/* Page bar: the refresh controls sit in one white strip so they do not float
+   on the theme's header gradient. */
+.md-toolbar{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-bottom:.9rem;padding:.4rem .5rem .4rem .85rem;background:#fff;border:1px solid #eaecf0;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.05);font-size:.78rem;color:#475467}
+.md-toolbar .md-muted{margin-right:auto;font-size:.74rem;color:#98a2b3;font-variant-numeric:tabular-nums}
+.md-toolbar select,.md-toolbar .md-select{height:28px;padding:0 .4rem;font-size:.76rem;line-height:1;color:#475467;background:#fff;border:1px solid #e4e7ec;border-radius:8px;box-shadow:none}
+.md-toolbar button,.md-toolbar .md-btn{height:28px;padding:0 .7rem;font-size:.76rem;font-weight:500;line-height:1;color:#344054;background:#fff;border:1px solid #e4e7ec;border-radius:8px;box-shadow:none;cursor:pointer}
+.md-toolbar button:hover,.md-toolbar .md-btn:hover{background:#f9fafb}
 
-/* KPI strip: the one screen-level question (is the link healthy?) lives here. */
-.md-hero{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-top:.75rem}
-@media(max-width:1180px){.md-hero{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.md-hero{grid-template-columns:minmax(0,1fr)}}
-.md-kpi{display:flex;flex-direction:column;gap:.28rem;background:#fff;border:1px solid #e6e8ee;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);padding:.7rem .9rem;min-height:104px}
-.md-kpi-label{font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3}
-.md-kpi-value{display:flex;align-items:baseline;gap:.3rem;font-size:1.5rem;font-weight:600;line-height:1.15;color:#101828;font-variant-numeric:tabular-nums}
-.md-kpi-value small{font-size:.78rem;font-weight:500;color:#667085}
-.md-kpi-sub{font-size:.8rem;color:#667085;margin-top:auto;font-variant-numeric:tabular-nums}
-.md-kpi-sub b{color:#101828;font-weight:500}
-.md-meter{display:flex;gap:3px}
-.md-meter i{display:block;flex:1 1 auto;height:6px;border-radius:2px;background:#eef1f6}
-.md-spark{width:100%;height:26px;display:block;margin-top:.15rem}
+.md-page{display:flex;flex-direction:column;gap:.9rem}
+.md-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem;align-items:start}
+@media(max-width:900px){.md-cols{grid-template-columns:minmax(0,1fr)}}
+.md-col{display:flex;flex-direction:column;gap:.9rem;min-width:0}
+.md-mono,.md-cell.mono .md-v2{font-variant-numeric:tabular-nums;letter-spacing:.01em}
 
-/* Cards: real grid instead of CSS columns, so the cards line up and the empty
-   space does not end up in the middle of a column. */
-.md-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:.75rem;align-items:start}
-@media(max-width:820px){.md-grid{grid-template-columns:minmax(0,1fr)}}
-.md-full{margin-top:.75rem}
-.md-card{background:#fff;border:1px solid #e6e8ee;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}
-.md-card h3{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:0;padding:.55rem .9rem;font-size:.74rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#667085;background:#fbfbfd;border-bottom:1px solid #eef0f5}
-.md-card .md-body{padding:.3rem .9rem .55rem}
+/* Cards: one surface, one hairline under the title, no row stripes. */
+.md-card{background:#fff;border:1px solid #eaecf0;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.05);overflow:hidden}
+.md-card h3{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:0;padding:.8rem 1.1rem;font-size:.86rem;font-weight:600;line-height:1.3;color:#101828;background:none;border-bottom:1px solid #f2f4f7}
+.md-card .md-body{padding:.15rem 1.1rem .7rem}
+.md-card h3 .md-act{display:flex;align-items:center;gap:.5rem;font-weight:400;font-size:.8rem}
 
-/* The theme stripes table rows and pads them; drop both and use hairlines. */
+.md-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem;align-items:start}
+@media(max-width:880px){.md-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Spec grid: label left, value right, two pairs per row, hairline between rows. */
+.md-specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:1.6rem;padding:.1rem 1.1rem .75rem}
+@media(max-width:1080px){.md-specs{grid-template-columns:minmax(0,1fr)}}
+.md-cell{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding:.42rem 0;border-top:1px solid #f2f4f7;min-width:0}
+.md-cell:nth-child(-n+2){border-top:0}
+.md-k2{font-size:.78rem;color:#667085;white-space:nowrap;flex:0 0 auto}
+.md-v2{font-size:.82rem;font-weight:500;color:#101828;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+
+/* Legacy table rows, still used by the AT/SMS pages. */
 .md-table{width:100%;border-collapse:collapse;font-size:.86rem}
 .md-card tr,.md-card td,.md-card th{background:transparent!important}
-.md-table td{padding:.36rem 0;border-top:1px solid #f2f3f7;vertical-align:baseline}
+.md-card .md-table>tbody>tr>td,.md-card .md-table>thead>tr>th,.md-card .md-table>tbody>tr>th{padding:.34rem 0;border-top:1px solid #f2f4f7;vertical-align:baseline;line-height:1.45}
+.md-card .md-table>tbody>tr:first-child>td{border-top:0}
 .md-table tr:first-child td{border-top:0}
 .md-l{color:#667085;white-space:nowrap;padding-right:.9rem;width:1%}
-.md-v{text-align:right;color:#101828;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.md-card,.md-card td,.md-card th,.md-card b,.md-tag,.md-row,.md-hl{font-family:inherit}
-.md-card b,.md-v,.md-row{font-variant-numeric:tabular-nums}
-.md-mono{font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.md-table .md-v{text-align:right;color:#101828;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 
-/* Bars: label left, value right, track below. */
-.md-row{display:flex;align-items:center;gap:.55rem;font-size:.84rem;padding:.26rem 0;border-top:1px solid #f2f3f7}
+/* Single metric row with a short track: label, track, value. */
+.md-row{display:flex;align-items:center;gap:.55rem;font-size:.84rem;padding:.245rem 0;border-top:1px solid #f2f4f7}
 .md-row:first-child{border-top:0}
 .md-hl{flex:0 0 92px;white-space:nowrap;color:#667085}
-.md-row b{flex:0 0 auto;order:3;margin-left:auto;color:#101828;font-weight:500}
-.md-bar{flex:0 0 116px;height:5px;background:#eef1f6;border-radius:3px;overflow:hidden;order:2}
-.md-bar>span{display:block;height:100%;border-radius:3px;background:#4caf50}
+.md-row b{flex:0 0 auto;order:3;margin-left:auto;color:#101828;font-weight:500;font-variant-numeric:tabular-nums}
+.md-bar{flex:1 1 auto;max-width:190px;height:5px;background:#f2f4f7;border-radius:3px;overflow:hidden;order:2}
+.md-bar>span{display:block;height:100%;border-radius:3px;background:#12b76a}
 
-.md-tag{display:inline-block;padding:.06rem .42rem;border-radius:6px;font-size:.74rem;font-weight:500;background:#eff4ff;color:#3538cd}
-.md-tag.ok{background:#ecfdf3;color:#027a48}
+.md-tag{display:inline-block;padding:.1rem .45rem;border-radius:6px;font-size:.72rem;font-weight:500;line-height:1.35;background:#eff4ff;color:#3538cd}
+.md-tag.ok{background:#ecfdf3;color:#067647}
 .md-tag.warn{background:#fffaeb;color:#b54708}
 .md-tag.err{background:#fef3f2;color:#b42318}
+.md-tag.off{background:#f2f4f7;color:#667085}
 
-.md-neigh{font-size:.85rem}
-.md-neigh th{font-size:.72rem;color:#98a2b3;font-weight:500;text-align:right;padding:0 0 .3rem;letter-spacing:.03em;border:0}
-.md-neigh th:first-child{text-align:left}
-.md-neigh td{text-align:right;padding:.28rem 0;font-variant-numeric:tabular-nums;border-top:1px solid #f2f3f7}
-.md-neigh td:first-child{text-align:left;font-weight:500}
-.md-neigh tr.md-serv td{background:#f2fbf5!important}
-.md-neigh tr.md-serv td:first-child{box-shadow:inset 3px 0 0 #12b76a;padding-left:.45rem}
-.md-neigh-wrap{display:flex;gap:1.4rem;flex-wrap:wrap}
-.md-neigh-col{flex:1 1 340px;min-width:0}
+.md-neigh{font-size:.85rem;width:100%;border-collapse:collapse}
+.md-card .md-neigh>thead>tr>th{font-size:.7rem;color:#98a2b3;font-weight:500;text-align:right;padding:0 0 .3rem;border:0;letter-spacing:.02em}
+.md-card .md-neigh>thead>tr>th:first-child{text-align:left}
+.md-card .md-neigh>tbody>tr>td{text-align:right;padding:.3rem 0;font-variant-numeric:tabular-nums}
+.md-card .md-neigh>tbody>tr>td:first-child{text-align:left;font-weight:500}
+.md-neigh tr.md-serv td{background:#f6fef9!important}
+.md-neigh tr.md-serv td:first-child{box-shadow:inset 2px 0 0 #12b76a;padding-left:.5rem}
+.md-neigh-wrap{display:flex;gap:.4rem 1.6rem;flex-wrap:wrap}
+.md-neigh-col{flex:1 1 300px;min-width:0}
+.md-cap{font-size:.7rem;color:#98a2b3;margin:.45rem 0 .2rem}
 
-.md-skel span{display:block;height:10px;border-radius:5px;background:#eceff3;margin:.6rem 0;animation:mdpulse 1.2s ease-in-out infinite}
-.md-skel span:nth-child(odd){width:60%}
-.md-skel span:nth-child(even){width:85%}
-@keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
+.md-skel span{display:block;height:10px;border-radius:5px;background:#eef1f5;margin:.62rem 0;animation:mdpulse 1.2s ease-in-out infinite}
+.md-skel span:nth-child(odd){width:58%}
+.md-skel span:nth-child(even){width:88%}
+.md-skel.md-specs span{width:88%}
+@keyframes mdpulse{0%,100%{opacity:.5}50%{opacity:1}}
 
-.md-card h3 .md-act{display:flex;align-items:center;gap:.45rem;text-transform:none;letter-spacing:0;font-weight:400}
-.md-card h3 .md-act .md-tag{text-transform:none}
-.md-switch{position:relative;display:inline-block;width:42px;height:22px;flex:0 0 auto}
+.md-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto}
 .md-switch input{opacity:0;width:0;height:0}
-.md-switch span{position:absolute;inset:0;background:#d0d5dd;border-radius:22px;cursor:pointer;transition:.2s}
-.md-switch span:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(16,24,40,.2)}
+.md-switch span{position:absolute;inset:0;background:#d0d5dd;border-radius:20px;cursor:pointer;transition:.18s}
+.md-switch span:before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 2px rgba(16,24,40,.2)}
 .md-switch input:checked + span{background:#12b76a}
-.md-switch input:checked + span:before{transform:translateX(20px)}
+.md-switch input:checked + span:before{transform:translateX(18px)}
 </style>
 
 <script>
@@ -86,9 +92,17 @@ function row(label, value, cls) {
 	return '<tr><td class="md-l">' + label + '</td><td class="md-v ' + (cls || '') + '">' + value + '</td></tr>';
 }
 
+// Accepts both <div class="md-card" id="x"><div class="md-body">… and
+// <div class="md-card"><div class="md-body" id="x">.
+function html(id, markup) {
+	var el = document.getElementById(id) || document.querySelector('#' + id + ' .md-body');
+	if (!el) return;
+	if (!/\bmd-body\b/.test(el.className)) el = el.querySelector('.md-body');
+	if (el) el.innerHTML = markup;
+}
+
 function body(id, rows) {
-	var el = document.querySelector('#' + id + ' .md-body');
-	if (el) el.innerHTML = '<table class="md-table">' + rows + '</table>';
+	html(id, '<table class="md-table">' + rows + '</table>');
 }
 
 function qual(v, levels) {
@@ -100,7 +114,7 @@ function qual(v, levels) {
 }
 
 function bar(label, value, unit, pct, color) {
-	color = color || '#4caf50';
+	color = color || '#12b76a';
 	return '<div class="md-row"><span class="md-hl">' + label + '</span>' +
 		'<span class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
 		'%;background:' + color + '"></span></span>' +
@@ -122,7 +136,13 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 var BER = ['<0.2%', '0.2-0.4%', '0.4-0.8%', '0.8-1.6%', '1.6-3.2%', '3.2-6.4%', '6.4-12.8%', '>12.8%'];
 
 var BW = {0: '1.4', 1: '3', 2: '5', 3: '10', 4: '15', 5: '20'};
-function bwMHz(v) { return v == null ? '-' : (BW[v] != null ? BW[v] + ' MHz' : String(v)); }
+// AT!GSTATUS reports the real width in MHz on this firmware; older images
+// reported the 0-5 index, so accept both.
+function bwMHz(v) {
+	if (v == null) return '-';
+	if (v > 5) return v + ' MHz';
+	return BW[v] != null ? BW[v] + ' MHz' : String(v);
+}
 function arr(v) { return Array.isArray(v) ? v : []; }
 
 function fmtBytes(n) {
