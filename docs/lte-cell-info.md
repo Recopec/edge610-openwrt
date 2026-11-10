@@ -3,7 +3,7 @@
 > English version: [lte-cell-info.en.md](lte-cell-info.en.md)
 
 > 实测环境：Edge 610 板载 Sierra Wireless **EM7565**（`SWI9X50C_01.11.00.00`，2019-06-28），
-> OpenWrt 25.12.6。AT 口 `/dev/ttyUSB2`（option 驱动），QMI 口 `/dev/cdc-wdm0`（`uqmi`）。
+> OpenWrt 25.12.6。AT 口是 `ttyUSB*` 里响应 AT 的那个（枚举顺序不固定，`modem-at` 自动探测），QMI 口 `/dev/cdc-wdm0`（`uqmi`）。
 > 数据来自 41111748 Rev.2 AT 参考手册 + 本机实测。
 
 ## 1. 参数 → 来源一览

@@ -14,7 +14,7 @@
 | IMEI | `353533101712019` |
 | SIM 槽 | 两个 micro-SIM，**只有上方 SIM1 接到模组**（官方 QSG："Only use the upper SIM1 slot"） |
 | 天线 | MAIN / AUX = LTE 主/副天线；**GPS = GNSS 天线**（QSG：GPS 天线可选） |
-| AT 口 | USB 接口 1.3（`/dev/ttyUSB2`），115200 8N1 |
+| AT 口 | USB 接口 1.3（`option` 驱动），115200 8N1；枚举顺序不固定，实测出现过 `ttyUSB1` 与 `ttyUSB2`，`modem-at` 自动探测 |
 | QMI | USB 接口 1.8（`qmi_wwan` → `/dev/cdc-wdm0` + `wwan0`） |
 
 USB 接口组成：1.0 = DM，1.2 = AT，1.3 = AT，1.8 = QMI（无 NMEA 接口）。
@@ -102,18 +102,15 @@ AT!RESET
 
 ## LuCI 页面
 
-「状态 → Modem」下三个标签页：
+「状态 → Modem」下有五个标签页（旧链接 `/modem/signal` 保留 302 重定向到状态页）：
 
 | 标签 | 内容 |
 | --- | --- |
-| Status | 7 条 AT 命令的原始回显（ATI / CPIN? / CSQ / CEREG? / COPS? / !GSTATUS? / !LTEINFO?） |
-| Settings | SIM 槽、RAT（自动/仅 LTE）、锁频：列出 EM7565 支持的 23 个 LTE 频段（复选框，可多选）；全不选 = 全频段 |
-| GPS | `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?`，Start（`AT+WANT=1` + `AT!GPSFIX=1,120,4294967280`）/ Stop（`AT!GPSEND=0,255`） |
-
-锁频保存时按 `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` 写入（Lmask1 = band−1，
-Lmask2 = band−65，B66 在 Lmask2 的 bit1），随后 `AT!BAND=0B` + `AT!RESET`。
-注意 GWmask（UMTS 频段掩码）固定写 0：**自定义频段集生效时 3G 不可用**；
-要用 3G 就不要勾选任何频段（回到 `AT!BAND=00` 全频段）。
+| 状态 | 首屏四格 KPI（链路 / 信号 / 流量 / 模组）+ 连接、身份、模组状态、数据连接四张卡；信号条、服务小区、同频/异频邻区也在这一页 |
+| 设置 | SIM 槽、制式、锁频、APN / PDP 类型 / 鉴权（写的是 `network.wwan`，拨号读它）、网络扫描与锁网、复位模组 |
+| GPS | 启停定位，`AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?` 原始回显 |
+| SMS | 收件箱（PDU 解析，长短信按 UDH 合并，可逐条删）、发送（中文走 PDU）、已发送记录（可删） |
+| AT | 原始 AT 调试：快捷命令、超时选择、输出复制；**无命令白名单**，有 LuCI 权限即可执行任意 AT |
 
 ## 镜像支持状态
 
@@ -123,7 +120,7 @@ Lmask2 = band−65，B66 在 Lmask2 的 bit1），随后 `AT!BAND=0B` + `AT!RESE
 | --- | --- |
 | `kmod-usb-serial` / `-wwan` / `-option` | ✅ 内置（option 驱动带 EM7565 表项，`patches/openwrt/0002-…patch`） |
 | `kmod-usb-wdm` + `kmod-usb-net-qmi-wwan` | ✅ 内置（`wwan0` / `cdc-wdm0`，自动加载） |
-| `uqmi` + `proto qmi` | ✅ 内置（LuCI 可建 qmi 接口） |
+| `uqmi` + `proto qmi` | ✅ 内置；`network.wwan` 由 `zzz99-edge610-network-modem` 首次启动时自动创建 |
 | qmi_wwan 帧格式 | `proto qmi` 自动设 802.3（必要时切 raw-ip），无需手动处理 |
 | AT 配置（SIMHOTSWAPDIS/UIMS/SELRAT） | 已写入模组 NVRAM，换镜像后仍保留 |
 

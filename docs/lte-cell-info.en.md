@@ -4,7 +4,7 @@
 
 > Test environment: Sierra Wireless **EM7565** on the Edge 610
 > (`SWI9X50C_01.11.00.00`, 2019-06-28), OpenWrt 25.12.6.
-> AT port `/dev/ttyUSB2` (option driver), QMI port `/dev/cdc-wdm0` (`uqmi`).
+> AT port is whichever `ttyUSB*` answers AT (the index is not stable; `modem-at` probes for it), QMI port `/dev/cdc-wdm0` (`uqmi`).
 > Data comes from the 41111748 Rev.2 AT reference plus live tests on this unit.
 
 ## 1. Parameter → source

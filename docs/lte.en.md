@@ -14,7 +14,7 @@
 | IMEI | `353533101712019` |
 | SIM slots | Two micro-SIM slots, **only the upper SIM1 is wired to the module** (official QSG: "Only use the upper SIM1 slot") |
 | Antennas | MAIN / AUX = LTE main/aux; **GPS = GNSS antenna** (optional per the QSG) |
-| AT port | USB interface 1.3 (`/dev/ttyUSB2`), 115200 8N1 |
+| AT port | USB interface 1.3 (`option` driver), 115200 8N1; the index is not stable (both `ttyUSB1` and `ttyUSB2` were seen), `modem-at` probes for it |
 | QMI | USB interface 1.8 (`qmi_wwan` → `/dev/cdc-wdm0` + `wwan0`) |
 
 USB composition: 1.0 = DM, 1.2 = AT, 1.3 = AT, 1.8 = QMI (no NMEA interface).
@@ -105,18 +105,16 @@ shows EARFCN 3740 (B8) at RSRP -134.
 
 ## LuCI pages
 
-**Status → Modem** has three tabs:
+**Status → Modem** has five tabs (the old `/modem/signal` link still works as a 302
+redirect to the status page):
 
 | Tab | Content |
 | --- | --- |
-| Status | Raw replies of seven AT commands (ATI / CPIN? / CSQ / CEREG? / COPS? / !GSTATUS? / !LTEINFO?) |
-| Settings | SIM slot, radio mode (auto / LTE only), band lock: all 23 LTE bands the EM7565 supports as checkboxes (multi-select); nothing ticked = all bands |
-| GPS | `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?`, Start (`AT+WANT=1` + `AT!GPSFIX=1,120,4294967280`) / Stop (`AT!GPSEND=0,255`) |
-
-Applying the band lock writes `AT!BAND=0B,"custom",0,<Lmask1>,<Lmask2>,0,0,0` (Lmask1 = band−1,
-Lmask2 = band−65, B66 is bit 1 of Lmask2), then `AT!BAND=0B` and `AT!RESET`.
-The UMTS mask (GWmask) is written as 0: **3G is unavailable while a custom band set is active**;
-leave every band unticked (back to `AT!BAND=00`, all bands) if you need 3G.
+| Status | Four KPI tiles (link / signal / traffic / modem) plus the connection, identity, modem-state and data cards; the signal bars, serving cell and the intra/inter-frequency neighbour tables live here too |
+| Settings | SIM slot, radio mode, band lock, APN / PDP type / authentication (written to `network.wwan`, which is what the dialer reads), network scan and lock, modem reset |
+| GPS | Start/stop a fix and the raw `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?` replies |
+| SMS | Inbox (PDU decoded, concatenated parts merged by UDH, per-message delete), send (UCS2 via PDU for Chinese) and the sent log (deletable) |
+| AT | Raw AT debug: quick commands, timeout selector, copyable output; **no command whitelist**, anyone with LuCI access can send any AT command |
 
 ## Image support status
 
@@ -126,7 +124,7 @@ LTE support has been built in since `ec39bbf`:
 | --- | --- |
 | `kmod-usb-serial` / `-wwan` / `-option` | ✅ built in (option driver carries the EM7565 entry, `patches/openwrt/0002-…patch`) |
 | `kmod-usb-wdm` + `kmod-usb-net-qmi-wwan` | ✅ built in (`wwan0` / `cdc-wdm0`, autoloaded) |
-| `uqmi` + `proto qmi` | ✅ built in (a QMI interface can be created from LuCI) |
+| `uqmi` + `proto qmi` | ✅ built in; `network.wwan` is created on first boot by `zzz99-edge610-network-modem` |
 | qmi_wwan framing | `proto qmi` sets 802.3 automatically (raw-ip when needed) |
 | AT settings (SIMHOTSWAPDIS/UIMS/SELRAT) | Written to the module NVRAM, survives image swaps |
 
