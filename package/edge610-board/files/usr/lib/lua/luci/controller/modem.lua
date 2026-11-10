@@ -1,6 +1,10 @@
 module("luci.controller.modem", package.seeall)
 
 local ID_CACHE = "/tmp/.modem-id"
+-- The status page polls this; a short server-side cache keeps several open
+-- tabs (or a refresh click) from queueing on the AT port.
+local DATA_CACHE = "/tmp/.modem-data"
+local DATA_TTL = 5
 
 local function at(cmd)
 	local sys = require "luci.sys"
@@ -174,6 +178,19 @@ end
 function data()
 	local http = require "luci.http"
 
+	local now = os.time()
+	local cf = io.open(DATA_CACHE, "r")
+	if cf then
+		local s = cf:read("*a") or ""
+		cf:close()
+		local ts, body = s:match("^(%d+)\n([%s%S]*)$")
+		if ts and now - tonum(ts) <= DATA_TTL and #body > 64 then
+			http.prepare_content("application/json")
+			http.write(body)
+			return
+		end
+	end
+
 	local res = {
 		sim = {}, net = {}, sig = {}, cell = {}, modem = {},
 		neigh = { intra = {}, inter = {} },
@@ -182,8 +199,14 @@ function data()
 
 	res.modem = identity()
 
-	-- SIM / registration / operator / CSQ ---------------------------------
-	local basic = at("AT+CPIN?;+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG?")
+	-- SIM / registration / operator / CSQ / radio / extras ----------------
+	-- One modem-at line for everything that is read-only: three separate calls
+	-- cost ~5.3 s of serial time, the merged line ~2.5 s. AT!SELRAT? must stay
+	-- on a line of its own, chaining it makes the modem answer garbage.
+	local all = at("AT+CPIN?;+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG?;"
+		.. "!GSTATUS?;!LTEINFO?;!BAND?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1")
+	local basic, radio, extra = all, all, all
+	local bandblk = all:match("Index, Name[%s%S]-!UIMS:") or ""
 	-- A missing/unreadable SIM answers "+CME ERROR: SIM failure" instead of
 	-- "+CPIN: READY"; without the fallback the page just showed an empty row.
 	res.sim.state = basic:match("+CPIN:%s*([%a ]+)") or basic:match("%+CME ERROR:%s*([%a ]+)")
@@ -210,7 +233,6 @@ function data()
 	res.cell.ci = cereg.ci
 
 	-- Radio + neighbour cells ----------------------------------------------
-	local radio = at("AT!GSTATUS?;!LTEINFO?")
 	res.sig.temp = tonum(radio:match("Temperature:%s*(%d+)"))
 	res.modem.uptime = tonum(radio:match("Current Time:%s*(%d+)"))
 	res.modem.reset_count = tonum(radio:match("Reset Counter:%s*(%d+)"))
@@ -296,8 +318,7 @@ function data()
 	end
 
 	-- Settings + data-connection state -------------------------------------
-	local extra = at("AT!BAND?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1")
-	res.net.bandlock = trim(extra:match("%d%d,%s*([%a][%a ]*)"))
+	res.net.bandlock = trim(bandblk:match("%d%d,%s*([%a][%a ]*)"))
 	-- !SELRAT? has to be its own command line: chained with ';' x'after !BAND?
 	-- the modem answers "Unknown RAT mode. Use AT!SELRAT to set band." instead
 	-- of the stored mode, in any position.
@@ -332,8 +353,14 @@ function data()
 	res.wan.context = tonum(act)
 	res.wan.ip_modem = extra:match("+CGPADDR:%s*%d+,%s*([%d%.]+)")
 
+	local body = require("luci.jsonc").stringify(res)
+	local wf = io.open(DATA_CACHE, "w")
+	if wf then
+		wf:write(now .. "\n" .. body)
+		wf:close()
+	end
 	http.prepare_content("application/json")
-	http.write_json(res)
+	http.write(body)
 end
 
 -- Enable or disable the mobile data connection (PS attach + PDP context).

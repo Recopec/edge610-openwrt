@@ -194,6 +194,10 @@ local v = V[lang] or V.en
 			<h3><%=t.signal%></h3>
 			<div class="md-body" id="c-sig"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
 		</section>
+		<section class="md-card">
+			<h3><%=t.neigh%></h3>
+			<div class="md-body" id="c-neigh"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div>
+		</section>
 	</div>
 	<div class="md-col">
 		<section class="md-card">
@@ -218,10 +222,6 @@ local v = V[lang] or V.en
 			<div class="md-specs md-skel" id="c-mod"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
 		</section>
 	</div>
-<section class="md-card">
-	<h3><%=t.neigh%></h3>
-	<div class="md-body" id="c-neigh"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div>
-</section>
 
 </div>
 
@@ -478,8 +478,11 @@ local v = V[lang] or V.en
 			bar(L.ant_sub + ' ' + L.rsrp, sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
 				sig.rsrp_rxd == null ? null : qcol(sig.rsrp_rxd, [[-80, '#12b76a'], [-90, '#7cb518'], [-100, '#f79009'], [-999, '#f04438']])) +
 			bar(L.ant_sub + ' ' + L.rssi, sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
-			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 10) / 33 * 100, 0, 100),
-				sig.txpower == null ? null : qcol(sig.txpower, [[15, '#12b76a'], [10, '#7cb518'], [5, '#f79009'], [-999, '#f04438']])));
+			// Tx power is the opposite of the other bars: the modem asking for
+			// more uplink power means a worse link (max is 23 dBm, a healthy
+			// link sits near 0 or below), so the colour runs the other way.
+			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 20) / 43 * 100, 0, 100),
+				sig.txpower == null ? null : qcol(-sig.txpower, [[-5, '#12b76a'], [-15, '#7cb518'], [-21, '#f79009'], [-999, '#f04438']])));
 
 		var cellRows =
 			cell(L.band, esc(cl.band)) +
