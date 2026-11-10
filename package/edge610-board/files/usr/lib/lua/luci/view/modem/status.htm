@@ -22,7 +22,7 @@ local T = {
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
 		ip = "IP (modem)", rx = "RX (wwan0)", tx = "TX (wwan0)", power = "Mode",
 		prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
-		du = "DL/UL bandwidth", rxd_rssi = "RxD RSSI", rxd_rsrp = "RxD RSRP",
+		du = "DL/UL bandwidth", ant_main = "Main antenna", ant_sub = "Aux antenna",
 		state = "Link", cid = "CID",
 		pri = "PRI", customer = "Customer",
 		sim_settings = "SIM, RAT and band lock",
@@ -46,7 +46,7 @@ local T = {
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
 		ip = "IP（模组）", rx = "接收（wwan0）", tx = "发送（wwan0）", power = "模式",
 		prio = "优先级", tlow = "低门限", thigh = "高门限",
-		du = "下行/上行带宽", rxd_rssi = "分集 RSSI", rxd_rsrp = "分集 RSRP",
+		du = "下行/上行带宽", ant_main = "主天线", ant_sub = "副天线",
 		state = "链路", cid = "上下文",
 		pri = "PRI", customer = "客户",
 		sim_settings = "SIM / 制式 / 锁频",
@@ -138,6 +138,9 @@ local v = V[lang] or V.en
 .md-tag.err{background:#fdecea;color:#c62828}
 .md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
 .md-neigh td:first-child{text-align:left}
+.md-neigh-wrap{display:flex;gap:1rem;flex-wrap:wrap}
+.md-neigh-col{flex:1 1 320px;min-width:0}
+@media(min-width:900px){#c-neigh{grid-column:span 2}}
 .md-neigh tr.md-serv td{font-weight:600}
 .md-skel span{display:block;height:10px;border-radius:5px;background:#eceff3;margin:.6rem 0;animation:mdpulse 1.2s ease-in-out infinite}
 .md-skel span:nth-child(odd){width:60%}
@@ -201,8 +204,8 @@ local v = V[lang] or V.en
 		rsrq: '<%=t.rsrq%>',
 		sinr: '<%=t.sinr%>',
 		rssi: '<%=t.rssi%>',
-		rxd_rssi: '<%=t.rxd_rssi%>',
-		rxd_rsrp: '<%=t.rxd_rsrp%>',
+		ant_main: '<%=t.ant_main%>',
+		ant_sub: '<%=t.ant_sub%>',
 		txpower: '<%=t.txpower%>',
 
 		snr: '<%=t.snr%>',
@@ -283,6 +286,14 @@ local v = V[lang] or V.en
 
 	function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+	function antRow(label, rsrp, rssi, q) {
+		var pct = rsrp == null ? null : clamp((rsrp + 140) / 60 * 100, 0, 100);
+		return '<div class="md-row"><div>' + label + ': <b>' + esc(rsrp) + (rsrp == null ? '' : ' dBm') + '</b> <span class="md-sub">RSRP</span>' +
+			(rssi == null ? '' : ' · ' + esc(rssi) + ' dBm <span class="md-sub">RSSI</span>') +
+			(q ? ' <span class="md-sub">' + q[1] + '</span>' : '') + '</div>' +
+			'<div class="md-bar"><span style="width:' + (pct == null ? 0 : pct) + '%;background:' + (q ? q[2] : '#4caf50') + '"></span></div></div>';
+	}
+
 	var BW = {0: '1.4', 1: '3', 2: '5', 3: '10', 4: '15', 5: '20'};
 	function bwMHz(v) { return v == null ? '-' : (BW[v] != null ? BW[v] + ' MHz' : String(v)); }
 	function arr(v) { return Array.isArray(v) ? v : []; }
@@ -304,22 +315,25 @@ local v = V[lang] or V.en
 		var serving = d.cell && d.cell.pci;
 		var intra = arr(d.neigh && d.neigh.intra);
 		var inter = arr(d.neigh && d.neigh.inter);
-		var h = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
-		intra.forEach(function(n) {
-			h += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
-				(n.pci === serving ? ' <span class="md-tag ok">' + L.serving + '</span>' : '') +
-				'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
-		});
-		h += '</tbody></table>';
-		if (inter.length) {
-			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
-			inter.forEach(function(n) {
-				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) + '</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
+		if (!intra.length && !inter.length) return '<div class="md-muted">-</div>';
+		var h = '';
+		if (intra.length) {
+			var t = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
+			intra.forEach(function(n) {
+				t += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
+					(n.pci === serving ? ' <span class="md-tag ok">' + L.serving + '</span>' : '') +
+					'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
 			});
-			h += '</tbody></table>';
+			h += '<div class="md-neigh-col">' + t + '</tbody></table></div>';
 		}
-		if (!intra.length && !inter.length) h = '<div class="md-muted">-</div>';
-		return h;
+		if (inter.length) {
+			var t2 = '<table class="md-table md-neigh"><thead><tr><th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
+			inter.forEach(function(n) {
+				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) + '</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
+			});
+			h += '<div class="md-neigh-col">' + t2 + '</tbody></table></div>';
+		}
+		return '<div class="md-neigh-wrap">' + h + '</div>';
 	}
 
 	function render(d) {
@@ -350,12 +364,10 @@ local v = V[lang] or V.en
 
 		body('c-sig',
 			bar(L.csq, csq, '/31', csq == null ? null : csq / 31 * 100, csqQ) +
-			bar(L.rsrp, sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100), rsrpQ) +
 			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
 			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
-			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
-			bar(L.rxd_rssi, sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
-			bar(L.rxd_rsrp, sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
+			antRow(L.ant_main, sig.rsrp, sig.rssi, rsrpQ) +
+			antRow(L.ant_sub, sig.rsrp_rxd, sig.rssi_rxd,
 				sig.rsrp_rxd == null ? null : qual(sig.rsrp_rxd, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
 			'<table class="md-table" style="margin-top:.4rem">' +
 			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
