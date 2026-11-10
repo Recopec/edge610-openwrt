@@ -401,7 +401,25 @@ local function ucs2(s)
 	return s
 end
 
-local GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\27ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+local function utf8chars(s)
+	local t, i = {}, 1
+	while i <= #s do
+		local c = s:byte(i)
+		local n = 1
+		if c >= 0xF0 then
+			n = 4
+		elseif c >= 0xE0 then
+			n = 3
+		elseif c >= 0xC0 then
+			n = 2
+		end
+		t[#t + 1] = s:sub(i, i + n - 1)
+		i = i + n
+	end
+	return t
+end
+
+local GSM7 = utf8chars("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\27ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà")
 local GSM7EXT = { [0x0A] = "\f", [0x14] = "^", [0x28] = "{", [0x29] = "}", [0x2F] = "\\", [0x3C] = "[", [0x3D] = "~", [0x3E] = "]", [0x40] = "|", [0x65] = "€" }
 
 -- GSM 03.38 septet unpacking; skip is the number of leading septets to drop
@@ -430,7 +448,7 @@ local function unpack7(hex, skip)
 		elseif c == 0x1B then
 			esc = true
 		else
-			out[#out + 1] = GSM7:sub(c + 1, c + 1)
+			out[#out + 1] = GSM7[c + 1] or "?"
 		end
 	end
 	return table.concat(out)
@@ -459,7 +477,7 @@ local function scts_str(h)
 	end
 	local tz = tonumber(h:sub(13, 14), 16) or 0
 	local sign = (tz % 16) >= 8 and "-" or "+"
-	local q = math.floor(tz / 16) * 10 + (tz % 8)
+	local q = (tz % 8) * 10 + math.floor(tz / 16)
 	return string.format("%02d/%02d/%02d,%02d:%02d:%02d%s%d",
 		pair(h:sub(1, 2)), pair(h:sub(3, 4)), pair(h:sub(5, 6)),
 		pair(h:sub(7, 8)), pair(h:sub(9, 10)), pair(h:sub(11, 12)),
@@ -493,7 +511,10 @@ local function pdu_parse(hex)
 	local ud = hex:sub(i, i + udl * 2 - 1)
 
 	local ref, total, seq, udh_octets = nil, nil, nil, 0
-	local udhl = tonumber(ud:sub(1, 2), 16) or 0
+	-- TP-UDHI (bit 6 of the first octet) tells whether a UDH is present;
+	-- without it the first UD octet is already the text
+	local udhi = math.floor(fo / 0x40) % 2 == 1
+	local udhl = udhi and (tonumber(ud:sub(1, 2), 16) or 0) or 0
 	if udhl > 0 then
 		udh_octets = udhl + 1
 		local j = 3
