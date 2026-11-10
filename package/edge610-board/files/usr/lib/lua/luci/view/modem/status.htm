@@ -18,17 +18,39 @@
 </div>
 
 <div id="md-grid" class="md-grid">
-	<div class="md-card"><h3><%:Connection%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-	<div class="md-card"><h3><%:Signal%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-	<div class="md-card"><h3><%:Cell%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-	<div class="md-card"><h3><%:Hardware%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-	<div class="md-card"><h3><%:Neighbour cells%></h3><div class="md-skel"><span></span><span></span><span></span><span></span></div></div>
+	<div class="md-col">
+		<div class="md-card" id="c-conn"><h3><%:Connection%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-hw"><h3><%:Hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	</div>
+	<div class="md-col">
+		<div class="md-card" id="c-sig"><h3><%:Signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-neigh"><h3><%:Neighbour cells%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div></div>
+	</div>
+	<div class="md-col">
+		<div class="md-card" id="c-cell"><h3><%:Cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-data">
+			<h3><%:Data connection%></h3>
+			<div class="md-switchrow">
+				<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
+				<span id="md-data-state" class="md-muted">-</span>
+			</div>
+			<div class="md-body" id="md-data-info"></div>
+		</div>
+	</div>
+</div>
+
+<div class="cbi-section md-lock">
+	<h2><%:SIM, RAT and band lock%></h2>
+	<%+modem/settings_form%>
 </div>
 
 <style>
 .md-toolbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .md-muted{color:#888;font-size:.85rem}
-.md-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1rem;margin-top:1rem}
+.md-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-top:1rem}
+@media(max-width:1100px){.md-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.md-grid{grid-template-columns:1fr}}
+.md-col{display:flex;flex-direction:column;gap:1rem}
 .md-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:1rem 1.1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .md-card h3{margin:0 0 .7rem;font-size:.95rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.5rem}
 .md-table{width:100%;border-collapse:collapse;font-size:.88rem}
@@ -52,17 +74,27 @@
 .md-skel span:nth-child(odd){width:60%}
 .md-skel span:nth-child(even){width:85%}
 @keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
+.md-switchrow{display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem}
+.md-switch{position:relative;display:inline-block;width:42px;height:22px;flex:0 0 auto}
+.md-switch input{opacity:0;width:0;height:0}
+.md-switch span{position:absolute;inset:0;background:#ccc;border-radius:22px;cursor:pointer;transition:.2s}
+.md-switch span:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.md-switch input:checked + span{background:#4caf50}
+.md-switch input:checked + span:before{transform:translateX(20px)}
+.md-lock{margin-top:1rem}
 </style>
 
 <script>
 (function() {
 	var URL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "data")%>';
+	var SETDATA = '<%=luci.dispatcher.build_url("admin", "status", "modem", "setdata")%>';
 	var L = {
 		conn: '<%:Connection%>',
 		signal: '<%:Signal%>',
 		cell: '<%:Cell%>',
 		hardware: '<%:Hardware%>',
 		neigh: '<%:Neighbour cells%>',
+		data: '<%:Data connection%>',
 		operator: '<%:Operator%>',
 		plmn: '<%:PLMN%>',
 		mode: '<%:Technology%>',
@@ -71,6 +103,7 @@
 		ps: 'PS',
 		emm: 'EMM',
 		rrc: 'RRC',
+		ims: 'IMS',
 		band: '<%:Band%>',
 		bw: '<%:Bandwidth%>',
 		pci: 'PCI',
@@ -78,6 +111,7 @@
 		tac: 'TAC',
 		eci: 'ECI',
 		scc: 'SCC',
+		rxlev: 'RXLV',
 		model: '<%:Model%>',
 		fw: '<%:Firmware%>',
 		imei: 'IMEI',
@@ -86,12 +120,18 @@
 		temp: '<%:Temperature%>',
 		uptime: '<%:Uptime%>',
 		resets: '<%:Resets%>',
+		clock: '<%:Clock%>',
+		bandlock: '<%:Band lock%>',
+		selrat: '<%:Radio mode%>',
+		simslot: '<%:SIM slot%>',
+		apn: 'APN',
 		csq: 'CSQ',
 		rsrp: 'RSRP',
 		rsrq: 'RSRQ',
 		sinr: 'SINR',
 		rssi: 'RSSI',
 		txpower: '<%:Tx power%>',
+		rxd: 'RxD',
 		serving: '<%:serving%>',
 		unreg: '<%:Not registered%>',
 		searching: '<%:Searching%>',
@@ -100,7 +140,9 @@
 		excellent: '<%:Excellent%>',
 		good: '<%:Good%>',
 		fair: '<%:Fair%>',
-		poor: '<%:Poor%>'
+		poor: '<%:Poor%>',
+		attached: '<%:attached%>',
+		detached: '<%:detached%>'
 	};
 
 	function esc(s) {
@@ -113,8 +155,9 @@
 		return '<tr><td class="md-l">' + label + '</td><td class="md-v ' + (cls || '') + '">' + value + '</td></tr>';
 	}
 
-	function card(title, rows) {
-		return '<div class="md-card"><h3>' + title + '</h3><table class="md-table">' + rows + '</table></div>';
+	function body(id, rows) {
+		var el = document.querySelector('#' + id + ' .md-body');
+		if (el) el.innerHTML = '<table class="md-table">' + rows + '</table>';
 	}
 
 	function qual(v, levels) {
@@ -134,8 +177,14 @@
 	}
 
 	function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
 	function arr(v) { return Array.isArray(v) ? v : []; }
+
+	function fmtBytes(n) {
+		if (n == null) return '-';
+		var u = ['B', 'KB', 'MB', 'GB'], i = 0;
+		while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+		return n.toFixed(i ? 1 : 0) + ' ' + u[i];
+	}
 
 	function fmtUptime(s) {
 		if (s == null) return null;
@@ -143,46 +192,47 @@
 		return (h > 0 ? h + 'h ' : '') + m + 'm';
 	}
 
-	function neighCard(d) {
+	function neighRows(d) {
 		var serving = d.cell && d.cell.pci;
 		var intra = arr(d.neigh && d.neigh.intra);
 		var inter = arr(d.neigh && d.neigh.inter);
-		var h = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th></tr></thead><tbody>';
+		var h = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
 		intra.forEach(function(n) {
 			h += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
 				(n.pci === serving ? ' <span class="md-tag ok">' + L.serving + '</span>' : '') +
-				'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td></tr>';
+				'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
 		});
 		h += '</tbody></table>';
 		if (inter.length) {
-			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP</th><th>RSRQ</th></tr></thead><tbody>';
+			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RXLV</th></tr></thead><tbody>';
 			inter.forEach(function(n) {
-				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td></tr>';
+				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
 			});
 			h += '</tbody></table>';
 		}
-		if (!intra.length && !inter.length) {
-			h += '<div class="md-muted">-</div>';
-		}
-		return '<div class="md-card"><h3>' + L.neigh + '</h3>' + h + '</div>';
+		if (!intra.length && !inter.length) h = '<div class="md-muted">-</div>';
+		return h;
 	}
 
 	function render(d) {
-		var sig = d.sig || {}, cell = d.cell || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {};
+		var sig = d.sig || {}, cell = d.cell || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {}, wan = d.wan || {};
 		var reg = net.reg;
 		var regTxt = reg === 1 || reg === 5 ? '<span class="md-tag ok">' + L.registered + '</span>'
 			: reg === 2 ? '<span class="md-tag warn">' + L.searching + '</span>'
 			: '<span class="md-tag err">' + L.unreg + '</span>';
 		var act = {2: 'UMTS', 4: 'HSDPA', 5: 'HSUPA', 6: 'HSPA', 7: 'LTE'}[net.act] || net.sysmode || '-';
 
-		var conn = row(L.operator, esc(net.operator || net.plmn)) +
+		body('c-conn',
+			row(L.operator, esc(net.operator || net.plmn)) +
 			row(L.plmn, esc(net.plmn)) +
 			row(L.mode, esc(act)) +
 			row(L.reg, regTxt) +
 			row(L.sim, esc(sim.state)) +
 			row('PS', esc(net.ps)) +
 			row('EMM', esc(net.emm)) +
-			row(L.rrc, esc(net.rrc));
+			row(L.rrc, esc(net.rrc)) +
+			row(L.ims, esc(net.ims)) +
+			row('Mode', esc(net.mode)));
 
 		var csq = sig.csq;
 		var csqQ = csq == null ? null : qual(csq, [[20, L.excellent, '#4caf50'], [15, L.good, '#8bc34a'], [10, L.fair, '#ffc107'], [0, L.poor, '#f44336']]);
@@ -190,37 +240,62 @@
 		var rsrqQ = sig.rsrq == null ? null : qual(sig.rsrq, [[-10, L.excellent, '#4caf50'], [-15, L.good, '#8bc34a'], [-20, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
 		var sinrQ = sig.sinr == null ? null : qual(sig.sinr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [0, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
 
-		var signals = bar(L.csq, csq, '/31', csq == null ? null : csq / 31 * 100, csqQ) +
+		body('c-sig',
+			bar(L.csq, csq, '/31', csq == null ? null : csq / 31 * 100, csqQ) +
 			bar(L.rsrp, sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100), rsrpQ) +
 			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
 			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
 			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
-			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-');
+			'<table class="md-table" style="margin-top:.4rem">' +
+			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
+			row(L.rxd, (sig.rssi_rxd != null ? sig.rssi_rxd + ' dBm' : '-') + ' / ' + (sig.rsrp_rxd != null ? sig.rsrp_rxd + ' dBm' : '-')) +
+			row('SNR', cell.snr != null ? cell.snr + ' dB' : '-') +
+			row('BER', sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
+			'</table>');
 
 		var eci = cell.ci ? (parseInt(cell.ci, 16) + ' (' + cell.ci + ')') : null;
-		var cells = row(L.band, esc(cell.band)) +
+		var cellRows = row(L.band, esc(cell.band)) +
 			row(L.bw, cell.bw ? cell.bw + ' MHz' : null) +
 			row(L.pci, esc(cell.pci)) +
 			row(L.earfcn, cell.earfcn_dl ? 'DL ' + cell.earfcn_dl + ' / UL ' + (cell.earfcn_ul || '-') : null) +
 			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
 			row(L.eci, esc(eci)) +
-			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null);
+			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null) +
+			row('D / U', (cell.dl_mod || '-') + ' / ' + (cell.ul_mod || '-')) +
+			row(L.rxlev, esc(cell.rxlev));
 		arr(cell.scc).forEach(function(s) {
-			cells += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
+			cellRows += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
 		});
+		body('c-cell', cellRows);
 
-		var hwRows = row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))) +
+		body('c-hw',
+			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))) +
 			row(L.fw, esc(hw.revision)) +
-			row(L.imei, esc(hw.imei)) +
+			row('IMEI', esc(hw.imei)) +
+			row('IMEI SV', esc(hw.imei_sv)) +
+			row('FSN', esc(hw.fsn)) +
 			row(L.imsi, esc(hw.imsi)) +
 			row(L.iccid, esc(hw.iccid)) +
-			row(L.temp, sig.temp != null ? sig.temp + ' °C' : null) +
+			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(sig.temp_state) : '')) +
 			row(L.uptime, fmtUptime(hw.uptime)) +
-			row(L.resets, esc(hw.reset_count));
+			row(L.resets, esc(hw.reset_count)) +
+			row(L.clock, esc(hw.clock)) +
+			row(L.bandlock, esc(net.bandlock)) +
+			row(L.selrat, esc(net.selrat)) +
+			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +
+			row(L.apn, esc(net.apn)));
 
-		document.getElementById('md-grid').innerHTML =
-			card(L.conn, conn) + card(L.signal, signals) + card(L.cell, cells) +
-			card(L.hardware, hwRows) + neighCard(d);
+		body('c-neigh', neighRows(d));
+
+		var on = wan.attach === 1 && wan.context === 1;
+		document.getElementById('md-data-toggle').checked = on;
+		document.getElementById('md-data-state').textContent = on ? L.attached : L.detached;
+		document.getElementById('md-data-info').innerHTML = '<table class="md-table">' +
+			row('IP', esc(wan.ip_modem || wan.ip)) +
+			row('RX', fmtBytes(wan.rx)) +
+			row('TX', fmtBytes(wan.tx)) +
+			row('APN', esc(net.apn)) +
+			'</table>';
 	}
 
 	var timer = null;
@@ -234,15 +309,14 @@
 	function tick() {
 		if (inflight) return;
 		inflight = true;
-		var sel = document.getElementById('md-interval');
-		var ms = parseInt(sel.value, 10) * 1000;
+		var ms = parseInt(document.getElementById('md-interval').value, 10) * 1000;
 		fetch(URL, {credentials: 'same-origin', cache: 'no-store'})
 			.then(function(r) { return r.json(); })
 			.then(function(d) {
 				render(d);
 				document.getElementById('md-state').textContent = new Date().toLocaleTimeString();
 			})
-			.catch(function(e) {
+			.catch(function() {
 				document.getElementById('md-state').textContent = L.offline;
 			})
 			.then(function() {
@@ -256,6 +330,16 @@
 	});
 	document.getElementById('md-refresh').addEventListener('click', function() {
 		if (!inflight) tick();
+	});
+	document.getElementById('md-data-toggle').addEventListener('change', function() {
+		var on = this.checked;
+		document.getElementById('md-state').textContent = '…';
+		fetch(SETDATA, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+			body: 'enable=' + (on ? '1' : '0')
+		}).then(function() { tick(); });
 	});
 
 	tick();
