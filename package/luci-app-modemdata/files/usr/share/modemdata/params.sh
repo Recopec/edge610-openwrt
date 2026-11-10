@@ -163,7 +163,7 @@ FORCE_PLMN=$2
 
 RES="/usr/share/modemdata"
 
-O=$(sms_tool -D -d $DEVICE at "AT+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CREG=2;+CREG?;+CPIN?" | tr -d '\r')
+O=$(sms_tool -D -d $DEVICE at "AT+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG=2;+CEREG?;+CREG=2;+CREG?;+CPIN?" | tr -d '\r')
 
 # CSQ
 CSQ=$(echo "$O" | awk -F[,\ ] '/^\+(csq|CSQ)/ {print $2}')
@@ -192,10 +192,26 @@ else
 	[ -n "$COPS_NUM" ] && COPS=$(awk -F[\;] '/^'$COPS_NUM';/ {print $3}' $RES/libs/mccmnc.dat)
 fi
 [ -z "$COPS" ] && COPS=$COPS_NUM
+# Some Sierra firmware returns "????" for the operator name; fall back to the
+# MCC/MNC database.
+if [ "$COPS" = "????" ] && [ -n "$COPS_NUM" ]; then
+	COPS=$(awk -F[\;] '/^'$COPS_NUM';/ {print $3}' $RES/libs/mccmnc.dat)
+fi
 [ -n "$COPS_NUM" ] && COUNTRY=$(awk -F[\;] '/^'$COPS_NUM';/ {print $2}' $RES/libs/mccmnc.dat)
 
 # CREG
 eval $(echo "$O" | busybox awk -F[,] '/^\+CREG/ {gsub(/[[:space:]"]+/,"");printf "T=\"%d\";LAC_HEX=\"%X\";CID_HEX=\"%X\";LAC_DEC=\"%d\";CID_DEC=\"%d\";MODE_NUM=\"%d\"", $2, "0x"$3, "0x"$4, "0x"$3, "0x"$4, $5}')
+
+# LTE-only modems keep the CS-domain +CREG at 0/2; the EPS +CEREG carries the
+# real registration and the TAC/ECI. Prefer it when it reports registered.
+eval $(echo "$O" | busybox awk -F[,] '/^\+CEREG/ {gsub(/[[:space:]"]+/,""); ci=$4; if (NF>=6) ci=$5; printf "EREG=\"%d\";ELAC_HEX=\"%X\";ECID_HEX=\"%X\";ELAC_DEC=\"%d\";ECID_DEC=\"%d\"", $2, "0x"$3, "0x"ci, "0x"$3, "0x"ci}')
+case "$EREG" in
+	1|5|6|7)
+		REG="$EREG"; T="$EREG"
+		[ -n "$ELAC_HEX" ] && LAC_HEX="$ELAC_HEX" && LAC_DEC="$ELAC_DEC"
+		[ -n "$ECID_HEX" ] && CID_HEX="$ECID_HEX" && CID_DEC="$ECID_DEC"
+		;;
+esac
 case "$T" in
 	0*) REG="0";;
 	1*) REG="1";;

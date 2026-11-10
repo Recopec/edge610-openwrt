@@ -1,0 +1,18 @@
+# Sierra Wireless EM7565 (ATI based)
+
+O=$(sms_tool -d "$DEVICE" at "ATI" | tr -d "\r")
+
+T=$(echo "$O" | awk -F': ' '/^Manufacturer:/{print $2}')
+[ -n "$T" ] && VENDOR="$T"
+T=$(echo "$O" | awk -F': ' '/^Model:/{print $2}')
+[ -n "$T" ] && PRODUCT="$T"
+T=$(echo "$O" | awk -F': ' '/^Revision:/{print $2}')
+[ -n "$T" ] && REVISION="$T"
+T=$(echo "$O" | awk -F': ' '/^IMEI:/{print $2; exit}')
+[ -n "$T" ] && IMEI="$T"
+
+# AT!ICCID? is "NOT IMPLEMENTED" on this firmware; +ICCID works.
+T=$(sms_tool -d "$DEVICE" at "AT+ICCID" | tr -d "\r" | awk -F': ' '/ICCID:/{print $2}' | tr -d '"')
+[ -n "$T" ] && ICCID="$T"
+T=$(sms_tool -d "$DEVICE" at "AT+CIMI" | tr -d "\r" | grep -E '^[0-9]{6,}' | head -1)
+[ -n "$T" ] && IMSI="$T"

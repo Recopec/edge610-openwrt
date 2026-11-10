@@ -33,6 +33,10 @@ T=$(echo "$O" | awk '/^LTE Rx chan:/ {print $4}')
 T=$(echo "$O" | awk '/^LTE Rx chan:/ {print $8}')
 [ -n "$T" ] && addon 34 "EARFCN UL" "$T"
 
+O2=$(sms_tool -d $DEVICE at "at!lteinfo?")
+T=$(echo "$O2" | awk '/^ +[0-9]+ +[0-9]+ +[0-9]+ +[0-9]+ +[0-9A-Fa-f]+ +[0-9]+/ {print $10; exit}')
+[ -n "$T" ] && addon 33 "PCI" "$T"
+
 T=$(echo "$O" | awk -F: '/^LTE SCC1 state:.*ACTIVE/ {print $3}')
 if [ -n "$T" ]; then
 	T1=$(echo "$O" | awk '/^LTE SCC1 bw/ {print $5}')
