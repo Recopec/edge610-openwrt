@@ -95,6 +95,9 @@ local v = V[lang] or V.en
 	<div class="md-col">
 		<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 		<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	</div>
+	<div class="md-col">
+		<div class="md-card" id="c-sig"><h3><%=t.signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 		<div class="md-card" id="c-data">
 			<h3><%=t.data%></h3>
 			<div class="md-switchrow">
@@ -105,7 +108,6 @@ local v = V[lang] or V.en
 		</div>
 	</div>
 	<div class="md-col">
-		<div class="md-card" id="c-sig"><h3><%=t.signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 		<div class="md-card" id="c-cell"><h3><%=t.cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	</div>
 </div>
@@ -115,21 +117,22 @@ local v = V[lang] or V.en
 <style>
 .md-toolbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .md-muted{color:#888;font-size:.85rem}
-.md-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1rem}
+.md-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-top:.75rem;align-items:start}
+@media(max-width:1500px){.md-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.md-grid{grid-template-columns:1fr}}
-.md-full{margin-top:1rem}
-.md-col{display:flex;flex-direction:column;gap:1rem}
-.md-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:1rem 1.1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.md-card h3{margin:0 0 .7rem;font-size:.95rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.5rem}
+.md-full{margin-top:.75rem}
+.md-col{display:flex;flex-direction:column;gap:.75rem}
+.md-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:.7rem .85rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.md-card h3{margin:0 0 .45rem;font-size:.88rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.35rem}
 .md-table{width:100%;border-collapse:collapse;font-size:.88rem}
-.md-table td{padding:.22rem 0;vertical-align:top}
+.md-table td{padding:.14rem 0;vertical-align:top}
 .md-table th{font-size:.78rem;color:#888;text-align:right;font-weight:500;padding:.2rem 0}
 .md-table th:first-child{text-align:left}
-.md-l{color:#777;white-space:nowrap;padding-right:1rem}
+.md-l{color:#777;white-space:nowrap;padding-right:.6rem}
 .md-v{text-align:right;font-weight:600;word-break:break-all}
-.md-bar{height:7px;background:#eee;border-radius:4px;overflow:hidden;margin:.2rem 0 .1rem}
+.md-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden;margin:.2rem 0 .1rem}
 .md-bar>span{display:block;height:100%;border-radius:4px;background:#4caf50}
-.md-row{margin:.45rem 0}
+.md-row{margin:.3rem 0}
 .md-row .md-sub{font-size:.78rem;color:#888}
 .md-tag{display:inline-block;padding:.05rem .45rem;border-radius:10px;font-size:.78rem;background:#eef4ff;color:#2867c9}
 .md-tag.ok{background:#e8f5e9;color:#2e7d32}
@@ -137,6 +140,8 @@ local v = V[lang] or V.en
 .md-tag.err{background:#fdecea;color:#c62828}
 .md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
 .md-neigh td:first-child{text-align:left}
+.md-hw-cols{display:flex;gap:1.2rem;flex-wrap:wrap}
+.md-hw-cols>div{flex:1 1 170px;min-width:0}
 .md-neigh-wrap{display:flex;gap:1rem;flex-wrap:wrap}
 .md-neigh-col{flex:1 1 320px;min-width:0}
 
@@ -278,7 +283,7 @@ local v = V[lang] or V.en
 	function bar(label, value, unit, pct, q) {
 		var color = q ? q[2] : '#4caf50';
 		return '<div class="md-row"><div>' + label + ': <b>' + esc(value) + (value == null || !unit ? '' : ' ' + unit) +
-			'</b>' + (q ? ' <span class="md-sub">' + q[1] + '</span>' : '') + '</div>' +
+			'</b></div>' +
 			'<div class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
 			'%;background:' + color + '"></span></div></div>';
 	}
@@ -388,24 +393,26 @@ local v = V[lang] or V.en
 		});
 		body('c-cell', cellRows);
 
-		body('c-hw',
-			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))) +
-			row(L.fw, esc(hw.revision)) +
-			row(L.imei, esc(hw.imei)) +
-			row(L.imei_sv, esc(hw.imei_sv)) +
-			row(L.fsn, esc(hw.fsn)) +
-			row(L.imsi, esc(hw.imsi)) +
-			row(L.iccid, esc(hw.iccid)) +
-			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')) +
-			row(L.uptime, fmtUptime(hw.uptime)) +
-			row(L.resets, esc(hw.reset_count)) +
-			row(L.clock, hw.clock_epoch ? new Date(hw.clock_epoch * 1000).toLocaleString() + ' (NITZ)' : esc(hw.clock)) +
-			row(L.bandlock, esc(tv(net.bandlock))) +
-			row(L.selrat, esc(tv(net.selrat))) +
-			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +
-			row(L.apn, esc(net.apn)) +
-			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : '')) +
-			row(L.customer, esc(hw.pri_customer)));
+		var hwRows = [
+			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))),
+			row(L.fw, esc(hw.revision)),
+			row(L.imei, esc(hw.imei)),
+			row(L.imei_sv, esc(hw.imei_sv)),
+			row(L.fsn, esc(hw.fsn)),
+			row(L.imsi, esc(hw.imsi)),
+			row(L.iccid, esc(hw.iccid)),
+			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')),
+			row(L.uptime, fmtUptime(hw.uptime)),
+			row(L.resets, esc(hw.reset_count)),
+			row(L.clock, hw.clock_epoch ? new Date(hw.clock_epoch * 1000).toLocaleString() + ' (NITZ)' : esc(hw.clock)),
+			row(L.bandlock, esc(tv(net.bandlock))),
+			row(L.selrat, esc(tv(net.selrat))),
+			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null),
+			row(L.apn, esc(net.apn)),
+			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : '')),
+			row(L.customer, esc(hw.pri_customer))
+		];
+		body('c-hw', hwRows.join(''));
 
 		body('c-neigh', neighRows(d));
 
