@@ -354,10 +354,11 @@ local v = V[lang] or V.en
 			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
 			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
 			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
+			bar(L.rxd_rssi, sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
+			bar(L.rxd_rsrp, sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
+				sig.rsrp_rxd == null ? null : qual(sig.rsrp_rxd, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
 			'<table class="md-table" style="margin-top:.4rem">' +
 			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
-			row(L.rxd_rssi, sig.rssi_rxd != null ? sig.rssi_rxd + ' dBm' : '-') +
-			row(L.rxd_rsrp, sig.rsrp_rxd != null ? sig.rsrp_rxd + ' dBm' : '-') +
 			row(L.snr, cell.snr != null ? cell.snr + ' dB' : '-') +
 			row(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
 			'</table>');
