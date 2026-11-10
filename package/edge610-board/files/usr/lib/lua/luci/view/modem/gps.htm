@@ -4,36 +4,38 @@
 local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
 local T = {
 	en = {
-		title = "GPS", start = "Start fix", stop = "Stop", refresh = "Refresh",
-		hint = "A fix takes 30-60 s outdoors with a GNSS antenna connected.",
+		title = "GPS", start = "Start", stop = "Stop", refresh = "Refresh",
+		hint = "Needs a GNSS antenna and a clear view of the sky; 30-60 s when warm, up to 2 min cold.",
 		status = "Fix", sat = "Satellites", pos = "Position", raw = "Raw modem output",
-		state = "State", fix = "Fixed", searching = "Searching", off = "Disabled",
-		unknown = "Unknown", engine = "Engine", session = "Session",
-		ttff = "Time to first fix", last = "Last fix", when = "Fix time",
+		state = "State", fix = "Fixed", searching = "Searching", off = "Off",
+		last = "Last fix", session = "Session", engine = "Engine",
+		ttff = "Time to first fix", view = "In view", when = "Fix time",
 		lat = "Latitude", lon = "Longitude", alt = "Altitude", acc = "Accuracy",
-		speed = "Speed", used = "used", in_view = "in view",
-		sv = "SV", el = "Elevation", az = "Azimuth", cno = "C/N0", flag = "Used",
-		nosat = "No satellite information", nofix = "No position yet",
-		usedview = "used / in view", on = "on", off2 = "off", active = "active", none = "none",
-		notstarted = "Not started",
-		idle = "idle", success = "success", fail = "failed",
-		done = "Command sent",
+		speed = "Speed", q = "Fix type",
+		sv = "SV", el = "Elevation", az = "Azimuth", cno = "C/N0",
+		nosat = "No satellites tracked", nofix = "No position yet",
+		notstarted = "Not started", stopped = "Stopped", idle = "idle", success = "success",
+		active = "active", fail = "failed", none = "none", on = "on", off2 = "off",
+		ago = "ago", just = "just now", done = "Command sent", auto = "Auto refresh",
+		started = "Tracking started", stopped2 = "Tracking stopped",
+		noeffect = "The modem rejected the command",
 	},
 	zh = {
 		title = "GPS", start = "启动定位", stop = "停止", refresh = "刷新",
-		hint = "在室外接好 GNSS 天线，定位需要 30–60 秒。",
+		hint = "需要接好 GNSS 天线并朝天空无遮挡；热启动 30–60 秒，冷启动最长约 2 分钟。",
 		status = "定位", sat = "卫星", pos = "位置", raw = "模组原始输出",
 		state = "状态", fix = "已定位", searching = "搜索中", off = "已关闭",
-		unknown = "未知", engine = "引擎", session = "定位会话",
-		ttff = "首次定位耗时", last = "上次定位", when = "定位时间",
+		last = "上次定位", session = "定位会话", engine = "引擎",
+		ttff = "首次定位耗时", view = "可见卫星", when = "定位时间",
 		lat = "纬度", lon = "经度", alt = "海拔", acc = "精度",
-		speed = "速度", used = "已用", in_view = "可见",
-		sv = "编号", el = "仰角", az = "方位", cno = "信噪比", flag = "使用",
-		nosat = "没有卫星信息", nofix = "尚未获得位置",
-		usedview = "已用 / 可见", on = "开启", off2 = "关闭", active = "进行中", none = "无",
-		notstarted = "未启动",
-		idle = "空闲", success = "成功", fail = "失败",
-		done = "指令已发送",
+		speed = "速度", q = "定位类型",
+		sv = "编号", el = "仰角", az = "方位", cno = "信噪比",
+		nosat = "没有跟踪到卫星", nofix = "尚未获得位置",
+		notstarted = "未启动", stopped = "已停止", idle = "空闲", success = "成功",
+		active = "进行中", fail = "失败", none = "无", on = "开启", off2 = "关闭",
+		ago = "前", just = "刚刚", done = "指令已发送", auto = "自动刷新",
+		started = "定位已启动", stopped2 = "定位已停止",
+		noeffect = "模组拒绝执行该指令",
 	},
 }
 local t = T[lang] or T.en
@@ -45,61 +47,104 @@ local function at(cmd)
 	return luci.util.pcdata(sys.exec("/usr/bin/modem-at " .. cmd .. " 2>&1") or "")
 end
 
-local out = nil
+-- AT!GPSFIX is a one-shot session: it closes as soon as it has a solution and
+-- the firmware then answers "NO SAT INFO" to every satellite query. Tracking
+-- keeps the engine running, which is what makes the satellite table and the
+-- position keep updating on screen.
+local TRACK = "'AT!GPSTRACK=1,255,4294967280,1000,1'"
+
+local asked = nil
 if http.formvalue("gps_start") then
-	out = at("'AT+WANT=1'") .. at("'AT!GPSFIX=1,120,4294967280'")
+	at("'AT+WANT=1'")
+	at(TRACK)
+	asked = "start"
 elseif http.formvalue("gps_stop") then
-	out = at("'AT!GPSEND=0,255'")
+	at("'AT!GPSEND=0,255'")
+	asked = "stop"
 end
 
 -- One AT line, three queries: the modem answers them in order in ~3 s, where
 -- three separate modem-at calls cost ~10 s of page load.
 local raw = at("'AT!GPSSTATUS?;!GPSLOC?;!GPSSATINFO?'")
 local st, loc, sat = raw, raw, raw
+-- Everything from "Lat:" on belongs to !GPSLOC, so position fields cannot be
+-- confused with the status block that precedes it.
+loc = (raw or ""):match("Lat:.*") or ""
 
 local function grab(s, k)
 	return (s or ""):match(k .. "%s*[=:]%s*([^\r\n]+)")
 end
 
-local engine = grab(st, "Engine Status")
 local session = grab(st, "Fix Session Status")
 local lastfix = grab(st, "Last Fix Status")
-local ttff = grab(st, "TTFF")
+local ttff = (st or ""):match("TTFF%s*%(sec%)%s*=%s*(%d+)")
 
-local lat = (loc or ""):match("Lat:%s*(-?%d+%.?%d*)")
-local lon = (loc or ""):match("Lon:%s*(-?%d+%.?%d*)")
+-- The modem reports degrees/minutes/seconds, not decimal degrees.
+local function dms(s, field)
+	local d, m, sec, h = (s or ""):match(field .. ":%s*(%d+) Deg%s*(%d+) Min%s*([%d%.]+) Sec%s*([NSEW])")
+	if not d then return nil end
+	local v = tonumber(d) + tonumber(m) / 60 + tonumber(sec) / 3600
+	if h == "S" or h == "W" then v = -v end
+	return v
+end
+
+local lat, lon = dms(loc, "Lat"), dms(loc, "Lon")
 local alt = (loc or ""):match("Altitude:%s*(-?%d+)")
-local acc = (loc or ""):match("Accuracy:%s*(%d+)")
-local spd = (loc or ""):match("Speed:%s*([%d%.]+)")
-local when = (loc or ""):match("Time:%s*([^\r\n]+)")
+local hepe = (loc or ""):match("HEPE:%s*([%d%.]+)")
+local vel = (loc or ""):match("VelHoriz:%s*([%d%.]+)")
+local quality = (loc or ""):match("([23]D Fix)")
+
+-- Both timestamps use the same modem clock ("YYYY MM DD d hh:mm:ss"), so a
+-- difference between them is a valid age even without knowing the time zone.
+local function clock(s)
+	local y, mo, d = (s or ""):match("(%d%d%d%d) (%d%d) (%d%d)")
+	local hh, mi, se = (s or ""):match("(%d%d):(%d%d):(%d%d)")
+	if not (y and hh) then return nil end
+	return os.time({ year = tonumber(y), month = tonumber(mo), day = tonumber(d),
+		hour = tonumber(hh), min = tonumber(mi), sec = tonumber(se) })
+end
+
+local when = grab(loc, "Time")
+local nowt = clock(grab(st, "Current time"))
+local lastt = clock((st or ""):match("(%d%d%d%d %d%d %d%d %d+ %d%d:%d%d:%d%d) Last Fix Status"))
+local age = (lastt and nowt) and (nowt - lastt) or nil
 
 local sats = {}
-for sv, el, az, cno, flag in (sat or ""):gmatch("(%d+)%s+(%d+)%s+(%d+)%s+(%d+)%s+([%a%-]+)") do
-	sats[#sats + 1] = { sv = sv, el = el, az = az, cno = tonumber(cno), flag = flag }
+for sv, el, az, snr in (sat or ""):gmatch("%*%s*SV:%s*(%d+)%s+ELEV:%s*(%d+)%s+AZI:%s*(%d+)%s+SNR:%s*(%d+)") do
+	sats[#sats + 1] = { sv = sv, el = el, az = az, cno = tonumber(snr) }
 end
-local used, view = 0, #sats
-for _, s in ipairs(sats) do
-	if s.flag == "USED" then used = used + 1 end
-end
+local view = tonumber((sat or ""):match("Satellites in view:%s*(%d+)")) or #sats
 
 local vv = {
 	ON = t.on, OFF = t.off2, ACTIVE = t.active, INACTIVE = t.idle,
 	SUCCESS = t.success, FAIL = t.fail, NONE = t.none,
 }
-local function tv(s) return s and (vv[s] or s) or "-" end
-local wfmt = when and when:gsub("(%d+) (%d+) (%d+) (%d+) (%d+) (%d+)", "%1-%2-%3 %4:%5:%6")
+local function tv(s)
+	if not s then return "-" end
+	local code = s:match("FAILCODE%s*=%s*(%d+)")
+	if s:match("^FAIL") then
+		if code == "9" then return t.stopped end
+		return t.fail .. (code and (" (" .. code .. ")") or "")
+	end
+	return vv[s] or s
+end
 
--- The modem omits "Engine Status" entirely while the GNSS engine is down,
--- so a NONE session plus no fix is the reliable "not started" signature.
-local state, cls
-if lat then
-	state, cls = t.fix, "ok"
-elseif engine == "ON" or (session and session ~= "NONE") then
-	state, cls = t.searching, "warn"
-elseif engine == "OFF" or session == "NONE" or lastfix == "NONE" then
-	state, cls = t.notstarted, "off"
+-- "Current time" is my own label: the modem prints it without one.
+local function fmt(s)
+	local y, mo, d = (s or ""):match("(%d%d%d%d) (%d%d) (%d%d)")
+	local hh, mi, se = (s or ""):match("(%d%d):(%d%d):(%d%d)")
+	if not (y and hh) then return "-" end
+	return y .. "-" .. mo .. "-" .. d .. " " .. hh .. ":" .. mi .. ":" .. se
+end
+
+local state, cls, live
+if session == "ACTIVE" then
+	if lat and age and age <= 120 then state, cls, live = t.fix, "ok", true
+	else state, cls, live = t.searching, "warn", true end
+elseif not session or session == "NONE" then
+	state, cls = (lat and t.stopped or t.notstarted), "off"
 else
-	state, cls = t.unknown, "off"
+	state, cls = t.stopped, "off"
 end
 
 local function cell(label, value, extra)
@@ -114,6 +159,24 @@ local function cnoColor(c)
 	if c >= 15 then return "#b54708" end
 	return "#b42318"
 end
+
+-- A double submit is harmless: !GPSTRACK answers ERROR when a session is
+-- already running, so trust the session state rather than the command echo.
+local notice = nil
+if asked == "start" then
+	notice = (session == "ACTIVE") and t.started or t.noeffect
+elseif asked == "stop" then
+	notice = (session ~= "ACTIVE") and t.stopped2 or t.noeffect
+end
+
+-- Only a running session has a meaningful age: !GPSEND stamps the stop itself
+-- into Last Fix Status, which would otherwise read "just now" forever.
+local ageTxt = ""
+if age and age >= 0 and session == "ACTIVE" and lastfix == "SUCCESS" then
+	if age <= 5 then ageTxt = t.just
+	elseif age < 120 then ageTxt = age .. " s " .. t.ago
+	else ageTxt = math.floor(age / 60) .. " min " .. t.ago end
+end
 %>
 
 <%+modem/common%>
@@ -127,8 +190,8 @@ end
 	<button type="submit" name="gps_refresh" class="md-btn"><%=t.refresh%></button>
 </form>
 
-<% if out and #out > 1 then %>
-<div class="md-notice"><%=t.done%>: <%=out:gsub("%s+$", "")%></div>
+<% if notice then %>
+<div class="md-notice"><%=notice%></div>
 <% end %>
 
 <div class="md-cols">
@@ -136,12 +199,10 @@ end
 		<section class="md-card">
 			<h3><%=t.status%><span class="md-act"><span class="md-tag <%=cls%>"><%=state%></span></span></h3>
 			<div class="md-specs">
-				<% if engine then %><%=cell(t.engine, tv(engine))%><% end %>
 				<%=cell(t.session, tv(session))%>
 				<%=cell(t.last, tv(lastfix))%>
-				<%=cell(t.ttff, ttff or "-")%>
-				<%=cell(t.usedview, tostring(used) .. " / " .. tostring(view))%>
-				<%=cell(t.when, wfmt or "-")%>
+				<%=cell(t.ttff, ttff and (ttff .. " s") or "-")%>
+				<%=cell(t.when, fmt(when) .. (ageTxt ~= "" and (" · " .. ageTxt) or ""))%>
 			</div>
 		</section>
 
@@ -149,11 +210,12 @@ end
 			<h3><%=t.pos%></h3>
 			<div class="md-specs">
 				<% if lat then %>
-				<%=cell(t.lat, lat .. "°")%>
-				<%=cell(t.lon, lon .. "°")%>
+				<%=cell(t.lat, string.format("%.6f°", lat), "md-mono")%>
+				<%=cell(t.lon, string.format("%.6f°", lon), "md-mono")%>
 				<%=cell(t.alt, alt and (alt .. " m") or "-")%>
-				<%=cell(t.acc, acc and ("±" .. acc .. " m") or "-")%>
-				<%=cell(t.speed, spd and (spd .. " km/h") or "-")%>
+				<%=cell(t.acc, hepe and ("±" .. hepe .. " m") or "-")%>
+				<%=cell(t.speed, vel and (string.format("%.1f", tonumber(vel) * 3.6) .. " km/h") or "-")%>
+				<%=cell(t.q, quality or "-")%>
 				<% else %>
 				<div class="md-cell md-span2"><span class="md-k2"><%=t.nofix%></span></div>
 				<% end %>
@@ -162,16 +224,18 @@ end
 	</div>
 
 	<section class="md-card">
-		<h3><%=t.sat%></h3>
+		<h3><%=t.sat%><span class="md-act md-muted"><%=view > 0 and (view .. " " .. t.view) or ""%></span></h3>
 		<div class="md-body">
-			<% if view > 0 then %>
+			<% if #sats > 0 then %>
 			<table class="md-neigh">
-				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th><%=t.cno%></th><th><%=t.flag%></th></tr></thead>
+				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h"><%=t.cno%></th></tr></thead>
 				<tbody>
 				<% for _, s in ipairs(sats) do %>
 				<tr><td><%=s.sv%></td><td><%=s.el%>°</td><td><%=s.az%>°</td>
-					<td style="color:<%=cnoColor(s.cno)%>"><%=s.cno or "-"%></td>
-					<td><% if s.flag == "USED" then %><span class="md-dot ok"></span><% else %><span class="md-dot"></span><% end %></td></tr>
+					<td class="md-cno-h">
+						<span class="md-cno"><span style="width:<%=math.min(100, math.floor((s.cno or 0) * 2.4))%>%;background:<%=cnoColor(s.cno)%>"></span></span>
+						<span class="md-cnov"><%=s.cno or "-"%></span>
+					</td></tr>
 				<% end %>
 				</tbody>
 			</table>
@@ -195,9 +259,15 @@ end
 .md-raw summary:after{content:"›";float:right;color:#98a2b3;transform:rotate(90deg);transition:.15s}
 .md-raw[open] summary:after{transform:rotate(-90deg)}
 .md-raw pre{margin:0;padding:.6rem 1.1rem;border-top:1px solid #f2f4f7;font-size:.76rem;line-height:1.5;color:#475467;background:#fcfcfd;overflow:auto;white-space:pre-wrap;word-break:break-word}
-.md-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#d0d5dd}
-.md-dot.ok{background:#12b76a}
 .md-span2{grid-column:1 / -1}
+.md-neigh .md-cno-h{text-align:left;padding-left:1.4rem}
+.md-cno{display:inline-block;width:64px;height:5px;border-radius:3px;background:#f2f4f7;overflow:hidden;vertical-align:middle;margin-right:.45rem}
+.md-cno>span{display:block;height:100%;border-radius:3px}
+.md-cnov{display:inline-block;min-width:1.6em;color:#475467}
 </style>
+
+<% if live then %>
+<script>setTimeout(function () { location.reload(); }, 10000);</script>
+<% end %>
 
 <%+footer%>
