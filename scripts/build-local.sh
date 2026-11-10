@@ -213,6 +213,8 @@ CONFIG_PACKAGE_kmod-usb-serial-option=y
 CONFIG_PACKAGE_kmod-usb-wdm=y
 CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
 CONFIG_PACKAGE_uqmi=y
+# qmicli: QMI NAS "get PLMN name" — the network (NITZ/MM info) operator name
+CONFIG_PACKAGE_qmi-utils=y
 CONFIG_PACKAGE_e2fsprogs=y
 CONFIG_PACKAGE_smartmontools=y
 CONFIG_PACKAGE_hdparm=y

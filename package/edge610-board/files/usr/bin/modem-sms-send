@@ -45,6 +45,9 @@ read_until() {
 	else
 		printf 'AT+CMGF=1\r' >&3
 		read_until
+		# +COPS/+CMGL answer in UCS2 hex while CSCS is UCS2, so restore it.
+		printf 'AT+CSCS?\r' >&3
+		CS_OLD=$(read_until | sed -n 's/^+CSCS: "\(.*\)"$/\1/p')
 		printf 'AT+CSCS="%s"\r' "$CS" >&3
 		read_until
 		if [ "$MODE" = "--store" ]; then
@@ -57,5 +60,6 @@ read_until() {
 	sleep 1
 	printf '%s\032' "$TXT" >&3
 	read_until
+	[ -n "$CS_OLD" ] && printf 'AT+CSCS="%s"\r' "$CS_OLD" >&3 && read_until
 	exec 3>&-
 ) 9>/tmp/.modem-at.lock

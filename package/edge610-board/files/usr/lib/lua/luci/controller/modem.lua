@@ -106,6 +106,47 @@ local function identity()
 	return res
 end
 
+-- The name a phone shows is the EONS/PNN name sent by the network
+-- (MM Information), not the SIM SPN that AT+COPS reports.  Only the QMI
+-- NAS "get PLMN name" message exposes it; qmicli ships with qmi-utils.
+local NAME_CACHE = "/tmp/.modem-name"
+
+local function net_name(plmn)
+	if not plmn or plmn == "" then return {} end
+	local t = os.time()
+	local f = io.open(NAME_CACHE, "r")
+	if f then
+		local s = f:read("*a") or ""
+		f:close()
+		local ts, key, long, short, local_ = s:match("^(%d+)|(.-)|(.-)|(.-)|(.-)$")
+		if ts and key == plmn and t - tonum(ts) < 600 then
+			return {
+				long = long ~= "" and long or nil,
+				short = short ~= "" and short or nil,
+				local_name = local_ ~= "" and local_ or nil,
+			}
+		end
+	end
+	local nixio = require "nixio.fs"
+	if not nixio.access("/usr/bin/qmicli") then return {} end
+	local sys = require "luci.sys"
+	local o = sys.exec("timeout -k 2 6 /usr/bin/qmicli -d /dev/cdc-wdm0 --nas-get-plmn-name=" .. plmn .. " 2>/dev/null") or ""
+	local res = {
+		long = trim(o:match("Long Name:%s*'([^']*)'")),
+		short = trim(o:match("Short Name:%s*'([^']*)'")),
+		local_name = trim(o:match("'([^']*)'%s*%)%s*Country:%s*'zh%-simp'"))
+			or trim(o:match("'([^']*)'%s*%)%s*Country:%s*'zh")),
+	}
+	if res.long then
+		local w = io.open(NAME_CACHE, "w")
+		if w then
+			w:write(string.format("%d|%s|%s|%s|%s", t, plmn, res.long, res.short or "", res.local_name or ""))
+			w:close()
+		end
+	end
+	return res
+end
+
 local function wan_state()
 	local res = {}
 	local f = io.open("/sys/class/net/wwan0/operstate", "r")
@@ -148,6 +189,14 @@ function data()
 	if res.net.operator == "????" then
 		res.net.operator = nil
 	end
+	-- A leftover AT+CSCS="UCS2" makes the modem answer +COPS in hex.
+	if res.net.operator and res.net.operator:match("^%x+$") then
+		res.net.operator = nil
+	end
+	local nm = net_name(res.net.plmn)
+	res.net.name_long = nm.long
+	res.net.name_short = nm.short
+	res.net.name_local = nm.local_name
 	local cereg = parse_cereg(basic:match("+CEREG:%s*([^\r\n]+)"))
 	res.net.reg = cereg.stat
 	res.net.act = res.net.act or cereg.act
@@ -483,7 +532,7 @@ function smsend()
 			if b == "" then
 				b = "F"
 			end
-			bcd[#bcd + 1] = string.format("%X%X", tonumber(b), tonumber(a))
+			bcd[#bcd + 1] = string.format("%X%X", tonumber(b, 16), tonumber(a, 16))
 		end
 		local da = string.format("%02X%02X%s", #n, intl and 0x91 or 0x81, table.concat(bcd))
 		local ud = utf8_to_ucs2hex(txt)

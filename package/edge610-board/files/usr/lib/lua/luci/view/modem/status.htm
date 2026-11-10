@@ -5,7 +5,7 @@ local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*
 local T = {
 	en = {
 		conn = "Connection", hardware = "Hardware", data = "Data connection",
-		operator = "Operator", plmn = "PLMN", mode = "Technology", reg = "Registration",
+		operator = "Operator", netname = "Network name", plmn = "PLMN", mode = "Technology", reg = "Registration",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Modem uptime",
@@ -19,7 +19,7 @@ local T = {
 	},
 	zh = {
 		conn = "连接", hardware = "硬件", data = "数据连接",
-		operator = "运营商", plmn = "PLMN", mode = "制式", reg = "注册状态",
+		operator = "运营商", netname = "网络名称", plmn = "PLMN", mode = "制式", reg = "注册状态",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "模组运行时长",
@@ -90,7 +90,7 @@ local v = V[lang] or V.en
 	var SETDATA = '<%=luci.dispatcher.build_url("admin", "status", "modem", "setdata")%>';
 	var L = {
 		conn: '<%=t.conn%>', hardware: '<%=t.hardware%>', data: '<%=t.data%>',
-		operator: '<%=t.operator%>', plmn: '<%=t.plmn%>', mode: '<%=t.mode%>', reg: '<%=t.reg%>',
+		operator: '<%=t.operator%>', netname: '<%=t.netname%>', plmn: '<%=t.plmn%>', mode: '<%=t.mode%>', reg: '<%=t.reg%>',
 		sim: '<%=t.sim%>', ps: '<%=t.ps%>', emm: '<%=t.emm%>', rrc: '<%=t.rrc%>', ims: '<%=t.ims%>',
 		model: '<%=t.model%>', fw: '<%=t.fw%>', imei: '<%=t.imei%>', imei_sv: '<%=t.imei_sv%>', fsn: '<%=t.fsn%>',
 		imsi: '<%=t.imsi%>', iccid: '<%=t.iccid%>', temp: '<%=t.temp%>', uptime: '<%=t.uptime%>',
@@ -121,6 +121,7 @@ local v = V[lang] or V.en
 
 		body('c-conn',
 			row(L.operator, esc(net.operator || net.plmn)) +
+			(net.name_long ? row(L.netname, esc(net.name_long) + (net.name_local ? ' / ' + esc(net.name_local) : '')) : '') +
 			row(L.plmn, esc(net.plmn)) +
 			row(L.mode, esc(act)) +
 			row(L.reg, regTxt) +
