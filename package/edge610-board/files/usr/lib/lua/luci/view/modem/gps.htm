@@ -12,7 +12,7 @@ local T = {
 		ttff = "Time to first fix", view = "In view", when = "Fix time",
 		lat = "Latitude", lon = "Longitude", alt = "Altitude", acc = "Accuracy",
 		speed = "Speed", q = "Fix type",
-		sv = "SV", el = "Elevation", az = "Azimuth", cno = "C/N0",
+		sv = "SV", el = "Elevation", az = "Azimuth", cno = "SNR",
 		nosat = "No satellites tracked", nofix = "No position yet",
 		notstarted = "Not started", stopped = "Stopped", idle = "idle", success = "success",
 		active = "active", fail = "failed", none = "none", on = "on", off2 = "off",
@@ -29,7 +29,7 @@ local T = {
 		ttff = "首次定位耗时", view = "可见卫星", when = "定位时间",
 		lat = "纬度", lon = "经度", alt = "海拔", acc = "精度",
 		speed = "速度", q = "定位类型",
-		sv = "编号", el = "仰角", az = "方位", cno = "信噪比",
+		sv = "编号", el = "仰角", az = "方位", cno = "SNR",
 		nosat = "没有跟踪到卫星", nofix = "尚未获得位置",
 		notstarted = "未启动", stopped = "已停止", idle = "空闲", success = "成功",
 		active = "进行中", fail = "失败", none = "无", on = "开启", off2 = "关闭",
@@ -228,7 +228,7 @@ end
 		<div class="md-body">
 			<% if #sats > 0 then %>
 			<table class="md-neigh">
-				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h"><%=t.cno%></th></tr></thead>
+				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h"><%=t.cno%> dB-Hz</th></tr></thead>
 				<tbody>
 				<% for _, s in ipairs(sats) do %>
 				<tr><td><%=s.sv%></td><td><%=s.el%>°</td><td><%=s.az%>°</td>
@@ -260,10 +260,10 @@ end
 .md-raw[open] summary:after{transform:rotate(-90deg)}
 .md-raw pre{margin:0;padding:.6rem 1.1rem;border-top:1px solid #f2f4f7;font-size:.76rem;line-height:1.5;color:#475467;background:#fcfcfd;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .md-span2{grid-column:1 / -1}
-.md-neigh .md-cno-h{text-align:left;padding-left:1.4rem}
-.md-cno{display:inline-block;width:64px;height:5px;border-radius:3px;background:#f2f4f7;overflow:hidden;vertical-align:middle;margin-right:.45rem}
+.md-neigh .md-cno-h{text-align:right}
+.md-cno{display:inline-block;width:64px;height:5px;border-radius:3px;background:#f2f4f7;overflow:hidden;vertical-align:middle;margin-right:.5rem}
 .md-cno>span{display:block;height:100%;border-radius:3px}
-.md-cnov{display:inline-block;min-width:1.6em;color:#475467}
+.md-cnov{display:inline-block;min-width:1.9em;color:#475467;font-variant-numeric:tabular-nums}
 </style>
 
 <% if live then %>

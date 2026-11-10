@@ -23,7 +23,9 @@ local T = {
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved.", nochange = "nothing changed.",
-		sec_net = "Network", sec_scan = "Network selection", sec_band = "Band lock",
+		sec_sim = "SIM and radio", sec_dial = "Data call", sec_scan = "Network selection",
+		sec_band = "Band lock",
+		dialhint = "Leave the APN empty to use the operator default. Nothing here redials by itself: reconnect the data connection or reset the modem to pick the values up.",
 		all = "All", none = "None", chosen = "selected", allbands = "All bands",
 		hint_scan = "Scanning asks the modem for nearby networks; it takes up to 60 s and blocks other AT commands meanwhile.",
 		resetmodem = "Reset modem",
@@ -47,7 +49,9 @@ local T = {
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存。", nochange = "没有变化。",
-		sec_net = "网络", sec_scan = "网络选择", sec_band = "锁频",
+		sec_sim = "SIM 与制式", sec_dial = "数据拨号", sec_scan = "网络选择",
+		sec_band = "锁频",
+		dialhint = "APN 留空表示使用运营商默认值。这里改完不会自动重新拨号，需要重新连接或复位模组才会生效。",
 		all = "全选", none = "清空", chosen = "已选", allbands = "全部频段",
 		hint_scan = "扫描会向模组查询周边网络，最长 60 秒，期间其他 AT 指令会被阻塞。",
 		resetmodem = "复位模组",
@@ -211,62 +215,78 @@ end
 
 <form method="post" class="md-page">
 
-	<section class="md-card">
-		<h3><%=t.sec_net%></h3>
-		<div class="md-form">
-			<div class="md-field">
-				<label for="sim"><%=t.simslot%></label>
-				<select name="sim" id="sim">
-					<option value="0"<% if sim ~= "1" then %> selected<% end %>><%=t.sim1%></option>
-					<option value="1"<% if sim == "1" then %> selected<% end %>><%=t.sim2%></option>
-				</select>
+<div class="md-cols">
+	<div class="md-col">
+		<section class="md-card">
+			<h3><%=t.sec_sim%></h3>
+			<div class="md-form">
+				<div class="md-field">
+					<label for="sim"><%=t.simslot%></label>
+					<select name="sim" id="sim">
+						<option value="0"<% if sim ~= "1" then %> selected<% end %>><%=t.sim1%></option>
+						<option value="1"<% if sim == "1" then %> selected<% end %>><%=t.sim2%></option>
+					</select>
+				</div>
+				<div class="md-field">
+					<label for="rat"><%=t.rat%></label>
+					<select name="rat" id="rat">
+						<option value="00"<% if rat == "00" then %> selected<% end %>><%=t.auto%></option>
+						<option value="06"<% if rat == "06" then %> selected<% end %>><%=t.lte%></option>
+					</select>
+				</div>
 			</div>
-			<div class="md-field">
-				<label for="rat"><%=t.rat%></label>
-				<select name="rat" id="rat">
-					<option value="00"<% if rat == "00" then %> selected<% end %>><%=t.auto%></option>
-					<option value="06"<% if rat == "06" then %> selected<% end %>><%=t.lte%></option>
-				</select>
+			<p class="md-hint"><%=t.simhint%></p>
+		</section>
+
+		<section class="md-card">
+			<h3><%=t.sec_scan%></h3>
+			<div class="md-body">
+				<div class="md-actions-row">
+					<button type="button" id="md-scan" class="md-btn md-accent"><%=t.scan%></button>
+					<button type="button" id="md-auto" class="md-btn"><%=t.auto_net%></button>
+				</div>
+				<div id="md-scan-result" class="md-muted"><%=t.hint_scan%></div>
 			</div>
-			<div class="md-field">
-				<label for="apn"><%=t.apn%></label>
-				<input type="text" name="apn" id="apn" value="<%=apn%>" placeholder="cmnet"/>
+		</section>
+	</div>
+
+	<div class="md-col">
+		<section class="md-card">
+			<h3><%=t.sec_dial%></h3>
+			<div class="md-form">
+				<div class="md-field">
+					<label for="apn"><%=t.apn%></label>
+					<input type="text" name="apn" id="apn" value="<%=apn%>" placeholder="cmnet"/>
+				</div>
+				<div class="md-field">
+					<label for="pdptype"><%=t.pdptype%></label>
+					<select name="pdptype" id="pdptype">
+						<option value="IP"<% if pdptype == "IP" then %> selected<% end %>>IPv4</option>
+						<option value="IPV6"<% if pdptype == "IPV6" then %> selected<% end %>>IPv6</option>
+						<option value="IPV4V6"<% if pdptype == "IPV4V6" then %> selected<% end %>>IPv4/IPv6</option>
+					</select>
+				</div>
+				<div class="md-field">
+					<label for="auth"><%=t.auth%></label>
+					<select name="auth" id="auth">
+						<option value="0"<% if auth == "0" then %> selected<% end %>><%=t.auth_none%></option>
+						<option value="1"<% if auth == "1" then %> selected<% end %>><%=t.pap%></option>
+						<option value="2"<% if auth == "2" then %> selected<% end %>><%=t.chap%></option>
+					</select>
+				</div>
+				<div class="md-field">
+					<label for="user"><%=t.user%></label>
+					<input type="text" name="user" id="user" value="<%=user%>" autocomplete="off"/>
+				</div>
+				<div class="md-field">
+					<label for="pass"><%=t.pass%></label>
+					<input type="password" name="pass" id="pass" value="<%=pass%>" autocomplete="new-password"/>
+				</div>
 			</div>
-			<div class="md-field">
-				<label for="pdptype"><%=t.pdptype%></label>
-				<select name="pdptype" id="pdptype">
-					<option value="IP"<% if pdptype == "IP" then %> selected<% end %>>IPv4</option>
-					<option value="IPV6"<% if pdptype == "IPV6" then %> selected<% end %>>IPv6</option>
-					<option value="IPV4V6"<% if pdptype == "IPV4V6" then %> selected<% end %>>IPv4/IPv6</option>
-				</select>
-			</div>
-			<div class="md-field">
-				<label for="auth"><%=t.auth%></label>
-				<select name="auth" id="auth">
-					<option value="0"<% if auth == "0" then %> selected<% end %>><%=t.auth_none%></option>
-					<option value="1"<% if auth == "1" then %> selected<% end %>><%=t.pap%></option>
-					<option value="2"<% if auth == "2" then %> selected<% end %>><%=t.chap%></option>
-				</select>
-			</div>
-			<div class="md-field">
-				<label for="user"><%=t.user%></label>
-				<input type="text" name="user" id="user" value="<%=user%>" autocomplete="off"/>
-			</div>
-			<div class="md-field">
-				<label for="pass"><%=t.pass%></label>
-				<input type="password" name="pass" id="pass" value="<%=pass%>" autocomplete="new-password"/>
-			</div>
-		</div>
-		<p class="md-hint"><%=t.simhint%></p>
-		<div class="md-sub">
-			<div class="md-actions-row">
-				<span class="md-sub-t"><%=t.sec_scan%></span>
-				<button type="button" id="md-scan" class="md-btn md-accent"><%=t.scan%></button>
-				<button type="button" id="md-auto" class="md-btn"><%=t.auto_net%></button>
-			</div>
-			<div id="md-scan-result" class="md-muted"><%=t.hint_scan%></div>
-		</div>
-	</section>
+			<p class="md-hint"><%=t.dialhint%></p>
+		</section>
+	</div>
+</div>
 
 <section class="md-card">
 	<h3><%=t.sec_band%><span class="md-act"><span id="md-band-count" class="md-tag"></span></span></h3>
@@ -279,8 +299,8 @@ end
 		<div class="md-actions-row">
 			<button type="button" class="md-btn" id="md-band-all"><%=t.all%></button>
 			<button type="button" class="md-btn" id="md-band-none"><%=t.none%></button>
-			<span class="md-hint"><%=t.hint%></span>
 		</div>
+		<p class="md-hint"><%=t.hint%></p>
 	</div>
 </section>
 
