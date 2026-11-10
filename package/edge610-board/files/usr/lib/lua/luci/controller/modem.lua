@@ -57,7 +57,7 @@ local function identity()
 		f:close()
 		local ts, man, mod, rev, imei, sv, fsn, imsi, iccid =
 			s:match("^(%d+)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)|(.-)$")
-		if ts and t - tonum(ts) < 120 then
+		if ts and t - tonum(ts) < 120 and (mod ~= "" or imei ~= "") then
 			return {
 				manufacturer = man ~= "" and man or nil,
 				model = mod ~= "" and mod or nil,
@@ -86,7 +86,7 @@ local function identity()
 		end)(),
 		iccid = o:match("ICCID:%s*([%w]+)"),
 	}
-	local w = io.open(ID_CACHE, "w")
+	local w = (res.model or res.imei) and io.open(ID_CACHE, "w")
 	if w then
 		w:write(string.format("%d|%s|%s|%s|%s|%s|%s|%s|%s", t,
 			res.manufacturer or "", res.model or "", res.revision or "",

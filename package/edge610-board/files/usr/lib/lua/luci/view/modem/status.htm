@@ -1,10 +1,76 @@
 <%+header%>
 
+<%
+local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
+local T = {
+	en = {
+		conn = "Connection", signal = "Signal", cell = "Cell", hardware = "Hardware",
+		neigh = "Neighbour cells", data = "Data connection",
+		operator = "Operator", plmn = "PLMN", mode = "Technology", reg = "Registration",
+		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
+		band = "Band", bw = "Bandwidth", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", scc = "SCC", rxlev = "RXLV",
+		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
+		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Uptime",
+		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
+		simslot = "SIM slot", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
+		sinr = "SINR", rssi = "RSSI", txpower = "Tx power", rxd = "RxD", snr = "SNR",
+		ber = "BER", du = "D / U", serving = "serving",
+		unreg = "Not registered", searching = "Searching", registered = "Registered",
+		offline = "AT port not found", excellent = "Excellent", good = "Good",
+		fair = "Fair", poor = "Poor", attached = "attached", detached = "detached",
+		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
+		ip = "IP", rx = "RX", tx = "TX", power = "Mode",
+		sim_settings = "SIM, RAT and band lock",
+	},
+	zh = {
+		conn = "连接", signal = "信号", cell = "小区", hardware = "硬件",
+		neigh = "邻区", data = "数据连接",
+		operator = "运营商", plmn = "PLMN", mode = "制式", reg = "注册状态",
+		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
+		band = "频段", bw = "带宽", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", scc = "SCC", rxlev = "RXLV",
+		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
+		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "运行时长",
+		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
+		simslot = "SIM 槽", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
+		sinr = "SINR", rssi = "RSSI", txpower = "发射功率", rxd = "分集", snr = "SNR",
+		ber = "BER", du = "下行/上行", serving = "服务",
+		unreg = "未注册", searching = "搜索中", registered = "已注册",
+		offline = "AT 端口未找到", excellent = "优秀", good = "良好",
+		fair = "一般", poor = "差", attached = "已连接", detached = "已断开",
+		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
+		ip = "IP", rx = "接收", tx = "发送", power = "模式",
+		sim_settings = "SIM / 制式 / 锁频",
+	},
+}
+local V = {
+	en = {
+		Attached = "Attached", Detached = "Detached", Registered = "Registered",
+		RRC_Idle = "RRC Idle", RRC_Connected = "RRC Connected",
+		No_Srv = "No Srv", ONLINE = "ONLINE", All_bands = "All bands",
+		LTE_Only = "LTE Only", Normal = "Normal", READY = "READY",
+		custom = "custom", Automatic = "Automatic", Not_registered = "Not registered",
+		Searching = "Searching",
+	},
+	zh = {
+		Attached = "已附着", Detached = "已分离", Registered = "已注册",
+		RRC_Idle = "空闲", RRC_Connected = "连接态",
+		No_Srv = "无服务", ONLINE = "在线", All_bands = "全频段",
+		LTE_Only = "仅 LTE", Normal = "正常", READY = "就绪",
+		custom = "自定义", Automatic = "自动", Not_registered = "未注册",
+		Searching = "搜索中",
+	},
+}
+local t = T[lang] or T.en
+local v = V[lang] or V.en
+%>
+
 <h2 name="content"><%:Modem%></h2>
 
 <div class="cbi-section">
 	<div class="md-toolbar">
-		<label for="md-interval"><%:Auto refresh%>:</label>
+		<label for="md-interval"><%=t.autorefresh%>:</label>
 		<select id="md-interval" class="cbi-input-select">
 			<option value="0"><%:Disabled%></option>
 			<option value="5">5s</option>
@@ -12,24 +78,24 @@
 			<option value="30">30s</option>
 			<option value="60">60s</option>
 		</select>
-		<button id="md-refresh" class="btn cbi-button cbi-button-action"><%:Refresh%></button>
-		<span id="md-state" class="md-muted"><%:Loading…%></span>
+		<button id="md-refresh" class="btn cbi-button cbi-button-action"><%=t.refresh%></button>
+		<span id="md-state" class="md-muted"><%=t.loading%></span>
 	</div>
 </div>
 
 <div id="md-grid" class="md-grid">
 	<div class="md-col">
-		<div class="md-card" id="c-conn"><h3><%:Connection%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-		<div class="md-card" id="c-hw"><h3><%:Hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	</div>
 	<div class="md-col">
-		<div class="md-card" id="c-sig"><h3><%:Signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-		<div class="md-card" id="c-neigh"><h3><%:Neighbour cells%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-sig"><h3><%=t.signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-neigh"><h3><%=t.neigh%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div></div>
 	</div>
 	<div class="md-col">
-		<div class="md-card" id="c-cell"><h3><%:Cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-card" id="c-cell"><h3><%=t.cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 		<div class="md-card" id="c-data">
-			<h3><%:Data connection%></h3>
+			<h3><%=t.data%></h3>
 			<div class="md-switchrow">
 				<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
 				<span id="md-data-state" class="md-muted">-</span>
@@ -40,7 +106,7 @@
 </div>
 
 <div class="cbi-section md-lock">
-	<h2><%:SIM, RAT and band lock%></h2>
+	<h2><%=t.sim_settings%></h2>
 	<%+modem/settings_form%>
 </div>
 
@@ -89,61 +155,88 @@
 	var URL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "data")%>';
 	var SETDATA = '<%=luci.dispatcher.build_url("admin", "status", "modem", "setdata")%>';
 	var L = {
-		conn: '<%:Connection%>',
-		signal: '<%:Signal%>',
-		cell: '<%:Cell%>',
-		hardware: '<%:Hardware%>',
-		neigh: '<%:Neighbour cells%>',
-		data: '<%:Data connection%>',
-		operator: '<%:Operator%>',
-		plmn: '<%:PLMN%>',
-		mode: '<%:Technology%>',
-		reg: '<%:Registration%>',
-		sim: '<%:SIM%>',
-		ps: 'PS',
-		emm: 'EMM',
-		rrc: 'RRC',
-		ims: 'IMS',
-		band: '<%:Band%>',
-		bw: '<%:Bandwidth%>',
-		pci: 'PCI',
-		earfcn: 'EARFCN',
-		tac: 'TAC',
-		eci: 'ECI',
-		scc: 'SCC',
-		rxlev: 'RXLV',
-		model: '<%:Model%>',
-		fw: '<%:Firmware%>',
-		imei: 'IMEI',
-		imsi: 'IMSI',
-		iccid: 'ICCID',
-		temp: '<%:Temperature%>',
-		uptime: '<%:Uptime%>',
-		resets: '<%:Resets%>',
-		clock: '<%:Clock%>',
-		bandlock: '<%:Band lock%>',
-		selrat: '<%:Radio mode%>',
-		simslot: '<%:SIM slot%>',
-		apn: 'APN',
-		csq: 'CSQ',
-		rsrp: 'RSRP',
-		rsrq: 'RSRQ',
-		sinr: 'SINR',
-		rssi: 'RSSI',
-		txpower: '<%:Tx power%>',
-		rxd: 'RxD',
-		serving: '<%:serving%>',
-		unreg: '<%:Not registered%>',
-		searching: '<%:Searching%>',
-		registered: '<%:Registered%>',
-		offline: '<%:AT port not found%>',
-		excellent: '<%:Excellent%>',
-		good: '<%:Good%>',
-		fair: '<%:Fair%>',
-		poor: '<%:Poor%>',
-		attached: '<%:attached%>',
-		detached: '<%:detached%>'
+		conn: '<%=t.conn%>',
+		signal: '<%=t.signal%>',
+		cell: '<%=t.cell%>',
+		hardware: '<%=t.hardware%>',
+		neigh: '<%=t.neigh%>',
+		data: '<%=t.data%>',
+		operator: '<%=t.operator%>',
+		plmn: '<%=t.plmn%>',
+		mode: '<%=t.mode%>',
+		reg: '<%=t.reg%>',
+		sim: '<%=t.sim%>',
+		ps: '<%=t.ps%>',
+		emm: '<%=t.emm%>',
+		rrc: '<%=t.rrc%>',
+		ims: '<%=t.ims%>',
+		band: '<%=t.band%>',
+		bw: '<%=t.bw%>',
+		pci: '<%=t.pci%>',
+		earfcn: '<%=t.earfcn%>',
+		tac: '<%=t.tac%>',
+		eci: '<%=t.eci%>',
+		scc: '<%=t.scc%>',
+		rxlev: '<%=t.rxlev%>',
+		model: '<%=t.model%>',
+		fw: '<%=t.fw%>',
+		imei: '<%=t.imei%>',
+		imei_sv: '<%=t.imei_sv%>',
+		fsn: '<%=t.fsn%>',
+		imsi: '<%=t.imsi%>',
+		iccid: '<%=t.iccid%>',
+		temp: '<%=t.temp%>',
+		uptime: '<%=t.uptime%>',
+		resets: '<%=t.resets%>',
+		clock: '<%=t.clock%>',
+		bandlock: '<%=t.bandlock%>',
+		selrat: '<%=t.selrat%>',
+		simslot: '<%=t.simslot%>',
+		apn: '<%=t.apn%>',
+		csq: '<%=t.csq%>',
+		rsrp: '<%=t.rsrp%>',
+		rsrq: '<%=t.rsrq%>',
+		sinr: '<%=t.sinr%>',
+		rssi: '<%=t.rssi%>',
+		txpower: '<%=t.txpower%>',
+		rxd: '<%=t.rxd%>',
+		snr: '<%=t.snr%>',
+		ber: '<%=t.ber%>',
+		du: '<%=t.du%>',
+		serving: '<%=t.serving%>',
+		unreg: '<%=t.unreg%>',
+		searching: '<%=t.searching%>',
+		registered: '<%=t.registered%>',
+		offline: '<%=t.offline%>',
+		excellent: '<%=t.excellent%>',
+		good: '<%=t.good%>',
+		fair: '<%=t.fair%>',
+		poor: '<%=t.poor%>',
+		attached: '<%=t.attached%>',
+		detached: '<%=t.detached%>',
+		ip: '<%=t.ip%>',
+		rx: '<%=t.rx%>',
+		tx: '<%=t.tx%>',
+		power: '<%=t.power%>'
 	};
+	var V = {
+		'Attached': '<%=v.Attached%>',
+		'Detached': '<%=v.Detached%>',
+		'Registered': '<%=v.Registered%>',
+		'RRC Idle': '<%=v.RRC_Idle%>',
+		'RRC Connected': '<%=v.RRC_Connected%>',
+		'No Srv': '<%=v.No_Srv%>',
+		'ONLINE': '<%=v.ONLINE%>',
+		'All bands': '<%=v.All_bands%>',
+		'LTE Only': '<%=v.LTE_Only%>',
+		'Normal': '<%=v.Normal%>',
+		'READY': '<%=v.READY%>',
+		'custom': '<%=v.custom%>',
+		'Automatic': '<%=v.Automatic%>',
+		'Not registered': '<%=v.Not_registered%>',
+		'Searching': '<%=v.Searching%>'
+	};
+	function tv(s) { return s == null ? s : (V[s] || s); }
 
 	function esc(s) {
 		return String(s == null || s === '' ? '-' : s).replace(/[&<>"]/g, function(c) {
@@ -227,12 +320,12 @@
 			row(L.plmn, esc(net.plmn)) +
 			row(L.mode, esc(act)) +
 			row(L.reg, regTxt) +
-			row(L.sim, esc(sim.state)) +
-			row('PS', esc(net.ps)) +
-			row('EMM', esc(net.emm)) +
-			row(L.rrc, esc(net.rrc)) +
-			row(L.ims, esc(net.ims)) +
-			row('Mode', esc(net.mode)));
+			row(L.sim, esc(tv(sim.state))) +
+			row('PS', esc(tv(net.ps))) +
+			row('EMM', esc(tv(net.emm))) +
+			row(L.rrc, esc(tv(net.rrc))) +
+			row(L.ims, esc(tv(net.ims))) +
+			row(L.power, esc(tv(net.mode))));
 
 		var csq = sig.csq;
 		var csqQ = csq == null ? null : qual(csq, [[20, L.excellent, '#4caf50'], [15, L.good, '#8bc34a'], [10, L.fair, '#ffc107'], [0, L.poor, '#f44336']]);
@@ -249,8 +342,8 @@
 			'<table class="md-table" style="margin-top:.4rem">' +
 			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
 			row(L.rxd, (sig.rssi_rxd != null ? sig.rssi_rxd + ' dBm' : '-') + ' / ' + (sig.rsrp_rxd != null ? sig.rsrp_rxd + ' dBm' : '-')) +
-			row('SNR', cell.snr != null ? cell.snr + ' dB' : '-') +
-			row('BER', sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
+			row(L.snr, cell.snr != null ? cell.snr + ' dB' : '-') +
+			row(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
 			'</table>');
 
 		var eci = cell.ci ? (parseInt(cell.ci, 16) + ' (' + cell.ci + ')') : null;
@@ -261,7 +354,7 @@
 			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
 			row(L.eci, esc(eci)) +
 			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null) +
-			row('D / U', (cell.dl_mod || '-') + ' / ' + (cell.ul_mod || '-')) +
+			row(L.du, (cell.dl_mod || '-') + ' / ' + (cell.ul_mod || '-')) +
 			row(L.rxlev, esc(cell.rxlev));
 		arr(cell.scc).forEach(function(s) {
 			cellRows += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
@@ -271,17 +364,17 @@
 		body('c-hw',
 			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))) +
 			row(L.fw, esc(hw.revision)) +
-			row('IMEI', esc(hw.imei)) +
-			row('IMEI SV', esc(hw.imei_sv)) +
-			row('FSN', esc(hw.fsn)) +
+			row(L.imei, esc(hw.imei)) +
+			row(L.imei_sv, esc(hw.imei_sv)) +
+			row(L.fsn, esc(hw.fsn)) +
 			row(L.imsi, esc(hw.imsi)) +
 			row(L.iccid, esc(hw.iccid)) +
-			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(sig.temp_state) : '')) +
+			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')) +
 			row(L.uptime, fmtUptime(hw.uptime)) +
 			row(L.resets, esc(hw.reset_count)) +
 			row(L.clock, esc(hw.clock)) +
-			row(L.bandlock, esc(net.bandlock)) +
-			row(L.selrat, esc(net.selrat)) +
+			row(L.bandlock, esc(tv(net.bandlock))) +
+			row(L.selrat, esc(tv(net.selrat))) +
 			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +
 			row(L.apn, esc(net.apn)));
 
@@ -291,10 +384,10 @@
 		document.getElementById('md-data-toggle').checked = on;
 		document.getElementById('md-data-state').textContent = on ? L.attached : L.detached;
 		document.getElementById('md-data-info').innerHTML = '<table class="md-table">' +
-			row('IP', esc(wan.ip_modem || wan.ip)) +
-			row('RX', fmtBytes(wan.rx)) +
-			row('TX', fmtBytes(wan.tx)) +
-			row('APN', esc(net.apn)) +
+			row(L.ip, esc(wan.ip_modem || wan.ip)) +
+			row(L.rx, fmtBytes(wan.rx)) +
+			row(L.tx, fmtBytes(wan.tx)) +
+			row(L.apn, esc(net.apn)) +
 			'</table>';
 	}
 

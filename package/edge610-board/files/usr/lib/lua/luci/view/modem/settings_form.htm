@@ -3,6 +3,37 @@ local sys = require "luci.sys"
 local http = require "luci.http"
 local uci = require "luci.model.uci".cursor()
 
+local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
+local T = {
+	en = {
+		legend = "Sierra Wireless EM7565",
+		simslot = "SIM slot",
+		sim1 = "SIM1 (upper slot)",
+		sim2 = "SIM2 (lower slot, not wired on the Edge 610)",
+		rat = "Radio mode",
+		auto = "Automatic",
+		lte = "LTE only",
+		bandlock = "Band lock",
+		hint = "Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active.",
+		save = "Save & Apply",
+		saved = "Saved; the modem has been reset.",
+	},
+	zh = {
+		legend = "Sierra Wireless EM7565",
+		simslot = "SIM 槽",
+		sim1 = "SIM1（上槽）",
+		sim2 = "SIM2（下槽，Edge 610 未接线）",
+		rat = "制式",
+		auto = "自动",
+		lte = "仅 LTE",
+		bandlock = "锁频",
+		hint = "全部不勾选表示使用全部频段；锁定频段会清空 UMTS 掩码，锁定期间 3G 不可用。",
+		save = "保存并应用",
+		saved = "已保存，模组已复位。",
+	},
+}
+local t = T[lang] or T.en
+
 -- LTE bands supported by the EM7565 (product spec Table 1-1).
 -- AT!BAND extended masks: bit = band-1 in Lmask1 (bands 1-64),
 -- bit = band-65 in Lmask2 (bands 65-128).
@@ -88,44 +119,44 @@ if http.formvalue("apply") then
 	at("-p 'AT!SELRAT=" .. nrat .. "'")
 	at("'AT!RESET'")
 
-	msg = "Saved; the modem has been reset."
+	msg = t.saved
 end
 %>
 
 <fieldset class="cbi-section">
-	<legend><%:Sierra Wireless EM7565%></legend>
+	<legend><%=t.legend%></legend>
 	<form method="post">
 		<div class="cbi-value">
-			<label class="cbi-value-title" for="sim"><%:SIM slot%></label>
+			<label class="cbi-value-title" for="sim"><%=t.simslot%></label>
 			<div class="cbi-value-field">
 				<select name="sim" id="sim">
-					<option value="0"<% if sim == "0" then %> selected<% end %>><%:SIM1 (upper slot)%></option>
-					<option value="1"<% if sim == "1" then %> selected<% end %>><%:SIM2 (lower slot, not wired on the Edge 610)%></option>
+					<option value="0"<% if sim == "0" then %> selected<% end %>><%=t.sim1%></option>
+					<option value="1"<% if sim == "1" then %> selected<% end %>><%=t.sim2%></option>
 				</select>
 			</div>
 		</div>
 		<div class="cbi-value">
-			<label class="cbi-value-title" for="rat"><%:Radio mode%></label>
+			<label class="cbi-value-title" for="rat"><%=t.rat%></label>
 			<div class="cbi-value-field">
 				<select name="rat" id="rat">
-					<option value="00"<% if rat == "00" then %> selected<% end %>><%:Automatic%></option>
-					<option value="06"<% if rat == "06" then %> selected<% end %>><%:LTE only%></option>
+					<option value="00"<% if rat == "00" then %> selected<% end %>><%=t.auto%></option>
+					<option value="06"<% if rat == "06" then %> selected<% end %>><%=t.lte%></option>
 				</select>
 			</div>
 		</div>
 		<div class="cbi-value cbi-value-last">
-			<label class="cbi-value-title"><%:Band lock%></label>
+			<label class="cbi-value-title"><%=t.bandlock%></label>
 			<div class="cbi-value-field">
 				<div class="band-grid">
 					<% for _, b in ipairs(bands) do %>
 					<label><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/> <%=b[2]%></label>
 					<% end %>
 				</div>
-				<div class="cbi-value-description"><%:Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active.%></div>
+				<div class="cbi-value-description"><%=t.hint%></div>
 			</div>
 		</div>
 		<div class="cbi-page-actions">
-			<input type="submit" name="apply" class="cbi-button cbi-button-apply" value="<%:Save & Apply%>"/>
+			<input type="submit" name="apply" class="cbi-button cbi-button-apply" value="<%=t.save%>"/>
 		</div>
 	</form>
 	<% if msg then %><div class="alert-message success"><%=msg%></div><% end %>
