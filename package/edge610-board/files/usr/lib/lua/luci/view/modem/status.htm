@@ -13,11 +13,17 @@
 			<option value="60">60s</option>
 		</select>
 		<button id="md-refresh" class="btn cbi-button cbi-button-action"><%:Refresh%></button>
-		<span id="md-state" class="md-muted"></span>
+		<span id="md-state" class="md-muted"><%:Loading…%></span>
 	</div>
 </div>
 
-<div id="md-grid" class="md-grid"></div>
+<div id="md-grid" class="md-grid">
+	<div class="md-card"><h3><%:Connection%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+	<div class="md-card"><h3><%:Signal%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+	<div class="md-card"><h3><%:Cell%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+	<div class="md-card"><h3><%:Hardware%></h3><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+	<div class="md-card"><h3><%:Neighbour cells%></h3><div class="md-skel"><span></span><span></span><span></span><span></span></div></div>
+</div>
 
 <style>
 .md-toolbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
@@ -42,6 +48,10 @@
 .md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
 .md-neigh td:first-child{text-align:left}
 .md-neigh tr.md-serv td{font-weight:600}
+.md-skel span{display:block;height:10px;border-radius:5px;background:#eceff3;margin:.6rem 0;animation:mdpulse 1.2s ease-in-out infinite}
+.md-skel span:nth-child(odd){width:60%}
+.md-skel span:nth-child(even){width:85%}
+@keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
 </style>
 
 <script>
