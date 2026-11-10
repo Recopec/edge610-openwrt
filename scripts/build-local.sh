@@ -378,6 +378,7 @@ done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
 for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
          etc/uci-defaults/zzz99-edge610-network etc/uci-defaults/zzz98-edge610-resize \
+         etc/uci-defaults/zzz99-edge610-network-modem \
          etc/openclash/core/clash_meta; do
   grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
 done
