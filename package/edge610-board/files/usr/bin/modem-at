@@ -38,6 +38,10 @@ find_port() {
 
 P="$(find_port)" || { echo "AT port not found"; exit 1; }
 
+# The modem echoes what it receives; with the tty's own ECHO left on the
+# two echo back and forth forever. Put the port in raw mode once.
+stty -F "$P" raw -echo 2>/dev/null
+
 (
 	flock -w 10 9 || exit 1
 	exec 3<>"$P"
