@@ -369,9 +369,11 @@ local v = V[lang] or V.en
 			antRow(L.ant_main, sig.rsrp, sig.rssi, rsrpQ) +
 			antRow(L.ant_sub, sig.rsrp_rxd, sig.rssi_rxd,
 				sig.rsrp_rxd == null ? null : qual(sig.rsrp_rxd, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
+			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 10) / 33 * 100, 0, 100),
+				sig.txpower == null ? null : qual(sig.txpower, [[15, L.excellent, '#4caf50'], [10, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
+			bar(L.snr, cell.snr, 'dB', cell.snr == null ? null : clamp(cell.snr / 30 * 100, 0, 100),
+				cell.snr == null ? null : qual(cell.snr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
 			'<table class="md-table" style="margin-top:.4rem">' +
-			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
-			row(L.snr, cell.snr != null ? cell.snr + ' dB' : '-') +
 			row(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
 			'</table>');
 
