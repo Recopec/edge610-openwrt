@@ -228,13 +228,13 @@ end
 		<div class="md-body">
 			<% if #sats > 0 then %>
 			<table class="md-neigh">
-				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h"><%=t.cno%> dB-Hz</th></tr></thead>
+				<thead><tr><th><%=t.sv%></th><th><%=t.el%></th><th><%=t.az%></th><th class="md-cno-h" title="C/N0 — carrier-to-noise density"><%=t.cno%></th></tr></thead>
 				<tbody>
 				<% for _, s in ipairs(sats) do %>
 				<tr><td><%=s.sv%></td><td><%=s.el%>°</td><td><%=s.az%>°</td>
 					<td class="md-cno-h">
 						<span class="md-cno"><span style="width:<%=math.min(100, math.floor((s.cno or 0) * 2.4))%>%;background:<%=cnoColor(s.cno)%>"></span></span>
-						<span class="md-cnov"><%=s.cno or "-"%></span>
+						<span class="md-cnov"><%=s.cno or "-"%></span><span class="md-cnou">dB-Hz</span>
 					</td></tr>
 				<% end %>
 				</tbody>
@@ -263,7 +263,8 @@ end
 .md-neigh .md-cno-h{text-align:right}
 .md-cno{display:inline-block;width:64px;height:5px;border-radius:3px;background:#f2f4f7;overflow:hidden;vertical-align:middle;margin-right:.5rem}
 .md-cno>span{display:block;height:100%;border-radius:3px}
-.md-cnov{display:inline-block;min-width:1.9em;color:#475467;font-variant-numeric:tabular-nums}
+.md-cnov{display:inline-block;min-width:1.5em;text-align:right;color:#475467;font-variant-numeric:tabular-nums}
+.md-cnou{margin-left:.22rem;font-size:.7rem;color:#98a2b3}
 </style>
 
 <% if live then %>
