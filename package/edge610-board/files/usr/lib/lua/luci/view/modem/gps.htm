@@ -1,6 +1,25 @@
 <%+header%>
 
-<h2 name="content"><%:GPS%></h2>
+<%
+local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
+local T = {
+	en = {
+		title = "GPS", legend = "Sierra Wireless EM7565 GNSS",
+		start = "Start", stop = "Stop", refresh = "Refresh",
+		hint = "A fix takes 30-60 s outdoors with a GNSS antenna connected; press Refresh to re-read the status.",
+		status = "Status",
+	},
+	zh = {
+		title = "GPS", legend = "Sierra Wireless EM7565 GNSS",
+		start = "启动", stop = "停止", refresh = "刷新",
+		hint = "在室外接好 GNSS 天线，定位需要 30–60 秒；之后按「刷新」重新读取状态。",
+		status = "状态",
+	},
+}
+local t = T[lang] or T.en
+%>
+
+<h2 name="content"><%=t.title%></h2>
 
 <%
 local sys = require "luci.sys"
@@ -20,18 +39,18 @@ end
 %>
 
 <fieldset class="cbi-section">
-	<legend><%:Sierra Wireless EM7565 GNSS%></legend>
+	<legend><%=t.legend%></legend>
 	<form method="post">
-		<input type="submit" class="cbi-button cbi-button-apply" name="gps_start" value="<%:Start%>"/>
-		<input type="submit" class="cbi-button cbi-button-reset" name="gps_stop" value="<%:Stop%>"/>
-		<input type="submit" class="cbi-button" name="gps_refresh" value="<%:Refresh%>"/>
+		<input type="submit" class="cbi-button cbi-button-apply" name="gps_start" value="<%=t.start%>"/>
+		<input type="submit" class="cbi-button cbi-button-reset" name="gps_stop" value="<%=t.stop%>"/>
+		<input type="submit" class="cbi-button" name="gps_refresh" value="<%=t.refresh%>"/>
 	</form>
 	<% if out and #out > 0 then %><pre><%=out%></pre><% end %>
-	<p class="cbi-value-description"><%:A fix takes 30-60 s outdoors with a GNSS antenna connected; press Refresh to re-read the status.%></p>
+	<p class="cbi-value-description"><%=t.hint%></p>
 </fieldset>
 
 <fieldset class="cbi-section">
-	<legend><%:Status%></legend>
+	<legend><%=t.status%></legend>
 	<pre><%=at("'AT!GPSSTATUS?'")%></pre>
 	<pre><%=at("'AT!GPSLOC?'")%></pre>
 	<pre><%=at("'AT!GPSSATINFO?'")%></pre>
