@@ -21,6 +21,8 @@ local T = {
 		fair = "Fair", poor = "Poor", attached = "attached", detached = "detached",
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
 		ip = "IP", rx = "RX", tx = "TX", power = "Mode",
+		prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
+		state = "Link", cid = "CID",
 		sim_settings = "SIM, RAT and band lock",
 	},
 	zh = {
@@ -41,6 +43,8 @@ local T = {
 		fair = "一般", poor = "差", attached = "已连接", detached = "已断开",
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
 		ip = "IP", rx = "接收", tx = "发送", power = "模式",
+		prio = "优先级", tlow = "低门限", thigh = "高门限",
+		state = "链路", cid = "上下文",
 		sim_settings = "SIM / 制式 / 锁频",
 	},
 }
@@ -217,7 +221,12 @@ local v = V[lang] or V.en
 		ip: '<%=t.ip%>',
 		rx: '<%=t.rx%>',
 		tx: '<%=t.tx%>',
-		power: '<%=t.power%>'
+		power: '<%=t.power%>',
+		prio: '<%=t.prio%>',
+		tlow: '<%=t.tlow%>',
+		thigh: '<%=t.thigh%>',
+		state: '<%=t.state%>',
+		cid: '<%=t.cid%>'
 	};
 	var V = {
 		'Attached': '<%=v.Attached%>',
@@ -297,9 +306,9 @@ local v = V[lang] or V.en
 		});
 		h += '</tbody></table>';
 		if (inter.length) {
-			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RXLV</th></tr></thead><tbody>';
+			h += '<table class="md-table md-neigh" style="margin-top:.6rem"><thead><tr><th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
 			inter.forEach(function(n) {
-				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
+				h += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) + '</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
 			});
 			h += '</tbody></table>';
 		}
@@ -385,6 +394,8 @@ local v = V[lang] or V.en
 		document.getElementById('md-data-state').textContent = on ? L.attached : L.detached;
 		document.getElementById('md-data-info').innerHTML = '<table class="md-table">' +
 			row(L.ip, esc(wan.ip_modem || wan.ip)) +
+			row(L.state, esc(wan.operstate)) +
+			row(L.cid, esc(wan.cid)) +
 			row(L.rx, fmtBytes(wan.rx)) +
 			row(L.tx, fmtBytes(wan.tx)) +
 			row(L.apn, esc(net.apn)) +

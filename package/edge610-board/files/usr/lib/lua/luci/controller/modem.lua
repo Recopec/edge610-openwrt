@@ -218,11 +218,12 @@ function data()
 				}
 			end
 		elseif mode == "inter" then
-			local earfcn, prio, pci, rsrq, rsrp, rssi, rxlev =
-				l:match("^(%d+)%s+%d+%s+%d+%s+(%d+)%s+(%d+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?%d+)$")
+			local earfcn, tlow, thigh, prio, pci, rsrq, rsrp, rssi, rxlev =
+				l:match("^(%d+)%s+(%d+)%s+(%d+)%s+(%d+)%s+(%d+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?[%d%.]+)%s+(-?%d+)$")
 			if earfcn then
 				res.neigh.inter[#res.neigh.inter + 1] = {
-					earfcn = tonum(earfcn), prio = tonum(prio), pci = tonum(pci),
+					earfcn = tonum(earfcn), tlow = tonum(tlow), thigh = tonum(thigh),
+					prio = tonum(prio), pci = tonum(pci),
 					rsrq = tonum(rsrq), rsrp = tonum(rsrp), rssi = tonum(rssi),
 					rxlev = tonum(rxlev),
 				}
