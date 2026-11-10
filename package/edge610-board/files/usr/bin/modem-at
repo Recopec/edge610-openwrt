@@ -38,12 +38,19 @@ find_port() {
 
 P="$(find_port)" || { echo "AT port not found"; exit 1; }
 
+# The modem re-enumerates on reset: the node can disappear between the probe
+# and the open. Opening a dead path with <> creates a regular file there, which
+# then shadows the node when the modem comes back (devtmpfs cannot replace it),
+# so never open anything that is not a char device.
+[ -c "$P" ] || { rm -f "$PORTFILE"; echo "AT port not found"; exit 1; }
+
 # The modem echoes what it receives; with the tty's own ECHO left on the
 # two echo back and forth forever. Put the port in raw mode once.
 stty -F "$P" raw -echo 2>/dev/null
 
 (
 	flock -w 10 9 || exit 1
+	[ -c "$P" ] || exit 1
 	exec 3<>"$P"
 	if [ -n "$PW" ]; then
 		printf 'AT!ENTERCND="A710"\r' >&3
