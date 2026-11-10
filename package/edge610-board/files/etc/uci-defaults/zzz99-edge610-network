@@ -9,6 +9,14 @@
 # eth2/eth3 are the two ports of the second X553 controller (05:00.0/.1);
 # eth0 is the switch conduit and eth1 (03:00.1) is unused.
 
+# Keep an existing configuration: a sysupgrade that keeps /etc/config restores
+# the user's interfaces, and rewriting them here would drop their addressing
+# (this box is often deployed as a side router on a foreign subnet).
+if uci -q get network.lan >/dev/null 2>&1; then
+	logger -t edge610 "network already configured, keeping /etc/config/network"
+	exit 0
+fi
+
 ula="$(uci -q get network.globals.ula_prefix)"
 
 cat > /etc/config/network <<EOF
