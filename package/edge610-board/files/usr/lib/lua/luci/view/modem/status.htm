@@ -9,6 +9,7 @@ local T = {
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Modem uptime",
+		modemstate = "Modem state",
 		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
 		simslot = "SIM slot", apn = "APN",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
@@ -24,6 +25,7 @@ local T = {
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "模组运行时长",
+		modemstate = "模组状态",
 		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
 		simslot = "SIM 槽", apn = "APN",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
@@ -42,6 +44,7 @@ local V = {
 		LTE_Only = "LTE Only", Normal = "Normal", READY = "READY",
 		custom = "custom", Automatic = "Automatic", Not_registered = "Not registered",
 		Searching = "Searching",
+		up = "up", down = "down", unknown = "unknown", dormant = "dormant",
 	},
 	zh = {
 		Attached = "已附着", Detached = "已分离", Registered = "已注册",
@@ -50,6 +53,7 @@ local V = {
 		LTE_Only = "仅 LTE", Normal = "正常", READY = "就绪",
 		custom = "自定义", Automatic = "自动", Not_registered = "未注册",
 		Searching = "搜索中",
+		up = "已连接", down = "已断开", unknown = "未知", dormant = "休眠",
 	},
 }
 local t = T[lang] or T.en
@@ -75,12 +79,13 @@ local v = V[lang] or V.en
 
 <div id="md-grid" class="md-grid">
 	<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	<div class="md-card" id="c-mod"><h3><%=t.modemstate%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
 	<div class="md-card" id="c-data">
 		<h3><%=t.data%></h3>
 		<div class="md-switchrow">
 			<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
-			<span id="md-data-state" class="md-muted">-</span>
+			<span id="md-data-state" class="md-tag">-</span>
 		</div>
 		<div class="md-body" id="md-data-info"></div>
 	</div>
@@ -96,7 +101,7 @@ local v = V[lang] or V.en
 		sim: '<%=t.sim%>', ps: '<%=t.ps%>', emm: '<%=t.emm%>', rrc: '<%=t.rrc%>', ims: '<%=t.ims%>',
 		model: '<%=t.model%>', fw: '<%=t.fw%>', imei: '<%=t.imei%>', imei_sv: '<%=t.imei_sv%>', fsn: '<%=t.fsn%>',
 		imsi: '<%=t.imsi%>', iccid: '<%=t.iccid%>', temp: '<%=t.temp%>', uptime: '<%=t.uptime%>',
-		resets: '<%=t.resets%>', clock: '<%=t.clock%>', bandlock: '<%=t.bandlock%>', selrat: '<%=t.selrat%>',
+		modemstate: '<%=t.modemstate%>', resets: '<%=t.resets%>', clock: '<%=t.clock%>', bandlock: '<%=t.bandlock%>', selrat: '<%=t.selrat%>',
 		simslot: '<%=t.simslot%>', apn: '<%=t.apn%>',
 		unreg: '<%=t.unreg%>', searching: '<%=t.searching%>', registered: '<%=t.registered%>',
 		ready: '<%=t.ready%>',
@@ -110,7 +115,8 @@ local v = V[lang] or V.en
 		'No Srv': '<%=v.No_Srv%>', 'ONLINE': '<%=v.ONLINE%>', 'All bands': '<%=v.All_bands%>',
 		'LTE Only': '<%=v.LTE_Only%>', 'Normal': '<%=v.Normal%>', 'READY': '<%=v.READY%>',
 		'custom': '<%=v.custom%>', 'Automatic': '<%=v.Automatic%>',
-		'Not registered': '<%=v.Not_registered%>', 'Searching': '<%=v.Searching%>'
+		'Not registered': '<%=v.Not_registered%>', 'Searching': '<%=v.Searching%>',
+		'up': '<%=v.up%>', 'down': '<%=v.down%>', 'unknown': '<%=v.unknown%>', 'dormant': '<%=v.dormant%>'
 	};
 	function tv(s) { return s == null ? s : (V[s] || s); }
 
@@ -138,13 +144,19 @@ local v = V[lang] or V.en
 			row(L.power, esc(tv(net.mode))));
 
 		var hwRows = [
-			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))),
-			row(L.fw, esc(hw.revision)),
-			row(L.imei, esc(hw.imei)),
+			row(L.model, esc(((hw.manufacturer || '') + ' ' + (hw.model || '')).replace(/,?\s*Incorporated/, '').trim())),
+			row(L.fw, hw.revision
+				? '<span title="' + esc(hw.revision) + '">' + esc(hw.revision.split(' ')[0]) + '</span>'
+				: '-'),
+			row(L.imei, esc(hw.imei), 'md-mono'),
 			row(L.imei_sv, esc(hw.imei_sv)),
-			row(L.fsn, esc(hw.fsn)),
-			row(L.imsi, esc(hw.imsi)),
-			row(L.iccid, esc(hw.iccid)),
+			row(L.fsn, esc(hw.fsn), 'md-mono'),
+			row(L.imsi, esc(hw.imsi), 'md-mono'),
+			row(L.iccid, esc(hw.iccid), 'md-mono')
+		];
+		body('c-hw', hwRows.join(''));
+
+		var modRows = [
 			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')),
 			row(L.uptime, fmtUptime(hw.uptime)),
 			row(L.resets, esc(hw.reset_count)),
@@ -152,18 +164,19 @@ local v = V[lang] or V.en
 			row(L.bandlock, esc(tv(net.bandlock))),
 			row(L.selrat, esc(tv(net.selrat))),
 			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null),
-			row(L.apn, esc(net.apn)),
-			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : '')),
+			row(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : ''), 'md-mono'),
 			row(L.customer, esc(hw.pri_customer))
 		];
-		body('c-hw', hwRows.join(''));
+		body('c-mod', modRows.join(''));
 
 		var on = wan.attach === 1 && wan.context === 1;
 		document.getElementById('md-data-toggle').checked = on;
-		document.getElementById('md-data-state').textContent = on ? L.attached : L.detached;
+		var st = document.getElementById('md-data-state');
+		st.textContent = on ? L.attached : L.detached;
+		st.className = 'md-tag ' + (on ? 'ok' : 'err');
 		document.getElementById('md-data-info').innerHTML = '<table class="md-table">' +
 			row(L.ip, esc(wan.ip_modem || wan.ip)) +
-			row(L.state, esc(wan.operstate)) +
+			row(L.state, esc(tv(wan.operstate))) +
 			row(L.cid, esc(wan.cid)) +
 			row(L.rx, fmtBytes(wan.rx)) +
 			row(L.tx, fmtBytes(wan.tx)) +

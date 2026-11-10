@@ -292,9 +292,18 @@ function data()
 	end
 
 	-- Settings + data-connection state -------------------------------------
-	local extra = at("AT!BAND?;!SELRAT?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1")
+	local extra = at("AT!BAND?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1")
 	res.net.bandlock = trim(extra:match("%d%d,%s*([%a][%a ]*)"))
-	res.net.selrat = trim(extra:match("!SELRAT:%s*%d+,%s*([^\r\n]+)"))
+	-- !SELRAT? has to be its own command line: chained with ';' x'after !BAND?
+	-- the modem answers "Unknown RAT mode. Use AT!SELRAT to set band." instead
+	-- of the stored mode, in any position.
+	local selraw = at("AT!SELRAT?"):match("!SELRAT:%s*([^\r\n]+)")
+	if selraw then
+		selraw = trim(selraw)
+		local code = selraw:match("^(%d%d),")
+		local names = { ["00"] = "Automatic", ["06"] = "LTE Only" }
+		res.net.selrat = (code and names[code]) or "?"
+	end
 	res.net.uims = tonum(extra:match("!UIMS:%s*(%d+)"))
 	res.net.apn = extra:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
 	res.sig.temp_state = trim(extra:match("Temp state:%s*([%a ]+)"))
