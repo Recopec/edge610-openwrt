@@ -38,12 +38,23 @@ find_port() {
 
 P="$(find_port)" || { echo "AT port not found"; exit 1; }
 
-LINGER=
-[ "$TIMEOUT" -gt 3 ] && LINGER="-t $TIMEOUT"
-
-if [ -n "$PW" ]; then
-	{ printf 'AT!ENTERCND="A710"\r'; sleep 1; printf '%s\r' "$CMD"; } | \
-		timeout "$((TIMEOUT + 2))" flock -w 10 /tmp/.modem-at.lock socat $LINGER - "$P",raw,echo=0 2>/dev/null
-else
-	printf '%s\r' "$CMD" | timeout "$TIMEOUT" flock -w 10 /tmp/.modem-at.lock socat $LINGER - "$P",raw,echo=0 2>/dev/null
-fi
+(
+	flock -w 10 9 || exit 1
+	exec 3<>"$P"
+	if [ -n "$PW" ]; then
+		printf 'AT!ENTERCND="A710"\r' >&3
+		sleep 1
+	fi
+	printf '%s\r' "$CMD" >&3
+	first=1
+	while :; do
+		if [ "$first" = "1" ]; then
+			read -r -t "$TIMEOUT" line <&3 || break
+			first=0
+		else
+			read -r -t 1 line <&3 || break
+		fi
+		printf '%s\n' "$line"
+	done
+	exec 3>&-
+) 9>/tmp/.modem-at.lock

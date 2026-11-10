@@ -283,6 +283,9 @@ local v = V[lang] or V.en
 	}
 
 	function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+	var BW = {0: '1.4', 1: '3', 2: '5', 3: '10', 4: '15', 5: '20'};
+	function bwMHz(v) { return v == null ? '-' : (BW[v] != null ? BW[v] + ' MHz' : String(v)); }
 	function arr(v) { return Array.isArray(v) ? v : []; }
 
 	function fmtBytes(n) {
@@ -367,7 +370,7 @@ local v = V[lang] or V.en
 			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
 			row(L.eci, esc(eci)) +
 			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null) +
-			row(L.du, (cell.dl_mod || '-') + ' / ' + (cell.ul_mod || '-')) +
+			row(L.du, bwMHz(cell.dl_mod) + ' / ' + bwMHz(cell.ul_mod)) +
 			row(L.rxlev, esc(cell.rxlev));
 		arr(cell.scc).forEach(function(s) {
 			cellRows += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
@@ -385,7 +388,7 @@ local v = V[lang] or V.en
 			row(L.temp, (sig.temp != null ? sig.temp + ' °C' : '-') + (sig.temp_state ? ' · ' + esc(tv(sig.temp_state)) : '')) +
 			row(L.uptime, fmtUptime(hw.uptime)) +
 			row(L.resets, esc(hw.reset_count)) +
-			row(L.clock, esc(hw.clock)) +
+			row(L.clock, hw.clock_epoch ? new Date(hw.clock_epoch * 1000).toLocaleString() + ' (NITZ)' : esc(hw.clock)) +
 			row(L.bandlock, esc(tv(net.bandlock))) +
 			row(L.selrat, esc(tv(net.selrat))) +
 			row(L.simslot, net.uims != null ? 'SIM' + (net.uims + 1) : null) +

@@ -248,6 +248,16 @@ function data()
 	res.net.apn = extra:match('+CGDCONT:%s*%d+,"%a+","([^"]*)"')
 	res.sig.temp_state = trim(extra:match("Temp state:%s*([%a ]+)"))
 	res.modem.clock = extra:match("+CCLK:%s*\"([^\"]+)\"")
+	local cy, cmo, cd, ch, cmi, cs, ctz =
+		(res.modem.clock or ""):match("(%d+)/(%d+)/(%d+),(%d+):(%d+):(%d+)([+-]?%d+)")
+	if cy then
+		local off = tonum(ctz) * 900
+		res.modem.clock_epoch = os.time({
+			year = 2000 + tonum(cy), month = tonum(cmo), day = tonum(cd),
+			hour = tonum(ch), min = tonum(cmi), sec = tonum(cs),
+		}) - off
+		res.modem.clock_tz = off
+	end
 	res.wan.attach = tonum(extra:match("+CGATT:%s*(%d+)"))
 	local cid, act = extra:match("+CGACT:%s*(%d+),(%d+)")
 	res.wan.cid = tonum(cid)
@@ -321,6 +331,40 @@ function setnet()
 	http.write_json({ ok = true })
 end
 
+-- SMS list (text mode) and delete.
+function sms()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+
+	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=1;+CMGL=\"ALL\"' 2>/dev/null") or ""
+	local list, cur = {}, nil
+	for _, l in ipairs(lines(o)) do
+		local idx, stat, from, ts = l:match('^%+CMGL:%s*(%d+),"([^"]*)","([^"]*)","[^"]*","([^"]*)"')
+		if idx then
+			if cur then list[#list + 1] = cur end
+			cur = { index = tonum(idx), stat = stat, from = from, time = ts, text = {} }
+		elseif cur and not l:match("^OK$") and not l:match("^AT") then
+			cur.text[#cur.text + 1] = l
+		end
+	end
+	if cur then list[#list + 1] = cur end
+	for _, m in ipairs(list) do m.text = table.concat(m.text, "\n") end
+
+	http.prepare_content("application/json")
+	http.write_json({ messages = list })
+end
+
+function smsdel()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+	local idx = http.formvalue("idx")
+	if idx and idx:match("^%d+$") then
+		sys.exec("/usr/bin/modem-at 'AT+CMGD=" .. idx .. "' >/dev/null 2>&1")
+	end
+	http.prepare_content("application/json")
+	http.write_json({ ok = true })
+end
+
 function index()
 	if not nixio.fs.access("/usr/bin/modem-at") then
 		return
@@ -334,4 +378,7 @@ function index()
 	entry({"admin", "status", "modem", "setdata"}, call("setdata")).leaf = true
 	entry({"admin", "status", "modem", "scan"}, call("scan")).leaf = true
 	entry({"admin", "status", "modem", "setnet"}, call("setnet")).leaf = true
+	entry({"admin", "status", "modem", "sms"}, template("modem/sms"), _("SMS"), 40).leaf = true
+	entry({"admin", "status", "modem", "sms", "list"}, call("sms")).leaf = true
+	entry({"admin", "status", "modem", "sms", "delete"}, call("smsdel")).leaf = true
 end

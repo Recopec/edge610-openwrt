@@ -1,0 +1,86 @@
+<%+header%>
+
+<%
+local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
+local T = {
+	en = {
+		title = "SMS", refresh = "Refresh", from = "From", time = "Time", text = "Text",
+		del = "Delete", empty = "No messages", loading = "Loading…", delall = "Delete all",
+	},
+	zh = {
+		title = "短信", refresh = "刷新", from = "发送方", time = "时间", text = "内容",
+		del = "删除", empty = "没有短信", loading = "加载中…", delall = "全部删除",
+	},
+}
+local t = T[lang] or T.en
+%>
+
+<h2 name="content"><%=t.title%></h2>
+
+<div class="cbi-section">
+	<button id="sms-refresh" class="btn cbi-button cbi-button-action"><%=t.refresh%></button>
+	<span id="sms-state" class="md-muted"><%=t.loading%></span>
+</div>
+
+<div id="sms-list" class="cbi-section"></div>
+
+<style>
+.sms-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.sms-table th{text-align:left;color:#888;font-weight:500;font-size:.8rem;border-bottom:1px solid #eee;padding:.4rem .3rem}
+.sms-table td{padding:.4rem .3rem;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.sms-text{white-space:pre-wrap;word-break:break-word}
+.sms-unread{font-weight:600}
+.md-muted{color:#888;font-size:.85rem}
+</style>
+
+<script>
+(function() {
+	var LIST = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "list")%>';
+	var DEL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delete")%>';
+	var L = {
+		from: '<%=t.from%>', time: '<%=t.time%>', text: '<%=t.text%>',
+		del: '<%=t.del%>', empty: '<%=t.empty%>'
+	};
+
+	function esc(s) {
+		return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+			return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+		});
+	}
+
+	function load() {
+		var st = document.getElementById('sms-state');
+		st.textContent = '<%=t.loading%>';
+		fetch(LIST, {credentials: 'same-origin', cache: 'no-store'})
+			.then(function(r) { return r.json(); })
+			.then(function(d) {
+				var msgs = d.messages || [];
+				st.textContent = new Date().toLocaleTimeString();
+				var el = document.getElementById('sms-list');
+				if (!msgs.length) { el.innerHTML = '<div class="md-muted">' + L.empty + '</div>'; return; }
+				var h = '<table class="sms-table"><thead><tr><th>#</th><th>' + L.from + '</th><th>' + L.time + '</th><th>' + L.text + '</th><th></th></tr></thead><tbody>';
+				msgs.forEach(function(m) {
+					h += '<tr><td>' + esc(m.index) + '</td><td>' + esc(m.from) + '</td><td>' + esc(m.time) + '</td>' +
+						'<td class="sms-text' + (m.stat && m.stat.indexOf('UNREAD') >= 0 ? ' sms-unread' : '') + '">' + esc(m.text) + '</td>' +
+						'<td><button type="button" class="btn cbi-button" data-idx="' + esc(m.index) + '">' + L.del + '</button></td></tr>';
+				});
+				h += '</tbody></table>';
+				el.innerHTML = h;
+				Array.prototype.forEach.call(el.querySelectorAll('button[data-idx]'), function(b) {
+					b.addEventListener('click', function() {
+						fetch(DEL, {method: 'POST', credentials: 'same-origin',
+							headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+							body: 'idx=' + b.getAttribute('data-idx')})
+							.then(function() { load(); });
+					});
+				});
+			})
+			.catch(function() { st.textContent = 'ERR'; });
+	}
+
+	document.getElementById('sms-refresh').addEventListener('click', load);
+	load();
+})();
+</script>
+
+<%+footer%>
