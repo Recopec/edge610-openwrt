@@ -14,6 +14,7 @@ local T = {
 		txpower = "Tx power", snr = "SNR", ber = "BER",
 		ant_main = "Main antenna", ant_sub = "Aux antenna",
 		intra = "Same frequency", inter = "Other frequencies",
+		prio = "Prio", tlow = "X-Low", thigh = "X-High",
 		operator = "Operator", netname = "Network name", plmn = "PLMN", mode = "Technology",
 		reg = "Registration", sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -41,6 +42,7 @@ local T = {
 		txpower = "发射功率", snr = "SNR", ber = "误码率",
 		ant_main = "主天线", ant_sub = "副天线",
 		intra = "同频", inter = "异频",
+		prio = "优先级", tlow = "低门限", thigh = "高门限",
 		operator = "运营商", netname = "网络名称", plmn = "PLMN", mode = "制式",
 		reg = "注册状态", sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -248,6 +250,7 @@ local v = V[lang] or V.en
 		band: '<%=t.band%>', bw: '<%=t.bw%>', pci: '<%=t.pci%>', earfcn: '<%=t.earfcn%>',
 		tac: '<%=t.tac%>', eci: '<%=t.eci%>', du: '<%=t.du%>', rxlev: '<%=t.rxlev%>', scc: '<%=t.scc%>',
 		intra: '<%=t.intra%>', inter: '<%=t.inter%>',
+		prio: '<%=t.prio%>', tlow: '<%=t.tlow%>', thigh: '<%=t.thigh%>',
 	};
 	var V = {
 		'Attached': '<%=v.Attached%>', 'Detached': '<%=v.Detached%>', 'Registered': '<%=v.Registered%>',
@@ -352,10 +355,16 @@ local v = V[lang] or V.en
 				t1 + '</tbody></table></div>';
 		}
 		if (inter.length) {
-			var t2 = '<table class="md-neigh"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP dBm</th><th>RSRQ dB</th><th>RSSI dBm</th></tr></thead><tbody>';
+			var t2 = '<table class="md-neigh"><thead><tr>' +
+				// Sierra reports the reselection thresholds in dB (18 / 20 here),
+				// not dBm, and RXLV may be negative — no unit labels on those.
+				'<th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th>' +
+				'<th>PCI</th><th>RSRP dBm</th><th>RSRQ dB</th><th>RSSI dBm</th><th>RXLV</th>' +
+				'</tr></thead><tbody>';
 			inter.forEach(function(n) {
-				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) +
-					'</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td></tr>';
+				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) +
+					'</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) +
+					'</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
 			});
 			h += '<div class="md-neigh-col">' + (both ? '<div class="md-cap">' + L.inter + '</div>' : '') +
 				t2 + '</tbody></table></div>';
