@@ -245,7 +245,7 @@ function data()
 	res.net.bandlock = trim(extra:match("%d%d,%s*([%a][%a ]*)"))
 	res.net.selrat = trim(extra:match("!SELRAT:%s*%d+,%s*([^\r\n]+)"))
 	res.net.uims = tonum(extra:match("!UIMS:%s*(%d+)"))
-	res.net.apn = extra:match('+CGDCONT:%s*%d+,"%a+","([^"]*)"')
+	res.net.apn = extra:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
 	res.sig.temp_state = trim(extra:match("Temp state:%s*([%a ]+)"))
 	res.modem.clock = extra:match("+CCLK:%s*\"([^\"]+)\"")
 	local cy, cmo, cd, ch, cmi, cs, ctz =

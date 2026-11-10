@@ -65,7 +65,7 @@ local rat = uci:get("modem", "main", "rat") or "06"
 local apn = uci:get("modem", "main", "apn") or ""
 if apn == "" then
 	local o = sys.exec("/usr/bin/modem-at 'AT+CGDCONT?' 2>/dev/null") or ""
-	local m = o:match('+CGDCONT:%s*%d+,"%a+","([^"]*)"')
+	local m = o:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
 	if m then apn = m end
 end
 local pdptype = uci:get("modem", "main", "pdptype") or "IP"
