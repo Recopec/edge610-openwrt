@@ -4,52 +4,32 @@
 local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
 local T = {
 	en = {
-		conn = "Connection", signal = "Signal", cell = "Cell", hardware = "Hardware",
-		neigh = "Neighbour cells", data = "Data connection",
+		conn = "Connection", hardware = "Hardware", data = "Data connection",
 		operator = "Operator", plmn = "PLMN", mode = "Technology", reg = "Registration",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
-		band = "Band", bw = "Bandwidth", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
-		eci = "ECI", scc = "SCC", rxlev = "RXLV",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Modem uptime",
 		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
-		simslot = "SIM slot", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
-		sinr = "SINR", rssi = "RSSI (RxM)", txpower = "Tx power", snr = "SNR",
-		ber = "BER", serving = "serving",
+		simslot = "SIM slot", apn = "APN",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
-		offline = "AT port not found", excellent = "Excellent", good = "Good",
-		fair = "Fair", poor = "Poor", attached = "attached", detached = "detached",
+		offline = "AT port not found", attached = "attached", detached = "detached",
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
 		ip = "IP (modem)", rx = "RX (wwan0)", tx = "TX (wwan0)", power = "Mode",
-		prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
-		du = "DL/UL bandwidth", ant_main = "Main antenna", ant_sub = "Aux antenna",
-		state = "Link", cid = "CID",
-		pri = "PRI", customer = "Customer",
-		sim_settings = "SIM, RAT and band lock",
+		state = "Link", cid = "CID", pri = "PRI", customer = "Customer",
 	},
 	zh = {
-		conn = "连接", signal = "信号", cell = "小区", hardware = "硬件",
-		neigh = "邻区", data = "数据连接",
+		conn = "连接", hardware = "硬件", data = "数据连接",
 		operator = "运营商", plmn = "PLMN", mode = "制式", reg = "注册状态",
 		sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
-		band = "频段", bw = "带宽", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
-		eci = "ECI", scc = "SCC", rxlev = "RXLV",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
 		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "模组运行时长",
 		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
-		simslot = "SIM 槽", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
-		sinr = "SINR", rssi = "RSSI（主接收）", txpower = "发射功率", snr = "SNR",
-		ber = "误码率", serving = "服务",
+		simslot = "SIM 槽", apn = "APN",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
-		offline = "AT 端口未找到", excellent = "优秀", good = "良好",
-		fair = "一般", poor = "差", attached = "已连接", detached = "已断开",
+		offline = "AT 端口未找到", attached = "已连接", detached = "已断开",
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
 		ip = "IP（模组）", rx = "接收（wwan0）", tx = "发送（wwan0）", power = "模式",
-		prio = "优先级", tlow = "低门限", thigh = "高门限",
-		du = "下行/上行带宽", ant_main = "主天线", ant_sub = "副天线",
-		state = "链路", cid = "上下文",
-		pri = "PRI", customer = "客户",
-		sim_settings = "SIM / 制式 / 锁频",
+		state = "链路", cid = "上下文", pri = "PRI", customer = "客户",
 	},
 }
 local V = {
@@ -74,7 +54,7 @@ local t = T[lang] or T.en
 local v = V[lang] or V.en
 %>
 
-<h2 name="content"><%:Modem%></h2>
+<%+modem/common%>
 
 <div class="cbi-section">
 	<div class="md-toolbar">
@@ -92,251 +72,47 @@ local v = V[lang] or V.en
 </div>
 
 <div id="md-grid" class="md-grid">
-	<div class="md-col">
-		<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-		<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-	</div>
-	<div class="md-col">
-		<div class="md-card" id="c-sig"><h3><%=t.signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
-		<div class="md-card" id="c-data">
-			<h3><%=t.data%></h3>
-			<div class="md-switchrow">
-				<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
-				<span id="md-data-state" class="md-muted">-</span>
-			</div>
-			<div class="md-body" id="md-data-info"></div>
+	<div class="md-card" id="c-hw"><h3><%=t.hardware%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	<div class="md-card" id="c-conn"><h3><%=t.conn%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	<div class="md-card" id="c-data">
+		<h3><%=t.data%></h3>
+		<div class="md-switchrow">
+			<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
+			<span id="md-data-state" class="md-muted">-</span>
 		</div>
-	</div>
-	<div class="md-col">
-		<div class="md-card" id="c-cell"><h3><%=t.cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+		<div class="md-body" id="md-data-info"></div>
 	</div>
 </div>
-
-<div class="md-card md-full" id="c-neigh"><h3><%=t.neigh%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div></div>
-
-<style>
-.md-toolbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
-.md-muted{color:#888;font-size:.85rem}
-.md-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-top:.75rem;align-items:start}
-@media(max-width:1500px){.md-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.md-grid{grid-template-columns:1fr}}
-.md-full{margin-top:.75rem}
-.md-col{display:flex;flex-direction:column;gap:.75rem}
-.md-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:.7rem .85rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.md-card h3{margin:0 0 .45rem;font-size:.88rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.35rem}
-.md-table{width:100%;border-collapse:collapse;font-size:.88rem}
-.md-table td{padding:.14rem 0;vertical-align:top}
-.md-table th{font-size:.78rem;color:#888;text-align:right;font-weight:500;padding:.2rem 0}
-.md-table th:first-child{text-align:left}
-.md-l{color:#777;white-space:nowrap;padding-right:.6rem}
-.md-v{text-align:right;font-weight:600;word-break:break-all}
-.md-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden;margin:.2rem 0 .1rem}
-.md-bar>span{display:block;height:100%;border-radius:4px;background:#4caf50}
-.md-row{margin:.3rem 0}
-.md-row .md-sub{font-size:.78rem;color:#888}
-.md-tag{display:inline-block;padding:.05rem .45rem;border-radius:10px;font-size:.78rem;background:#eef4ff;color:#2867c9}
-.md-tag.ok{background:#e8f5e9;color:#2e7d32}
-.md-tag.warn{background:#fff8e1;color:#b26a00}
-.md-tag.err{background:#fdecea;color:#c62828}
-.md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
-.md-neigh td:first-child{text-align:left}
-.md-hw-cols{display:flex;gap:1.2rem;flex-wrap:wrap}
-.md-hw-cols>div{flex:1 1 170px;min-width:0}
-.md-neigh-wrap{display:flex;gap:1rem;flex-wrap:wrap}
-.md-neigh-col{flex:1 1 320px;min-width:0}
-
-.md-neigh tr.md-serv td{font-weight:600}
-.md-skel span{display:block;height:10px;border-radius:5px;background:#eceff3;margin:.6rem 0;animation:mdpulse 1.2s ease-in-out infinite}
-.md-skel span:nth-child(odd){width:60%}
-.md-skel span:nth-child(even){width:85%}
-@keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
-.md-switchrow{display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem}
-.md-switch{position:relative;display:inline-block;width:42px;height:22px;flex:0 0 auto}
-.md-switch input{opacity:0;width:0;height:0}
-.md-switch span{position:absolute;inset:0;background:#ccc;border-radius:22px;cursor:pointer;transition:.2s}
-.md-switch span:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
-.md-switch input:checked + span{background:#4caf50}
-.md-switch input:checked + span:before{transform:translateX(20px)}
-.md-lock{margin-top:1rem}
-</style>
 
 <script>
 (function() {
 	var URL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "data")%>';
 	var SETDATA = '<%=luci.dispatcher.build_url("admin", "status", "modem", "setdata")%>';
 	var L = {
-		conn: '<%=t.conn%>',
-		signal: '<%=t.signal%>',
-		cell: '<%=t.cell%>',
-		hardware: '<%=t.hardware%>',
-		neigh: '<%=t.neigh%>',
-		data: '<%=t.data%>',
-		operator: '<%=t.operator%>',
-		plmn: '<%=t.plmn%>',
-		mode: '<%=t.mode%>',
-		reg: '<%=t.reg%>',
-		sim: '<%=t.sim%>',
-		ps: '<%=t.ps%>',
-		emm: '<%=t.emm%>',
-		rrc: '<%=t.rrc%>',
-		ims: '<%=t.ims%>',
-		band: '<%=t.band%>',
-		bw: '<%=t.bw%>',
-		pci: '<%=t.pci%>',
-		earfcn: '<%=t.earfcn%>',
-		tac: '<%=t.tac%>',
-		eci: '<%=t.eci%>',
-		scc: '<%=t.scc%>',
-		rxlev: '<%=t.rxlev%>',
-		model: '<%=t.model%>',
-		fw: '<%=t.fw%>',
-		imei: '<%=t.imei%>',
-		imei_sv: '<%=t.imei_sv%>',
-		fsn: '<%=t.fsn%>',
-		imsi: '<%=t.imsi%>',
-		iccid: '<%=t.iccid%>',
-		temp: '<%=t.temp%>',
-		uptime: '<%=t.uptime%>',
-		resets: '<%=t.resets%>',
-		clock: '<%=t.clock%>',
-		bandlock: '<%=t.bandlock%>',
-		selrat: '<%=t.selrat%>',
-		simslot: '<%=t.simslot%>',
-		apn: '<%=t.apn%>',
-		csq: '<%=t.csq%>',
-		rsrp: '<%=t.rsrp%>',
-		rsrq: '<%=t.rsrq%>',
-		sinr: '<%=t.sinr%>',
-		rssi: '<%=t.rssi%>',
-		ant_main: '<%=t.ant_main%>',
-		ant_sub: '<%=t.ant_sub%>',
-		txpower: '<%=t.txpower%>',
-
-		snr: '<%=t.snr%>',
-		ber: '<%=t.ber%>',
-		du: '<%=t.du%>',
-		serving: '<%=t.serving%>',
-		unreg: '<%=t.unreg%>',
-		searching: '<%=t.searching%>',
-		registered: '<%=t.registered%>',
-		offline: '<%=t.offline%>',
-		excellent: '<%=t.excellent%>',
-		good: '<%=t.good%>',
-		fair: '<%=t.fair%>',
-		poor: '<%=t.poor%>',
-		attached: '<%=t.attached%>',
-		detached: '<%=t.detached%>',
-		ip: '<%=t.ip%>',
-		rx: '<%=t.rx%>',
-		tx: '<%=t.tx%>',
-		power: '<%=t.power%>',
-		prio: '<%=t.prio%>',
-		tlow: '<%=t.tlow%>',
-		thigh: '<%=t.thigh%>',
-		state: '<%=t.state%>',
-		cid: '<%=t.cid%>',
-		pri: '<%=t.pri%>',
-		customer: '<%=t.customer%>'
+		conn: '<%=t.conn%>', hardware: '<%=t.hardware%>', data: '<%=t.data%>',
+		operator: '<%=t.operator%>', plmn: '<%=t.plmn%>', mode: '<%=t.mode%>', reg: '<%=t.reg%>',
+		sim: '<%=t.sim%>', ps: '<%=t.ps%>', emm: '<%=t.emm%>', rrc: '<%=t.rrc%>', ims: '<%=t.ims%>',
+		model: '<%=t.model%>', fw: '<%=t.fw%>', imei: '<%=t.imei%>', imei_sv: '<%=t.imei_sv%>', fsn: '<%=t.fsn%>',
+		imsi: '<%=t.imsi%>', iccid: '<%=t.iccid%>', temp: '<%=t.temp%>', uptime: '<%=t.uptime%>',
+		resets: '<%=t.resets%>', clock: '<%=t.clock%>', bandlock: '<%=t.bandlock%>', selrat: '<%=t.selrat%>',
+		simslot: '<%=t.simslot%>', apn: '<%=t.apn%>',
+		unreg: '<%=t.unreg%>', searching: '<%=t.searching%>', registered: '<%=t.registered%>',
+		offline: '<%=t.offline%>', attached: '<%=t.attached%>', detached: '<%=t.detached%>',
+		ip: '<%=t.ip%>', rx: '<%=t.rx%>', tx: '<%=t.tx%>', power: '<%=t.power%>',
+		state: '<%=t.state%>', cid: '<%=t.cid%>', pri: '<%=t.pri%>', customer: '<%=t.customer%>'
 	};
 	var V = {
-		'Attached': '<%=v.Attached%>',
-		'Detached': '<%=v.Detached%>',
-		'Registered': '<%=v.Registered%>',
-		'RRC Idle': '<%=v.RRC_Idle%>',
-		'RRC Connected': '<%=v.RRC_Connected%>',
-		'No Srv': '<%=v.No_Srv%>',
-		'ONLINE': '<%=v.ONLINE%>',
-		'All bands': '<%=v.All_bands%>',
-		'LTE Only': '<%=v.LTE_Only%>',
-		'Normal': '<%=v.Normal%>',
-		'READY': '<%=v.READY%>',
-		'custom': '<%=v.custom%>',
-		'Automatic': '<%=v.Automatic%>',
-		'Not registered': '<%=v.Not_registered%>',
-		'Searching': '<%=v.Searching%>'
+		'Attached': '<%=v.Attached%>', 'Detached': '<%=v.Detached%>', 'Registered': '<%=v.Registered%>',
+		'RRC Idle': '<%=v.RRC_Idle%>', 'RRC Connected': '<%=v.RRC_Connected%>',
+		'No Srv': '<%=v.No_Srv%>', 'ONLINE': '<%=v.ONLINE%>', 'All bands': '<%=v.All_bands%>',
+		'LTE Only': '<%=v.LTE_Only%>', 'Normal': '<%=v.Normal%>', 'READY': '<%=v.READY%>',
+		'custom': '<%=v.custom%>', 'Automatic': '<%=v.Automatic%>',
+		'Not registered': '<%=v.Not_registered%>', 'Searching': '<%=v.Searching%>'
 	};
 	function tv(s) { return s == null ? s : (V[s] || s); }
 
-	function esc(s) {
-		return String(s == null || s === '' ? '-' : s).replace(/[&<>"]/g, function(c) {
-			return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
-		});
-	}
-
-	function row(label, value, cls) {
-		return '<tr><td class="md-l">' + label + '</td><td class="md-v ' + (cls || '') + '">' + value + '</td></tr>';
-	}
-
-	function body(id, rows) {
-		var el = document.querySelector('#' + id + ' .md-body');
-		if (el) el.innerHTML = '<table class="md-table">' + rows + '</table>';
-	}
-
-	function qual(v, levels) {
-		if (v == null) return null;
-		for (var i = 0; i < levels.length; i++) {
-			if (v >= levels[i][0]) return levels[i];
-		}
-		return levels[levels.length - 1];
-	}
-
-	function bar(label, value, unit, pct, q) {
-		var color = q ? q[2] : '#4caf50';
-		return '<div class="md-row"><div>' + label + ': <b>' + esc(value) + (value == null || !unit ? '' : ' ' + unit) +
-			'</b></div>' +
-			'<div class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
-			'%;background:' + color + '"></span></div></div>';
-	}
-
-	function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-	// +CSQ rxqual index -> BER range (3GPP 27.007)
-	var BER = ['<0.2%', '0.2-0.4%', '0.4-0.8%', '0.8-1.6%', '1.6-3.2%', '3.2-6.4%', '6.4-12.8%', '>12.8%'];
-
-	var BW = {0: '1.4', 1: '3', 2: '5', 3: '10', 4: '15', 5: '20'};
-	function bwMHz(v) { return v == null ? '-' : (BW[v] != null ? BW[v] + ' MHz' : String(v)); }
-	function arr(v) { return Array.isArray(v) ? v : []; }
-
-	function fmtBytes(n) {
-		if (n == null) return '-';
-		var u = ['B', 'KB', 'MB', 'GB'], i = 0;
-		while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-		return n.toFixed(i ? 1 : 0) + ' ' + u[i];
-	}
-
-	function fmtUptime(s) {
-		if (s == null) return null;
-		var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
-		return (h > 0 ? h + 'h ' : '') + m + 'm';
-	}
-
-	function neighRows(d) {
-		var serving = d.cell && d.cell.pci;
-		var intra = arr(d.neigh && d.neigh.intra);
-		var inter = arr(d.neigh && d.neigh.inter);
-		if (!intra.length && !inter.length) return '<div class="md-muted">-</div>';
-		var h = '';
-		if (intra.length) {
-			var t = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
-			intra.forEach(function(n) {
-				t += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
-					(n.pci === serving ? ' <span class="md-tag ok">' + L.serving + '</span>' : '') +
-					'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
-			});
-			h += '<div class="md-neigh-col">' + t + '</tbody></table></div>';
-		}
-		if (inter.length) {
-			var t2 = '<table class="md-table md-neigh"><thead><tr><th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
-			inter.forEach(function(n) {
-				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) + '</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
-			});
-			h += '<div class="md-neigh-col">' + t2 + '</tbody></table></div>';
-		}
-		return '<div class="md-neigh-wrap">' + h + '</div>';
-	}
-
 	function render(d) {
-		var sig = d.sig || {}, cell = d.cell || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {}, wan = d.wan || {};
+		var sig = d.sig || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {}, wan = d.wan || {};
 		var reg = net.reg;
 		var regTxt = reg === 1 || reg === 5 ? '<span class="md-tag ok">' + L.registered + '</span>'
 			: reg === 2 ? '<span class="md-tag warn">' + L.searching + '</span>'
@@ -354,44 +130,6 @@ local v = V[lang] or V.en
 			row(L.rrc, esc(tv(net.rrc))) +
 			row(L.ims, esc(tv(net.ims))) +
 			row(L.power, esc(tv(net.mode))));
-
-		var csq = sig.csq;
-		var csqQ = csq == null ? null : qual(csq, [[20, L.excellent, '#4caf50'], [15, L.good, '#8bc34a'], [10, L.fair, '#ffc107'], [0, L.poor, '#f44336']]);
-		var rsrpQ = sig.rsrp == null ? null : qual(sig.rsrp, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
-		var rsrqQ = sig.rsrq == null ? null : qual(sig.rsrq, [[-10, L.excellent, '#4caf50'], [-15, L.good, '#8bc34a'], [-20, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
-		var sinrQ = sig.sinr == null ? null : qual(sig.sinr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [0, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
-
-		body('c-sig',
-			bar(L.csq, csq, '/31', csq == null ? null : csq / 31 * 100, csqQ) +
-			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
-			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
-			bar(L.ant_main + ' RSRP', sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100), rsrpQ) +
-			bar(L.ant_main + ' RSSI', sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
-			bar(L.ant_sub + ' RSRP', sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
-				sig.rsrp_rxd == null ? null : qual(sig.rsrp_rxd, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
-			bar(L.ant_sub + ' RSSI', sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
-			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 10) / 33 * 100, 0, 100),
-				sig.txpower == null ? null : qual(sig.txpower, [[15, L.excellent, '#4caf50'], [10, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
-			bar(L.snr, cell.snr, 'dB', cell.snr == null ? null : clamp(cell.snr / 30 * 100, 0, 100),
-				cell.snr == null ? null : qual(cell.snr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
-			bar(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber + (BER[sig.ber] ? ' (' + BER[sig.ber] + ')' : '') : null, '',
-				sig.ber == null || sig.ber == 99 ? null : (7 - sig.ber) / 7 * 100,
-				sig.ber == null || sig.ber == 99 ? null : qual(7 - sig.ber, [[6, L.excellent, '#4caf50'], [4, L.good, '#8bc34a'], [2, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])));
-
-		var eci = cell.ci ? (parseInt(cell.ci, 16) + ' (' + cell.ci + ')') : null;
-		var cellRows = row(L.band, esc(cell.band)) +
-			row(L.bw, cell.bw ? cell.bw + ' MHz' : null) +
-			row(L.pci, esc(cell.pci)) +
-			row(L.earfcn, cell.earfcn_dl ? 'DL ' + cell.earfcn_dl + ' / UL ' + (cell.earfcn_ul || '-') : null) +
-			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
-			row(L.eci, esc(eci)) +
-			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null) +
-			row(L.du, bwMHz(cell.dl_mod) + ' / ' + bwMHz(cell.ul_mod)) +
-			row(L.rxlev, esc(cell.rxlev));
-		arr(cell.scc).forEach(function(s) {
-			cellRows += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
-		});
-		body('c-cell', cellRows);
 
 		var hwRows = [
 			row(L.model, esc((hw.manufacturer ? hw.manufacturer + ' ' : '') + (hw.model || ''))),
@@ -413,8 +151,6 @@ local v = V[lang] or V.en
 			row(L.customer, esc(hw.pri_customer))
 		];
 		body('c-hw', hwRows.join(''));
-
-		body('c-neigh', neighRows(d));
 
 		var on = wan.attach === 1 && wan.context === 1;
 		document.getElementById('md-data-toggle').checked = on;

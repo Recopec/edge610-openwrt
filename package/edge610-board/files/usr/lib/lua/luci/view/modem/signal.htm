@@ -1,0 +1,177 @@
+<%+header%>
+
+<%
+local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*$", "")
+local T = {
+	en = {
+		signal = "Signal", cell = "Cell", neigh = "Neighbour cells",
+		band = "Band", bw = "Bandwidth", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", scc = "SCC", rxlev = "RXLV", plmn = "PLMN",
+		csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ", sinr = "SINR", rssi = "RSSI (RxM)",
+		txpower = "Tx power", snr = "SNR", ber = "BER",
+		du = "DL/UL bandwidth", ant_main = "Main antenna", ant_sub = "Aux antenna",
+		serving = "serving", prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
+		offline = "AT port not found", autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
+		excellent = "Excellent", good = "Good", fair = "Fair", poor = "Poor",
+	},
+	zh = {
+		signal = "信号", cell = "小区", neigh = "邻区",
+		band = "频段", bw = "带宽", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", scc = "SCC", rxlev = "RXLV", plmn = "PLMN",
+		csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ", sinr = "SINR", rssi = "RSSI（主接收）",
+		txpower = "发射功率", snr = "SNR", ber = "误码率",
+		du = "下行/上行带宽", ant_main = "主天线", ant_sub = "副天线",
+		serving = "服务", prio = "优先级", tlow = "低门限", thigh = "高门限",
+		offline = "AT 端口未找到", autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
+		excellent = "优秀", good = "良好", fair = "一般", poor = "差",
+	},
+}
+local t = T[lang] or T.en
+%>
+
+<%+modem/common%>
+
+<div class="cbi-section">
+	<div class="md-toolbar">
+		<label for="md-interval"><%=t.autorefresh%>:</label>
+		<select id="md-interval" class="cbi-input-select">
+			<option value="0"><%:Disabled%></option>
+			<option value="5">5s</option>
+			<option value="10" selected>10s</option>
+			<option value="30">30s</option>
+			<option value="60">60s</option>
+		</select>
+		<button id="md-refresh" class="btn cbi-button cbi-button-action"><%=t.refresh%></button>
+		<span id="md-state" class="md-muted"><%=t.loading%></span>
+	</div>
+</div>
+
+<div id="md-grid" class="md-grid">
+	<div class="md-card" id="c-sig"><h3><%=t.signal%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+	<div class="md-card" id="c-cell"><h3><%=t.cell%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+</div>
+
+<div class="md-card md-full" id="c-neigh"><h3><%=t.neigh%></h3><div class="md-body"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div></div>
+
+<script>
+(function() {
+	var URL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "data")%>';
+	var L = {
+		signal: '<%=t.signal%>', cell: '<%=t.cell%>', neigh: '<%=t.neigh%>',
+		band: '<%=t.band%>', bw: '<%=t.bw%>', pci: '<%=t.pci%>', earfcn: '<%=t.earfcn%>', tac: '<%=t.tac%>',
+		eci: '<%=t.eci%>', scc: '<%=t.scc%>', rxlev: '<%=t.rxlev%>', plmn: '<%=t.plmn%>',
+		csq: '<%=t.csq%>', rsrp: '<%=t.rsrp%>', rsrq: '<%=t.rsrq%>', sinr: '<%=t.sinr%>', rssi: '<%=t.rssi%>',
+		txpower: '<%=t.txpower%>', snr: '<%=t.snr%>', ber: '<%=t.ber%>',
+		du: '<%=t.du%>', ant_main: '<%=t.ant_main%>', ant_sub: '<%=t.ant_sub%>',
+		serving: '<%=t.serving%>', prio: '<%=t.prio%>', tlow: '<%=t.tlow%>', thigh: '<%=t.thigh%>',
+		offline: '<%=t.offline%>',
+		excellent: '<%=t.excellent%>', good: '<%=t.good%>', fair: '<%=t.fair%>', poor: '<%=t.poor%>'
+	};
+
+	function neighRows(d) {
+		var serving = d.cell && d.cell.pci;
+		var intra = arr(d.neigh && d.neigh.intra);
+		var inter = arr(d.neigh && d.neigh.inter);
+		if (!intra.length && !inter.length) return '<div class="md-muted">-</div>';
+		var h = '';
+		if (intra.length) {
+			var t1 = '<table class="md-table md-neigh"><thead><tr><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
+			intra.forEach(function(n) {
+				t1 += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
+					'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
+			});
+			h += '<div class="md-neigh-col">' + t1 + '</tbody></table></div>';
+		}
+		if (inter.length) {
+			var t2 = '<table class="md-table md-neigh"><thead><tr><th>EARFCN</th><th>' + L.prio + '</th><th>' + L.tlow + '</th><th>' + L.thigh + '</th><th>PCI</th><th>RSRP</th><th>RSRQ</th><th>RSSI</th><th>RXLV</th></tr></thead><tbody>';
+			inter.forEach(function(n) {
+				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.prio) + '</td><td>' + esc(n.tlow) + '</td><td>' + esc(n.thigh) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td><td>' + esc(n.rxlev) + '</td></tr>';
+			});
+			h += '<div class="md-neigh-col">' + t2 + '</tbody></table></div>';
+		}
+		return '<div class="md-neigh-wrap">' + h + '</div>';
+	}
+
+	function render(d) {
+		var sig = d.sig || {}, cell = d.cell || {};
+
+		var csq = sig.csq;
+		var csqQ = csq == null ? null : qual(csq, [[20, L.excellent, '#4caf50'], [15, L.good, '#8bc34a'], [10, L.fair, '#ffc107'], [0, L.poor, '#f44336']]);
+		var rsrpQ = sig.rsrp == null ? null : qual(sig.rsrp, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
+		var rsrqQ = sig.rsrq == null ? null : qual(sig.rsrq, [[-10, L.excellent, '#4caf50'], [-15, L.good, '#8bc34a'], [-20, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
+		var sinrQ = sig.sinr == null ? null : qual(sig.sinr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [0, L.fair, '#ffc107'], [-999, L.poor, '#f44336']]);
+
+		body('c-sig',
+			bar(L.csq, csq, '/31', csq == null ? null : csq / 31 * 100, csqQ) +
+			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100), rsrqQ) +
+			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100), sinrQ) +
+			bar(L.ant_main + ' RSRP', sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100), rsrpQ) +
+			bar(L.ant_main + ' RSSI', sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
+			bar(L.ant_sub + ' RSRP', sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
+				sig.rsrp_rxd == null ? null : qual(sig.rsrp_rxd, [[-80, L.excellent, '#4caf50'], [-90, L.good, '#8bc34a'], [-100, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
+			bar(L.ant_sub + ' RSSI', sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
+			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 10) / 33 * 100, 0, 100),
+				sig.txpower == null ? null : qual(sig.txpower, [[15, L.excellent, '#4caf50'], [10, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
+			bar(L.snr, cell.snr, 'dB', cell.snr == null ? null : clamp(cell.snr / 30 * 100, 0, 100),
+				cell.snr == null ? null : qual(cell.snr, [[20, L.excellent, '#4caf50'], [13, L.good, '#8bc34a'], [5, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])) +
+			bar(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber + (BER[sig.ber] ? ' (' + BER[sig.ber] + ')' : '') : null, '',
+				sig.ber == null || sig.ber == 99 ? null : (7 - sig.ber) / 7 * 100,
+				sig.ber == null || sig.ber == 99 ? null : qual(7 - sig.ber, [[6, L.excellent, '#4caf50'], [4, L.good, '#8bc34a'], [2, L.fair, '#ffc107'], [-999, L.poor, '#f44336']])));
+
+		var eci = cell.ci ? (parseInt(cell.ci, 16) + ' (' + cell.ci + ')') : null;
+		var cellRows = row(L.band, esc(cell.band)) +
+			row(L.bw, cell.bw ? cell.bw + ' MHz' : null) +
+			row(L.pci, esc(cell.pci)) +
+			row(L.earfcn, cell.earfcn_dl ? 'DL ' + cell.earfcn_dl + ' / UL ' + (cell.earfcn_ul || '-') : null) +
+			row(L.tac, cell.tac ? parseInt(cell.tac, 16) + ' (' + cell.tac + ')' : null) +
+			row(L.eci, esc(eci)) +
+			row(L.plmn, cell.mcc ? cell.mcc + cell.mnc : null) +
+			row(L.du, bwMHz(cell.dl_mod) + ' / ' + bwMHz(cell.ul_mod)) +
+			row(L.rxlev, esc(cell.rxlev));
+		arr(cell.scc).forEach(function(s) {
+			cellRows += row(L.scc + s.n, esc(s.band) + (s.bw ? ' @' + s.bw + ' MHz' : ''));
+		});
+		body('c-cell', cellRows);
+		body('c-neigh', neighRows(d));
+	}
+
+	var timer = null;
+	var inflight = false;
+
+	function schedule(ms) {
+		if (timer) { clearTimeout(timer); timer = null; }
+		if (ms > 0) timer = setTimeout(tick, ms);
+	}
+
+	function tick() {
+		if (window.mdPaused) { schedule(2000); return; }
+		if (inflight) return;
+		inflight = true;
+		var ms = parseInt(document.getElementById('md-interval').value, 10) * 1000;
+		fetch(URL, {credentials: 'same-origin', cache: 'no-store'})
+			.then(function(r) { return r.json(); })
+			.then(function(d) {
+				render(d);
+				document.getElementById('md-state').textContent = new Date().toLocaleTimeString();
+			})
+			.catch(function() {
+				document.getElementById('md-state').textContent = L.offline;
+			})
+			.then(function() {
+				inflight = false;
+				schedule(ms);
+			});
+	}
+
+	document.getElementById('md-interval').addEventListener('change', function() {
+		schedule(parseInt(this.value, 10) * 1000);
+	});
+	document.getElementById('md-refresh').addEventListener('click', function() {
+		if (!inflight) tick();
+	});
+
+	tick();
+})();
+</script>
+
+<%+footer%>

@@ -1,0 +1,95 @@
+<style>
+.md-toolbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.md-muted{color:#888;font-size:.85rem}
+.md-grid{columns:3;column-gap:.75rem;margin-top:.75rem}
+@media(max-width:1100px){.md-grid{columns:2}}
+@media(max-width:700px){.md-grid{columns:1}}
+.md-full{margin-top:.75rem}
+.md-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:.7rem .85rem;box-shadow:0 1px 2px rgba(0,0,0,.04);break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 .75rem;overflow:hidden}
+.md-card h3{margin:0 0 .45rem;font-size:.88rem;font-weight:600;color:#444;border-bottom:1px solid #eee;padding-bottom:.35rem}
+.md-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.md-table td{padding:.14rem 0;vertical-align:top}
+.md-table th{font-size:.78rem;color:#888;text-align:right;font-weight:500;padding:.2rem 0}
+.md-table th:first-child{text-align:left}
+.md-l{color:#777;white-space:nowrap;padding-right:.6rem}
+.md-v{text-align:right;font-weight:600;word-break:break-all}
+.md-bar{height:6px;background:#eee;border-radius:4px;overflow:hidden;margin:.2rem 0 .1rem}
+.md-bar>span{display:block;height:100%;border-radius:4px;background:#4caf50}
+.md-row{margin:.3rem 0}
+.md-row .md-sub{font-size:.78rem;color:#888}
+.md-tag{display:inline-block;padding:.05rem .45rem;border-radius:10px;font-size:.78rem;background:#eef4ff;color:#2867c9}
+.md-tag.ok{background:#e8f5e9;color:#2e7d32}
+.md-tag.warn{background:#fff8e1;color:#b26a00}
+.md-tag.err{background:#fdecea;color:#c62828}
+.md-neigh td{text-align:right;padding:.2rem 0;font-variant-numeric:tabular-nums}
+.md-neigh td:first-child{text-align:left}
+.md-neigh tr.md-serv td{font-weight:600;background:#e8f5e9}
+.md-neigh-wrap{display:flex;gap:1rem;flex-wrap:wrap}
+.md-neigh-col{flex:1 1 320px;min-width:0}
+.md-skel span{display:block;height:10px;border-radius:5px;background:#eceff3;margin:.6rem 0;animation:mdpulse 1.2s ease-in-out infinite}
+.md-skel span:nth-child(odd){width:60%}
+.md-skel span:nth-child(even){width:85%}
+@keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
+.md-switchrow{display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem}
+.md-switch{position:relative;display:inline-block;width:42px;height:22px;flex:0 0 auto}
+.md-switch input{opacity:0;width:0;height:0}
+.md-switch span{position:absolute;inset:0;background:#ccc;border-radius:22px;cursor:pointer;transition:.2s}
+.md-switch span:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.md-switch input:checked + span{background:#4caf50}
+.md-switch input:checked + span:before{transform:translateX(20px)}
+</style>
+
+<script>
+function esc(s) {
+	return String(s == null || s === '' ? '-' : s).replace(/[&<>"]/g, function(c) {
+		return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+	});
+}
+
+function row(label, value, cls) {
+	return '<tr><td class="md-l">' + label + '</td><td class="md-v ' + (cls || '') + '">' + value + '</td></tr>';
+}
+
+function body(id, rows) {
+	var el = document.querySelector('#' + id + ' .md-body');
+	if (el) el.innerHTML = '<table class="md-table">' + rows + '</table>';
+}
+
+function qual(v, levels) {
+	if (v == null) return null;
+	for (var i = 0; i < levels.length; i++) {
+		if (v >= levels[i][0]) return levels[i];
+	}
+	return levels[levels.length - 1];
+}
+
+function bar(label, value, unit, pct, q) {
+	var color = q ? q[2] : '#4caf50';
+	return '<div class="md-row"><div>' + label + ': <b>' + esc(value) + (value == null || !unit ? '' : ' ' + unit) +
+		'</b></div>' +
+		'<div class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
+		'%;background:' + color + '"></span></div></div>';
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// +CSQ rxqual index -> BER range (3GPP 27.007)
+var BER = ['<0.2%', '0.2-0.4%', '0.4-0.8%', '0.8-1.6%', '1.6-3.2%', '3.2-6.4%', '6.4-12.8%', '>12.8%'];
+
+var BW = {0: '1.4', 1: '3', 2: '5', 3: '10', 4: '15', 5: '20'};
+function bwMHz(v) { return v == null ? '-' : (BW[v] != null ? BW[v] + ' MHz' : String(v)); }
+function arr(v) { return Array.isArray(v) ? v : []; }
+
+function fmtBytes(n) {
+	if (n == null) return '-';
+	var u = ['B', 'KB', 'MB', 'GB'], i = 0;
+	while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+	return n.toFixed(i ? 1 : 0) + ' ' + u[i];
+}
+
+function fmtUptime(s) {
+	if (s == null) return null;
+	var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+	return (h > 0 ? h + 'h ' : '') + m + 'm';
+}
+</script>

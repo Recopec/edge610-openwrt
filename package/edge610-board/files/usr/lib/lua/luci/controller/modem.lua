@@ -332,6 +332,26 @@ function setnet()
 end
 
 -- SMS list (text mode) and delete.
+-- UCS2 hex (what the modem returns for non-GSM text) -> UTF-8
+local function ucs2(s)
+	if #s >= 4 and #s % 4 == 0 and s:match("^[0-9A-Fa-f]+$") then
+		local out = {}
+		for i = 1, #s, 4 do
+			local cp = tonumber(s:sub(i, i + 3), 16)
+			if cp < 0x80 then
+				out[#out + 1] = string.char(cp)
+			elseif cp < 0x800 then
+				out[#out + 1] = string.char(0xC0 + math.floor(cp / 0x40), 0x80 + cp % 0x40)
+			else
+				out[#out + 1] = string.char(0xE0 + math.floor(cp / 0x1000),
+					0x80 + math.floor(cp / 0x40) % 0x40, 0x80 + cp % 0x40)
+			end
+		end
+		return table.concat(out)
+	end
+	return s
+end
+
 function sms()
 	local http = require "luci.http"
 	local sys = require "luci.sys"
@@ -339,7 +359,8 @@ function sms()
 	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=1;+CMGL=\"ALL\"' 2>/dev/null") or ""
 	local list, cur = {}, nil
 	for _, l in ipairs(lines(o)) do
-		local idx, stat, from, ts = l:match('^%+CMGL:%s*(%d+),"([^"]*)","([^"]*)","[^"]*","([^"]*)"')
+		-- +CMGL: <idx>,"<stat>","<from>",<alpha>,"<time>"
+		local idx, stat, from, ts = l:match('^%+CMGL:%s*(%d+),"([^"]*)","([^"]*)",[^,]*,"([^"]*)"')
 		if idx then
 			if cur then list[#list + 1] = cur end
 			cur = { index = tonum(idx), stat = stat, from = from, time = ts, text = {} }
@@ -348,7 +369,9 @@ function sms()
 		end
 	end
 	if cur then list[#list + 1] = cur end
-	for _, m in ipairs(list) do m.text = table.concat(m.text, "\n") end
+	for _, m in ipairs(list) do
+		m.text = ucs2(table.concat(m.text, "\n"))
+	end
 
 	http.prepare_content("application/json")
 	http.write_json({ messages = list })
@@ -394,6 +417,7 @@ function index()
 
 	entry({"admin", "status", "modem"}, firstchild(), _("Modem"), 60).dependent = false
 	entry({"admin", "status", "modem", "status"}, template("modem/status"), _("Status"), 10).leaf = true
+	entry({"admin", "status", "modem", "signal"}, template("modem/signal"), _("Signal"), 15).leaf = true
 	entry({"admin", "status", "modem", "settings"}, template("modem/settings"), _("Settings"), 20).leaf = true
 	entry({"admin", "status", "modem", "gps"}, template("modem/gps"), _("GPS"), 30).leaf = true
 	entry({"admin", "status", "modem", "data"}, call("data")).leaf = true
