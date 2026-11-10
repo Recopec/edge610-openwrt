@@ -1,0 +1,33 @@
+#!/bin/sh
+# First-boot modem wiring for the EM7565 on the Edge 610.
+#
+# The status page talks to the modem over the AT port and needs nothing from
+# here, but the data call is an ordinary netifd interface: without it there is
+# no wwan0 address, the data toggle has nothing to dial, and the settings page
+# has nowhere to store an APN.  Runs after zzz99-edge610-network, which
+# rewrites /etc/config/network wholesale.
+
+[ -e /etc/config/network ] || exit 0
+
+if ! uci -q get network.wwan >/dev/null; then
+	uci set network.wwan=interface
+	uci set network.wwan.proto='qmi'
+	uci set network.wwan.device='/dev/cdc-wdm0'
+	uci set network.wwan.apn='cmnet'
+	uci set network.wwan.pdptype='ipv4v6'
+	uci set network.wwan.auth='none'
+	uci set network.wwan.metric='100'
+	uci set network.wwan.auto='1'
+	uci commit network
+fi
+
+# wwan0 has to leave through the wan zone; zones are addressed by index because
+# the names are user editable.
+zone=$(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\(@zone\[[0-9]*\]\)\.name='wan'$/\1/p" | head -n1)
+if [ -n "$zone" ]; then
+	uci -q get "firewall.$zone.network" | tr ' ' '\n' | grep -qx wwan ||
+		uci add_list "firewall.$zone.network=wwan"
+	uci commit firewall
+fi
+
+exit 0

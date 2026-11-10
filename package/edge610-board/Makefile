@@ -67,6 +67,7 @@ define Package/edge610-board/install
 	$(INSTALL_DATA) ./files/etc/modprobe.d/edge610.conf $(1)/etc/modprobe.d/edge610.conf
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/etc/uci-defaults/zzz99-edge610-network $(1)/etc/uci-defaults/zzz99-edge610-network
+	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz99-edge610-network-modem $(1)/etc/uci-defaults/zzz99-edge610-network-modem
 	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz98-edge610-resize $(1)/etc/uci-defaults/zzz98-edge610-resize
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
@@ -79,7 +80,6 @@ define Package/edge610-board/install
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/controller/modem.lua $(1)/usr/lib/lua/luci/controller/modem.lua
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/modem
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/status.htm $(1)/usr/lib/lua/luci/view/modem/status.htm
-	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/signal.htm $(1)/usr/lib/lua/luci/view/modem/signal.htm
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/common.htm $(1)/usr/lib/lua/luci/view/modem/common.htm
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/gps.htm $(1)/usr/lib/lua/luci/view/modem/gps.htm
 	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/modem/settings.htm $(1)/usr/lib/lua/luci/view/modem/settings.htm

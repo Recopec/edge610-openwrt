@@ -129,3 +129,45 @@ LTE support has been built in since `ec39bbf`:
 | `uqmi` + `proto qmi` | ✅ built in (a QMI interface can be created from LuCI) |
 | qmi_wwan framing | `proto qmi` sets 802.3 automatically (raw-ip when needed) |
 | AT settings (SIMHOTSWAPDIS/UIMS/SELRAT) | Written to the module NVRAM, survives image swaps |
+
+## Configuring after a flash
+
+The image already carries everything the modem needs (drivers, `uqmi`, `proto qmi`,
+LuCI's `luci-proto-qmi`, the status page, `modem-at`, `modem-wan-watch`), and
+`zzz99-edge610-network-modem` creates the data interface on first boot. So after
+flashing there are only three things to confirm:
+
+| Item | State after flashing | What to do |
+| --- | --- | --- |
+| Drivers / QMI / pages | In the image | Nothing (no `qmi.js` / `qmi.sh` to copy by hand, no `/root/kmods`) |
+| `network.wwan` interface | Created by `zzz99-edge610-network-modem`: `proto qmi`, `/dev/cdc-wdm0`, `apn cmnet`, `pdptype ipv4v6`, `metric 100`, `auto 1` | If your APN is not cmnet, set it on the Settings page (it writes `network.wwan.apn`, which is what the dialer reads) |
+| Firewall | `wwan` added to the `wan` zone | Nothing |
+| SIM slot / radio mode / band lock | Modem NVRAM (`SIMHOTSWAPDIS=1`, `UIMS=0`, `SELRAT=06`) | Survives a flash, nothing to redo |
+| Chinese UI | `auto` | System → Language, or `uci set luci.main.lang=zh_cn` |
+
+On a box that was flashed before `zzz99-edge610-network-modem` existed, add it once:
+
+```sh
+uci set network.wwan=interface
+uci set network.wwan.proto='qmi'
+uci set network.wwan.device='/dev/cdc-wdm0'
+uci set network.wwan.apn='cmnet'
+uci set network.wwan.pdptype='ipv4v6'
+uci set network.wwan.metric='100'
+uci set network.wwan.auto='1'
+uci commit network
+uci add_list firewall.@zone[1].network='wwan'   # zone[1] is wan
+uci commit firewall
+ifup wwan
+```
+
+Do **not** put the `/root/kmods` `insmod` loop back into `rc.local`: the modules are
+in the image, and loading them twice only prints `File exists`. The SIM must sit in
+the **upper** slot (slot 2 is not wired; `AT!UIMS=1` addresses it, so selecting it
+means no card).
+
+`modem-wan-watch` now also watches the card: two consecutive readings other than
+`present` (`absent`, `error: possibly-removed`) drop `wwan` so the stale address and
+default route go away, and reset the modem with `AT+CFUN=1,1` at most every ten
+minutes. The detect line is masked by `SIMHOTSWAPDIS`, so a re-inserted card is never
+re-initialised by the modem itself - that is what this loop covers.

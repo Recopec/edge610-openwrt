@@ -6,17 +6,42 @@
 # AT+CGACT from the settings page), and then wwan0 keeps routing from the old
 # source address while the PDP uses a new one - packets leave and never return.
 #
-# Read-only until it has to act: one AT query per cycle.
+# It also watches the SIM: the card detect line is masked
+# (AT!CUSTOM="SIMHOTSWAPDIS",1), so a card that drops out is never
+# re-initialised by the modem itself.  When the SIM is gone the interface keeps
+# its last address and default route - a blackhole - and nothing redials, so
+# clear the interface and reset the modem, throttled.
+#
+# Read-only until it has to act: one AT query per cycle, one QMI status query
+# per SIMCHECK seconds.
 
 IFACE=wwan
 INTERVAL=30
 MINGAP=120
 MAXGAP=900
+SIMCHECK=60
+SIMRESET=600
 
 gap=$MINGAP
 last=0
+simlast=0
+resetat=0
+simfail=0
 
 log() { logger -t modem-wan "$*"; }
+
+# Card state of slot 1, as QMI sees it: "Card state: 'present'", and
+# "'error: possibly-removed (N)'" once the card is gone.  Empty when the modem
+# is not on the bus at all.
+sim_card() {
+	qmicli -d /dev/cdc-wdm0 --uim-get-card-status 2>/dev/null |
+		awk '/Slot \[1\]/{f=1; next} f && /Card state:/{print; exit}'
+}
+
+# "Card state: 'present'" -> "present"
+sim_value() {
+	printf '%s' "${1##*Card state: }" | tr -d "'"
+}
 
 pdp_addr() {
 	/usr/bin/modem-at 'AT+CGPADDR' 2>/dev/null | tr -d '\r' |
@@ -29,6 +54,57 @@ if_addr() {
 
 while :; do
 	sleep "$INTERVAL"
+
+	now=$(date +%s)
+
+	# --- SIM watchdog ---------------------------------------------------
+	if [ $((now - simlast)) -ge "$SIMCHECK" ]; then
+		simlast=$now
+		card=$(sim_value "$(sim_card)")
+		case "$card" in
+		present)
+			simfail=0
+			# A reset drops the interface and nothing else brings it back,
+			# so restore it once the card is readable again.
+			if [ "$(uci -q get network.wwan.auto)" = "1" ]; then
+				st=$(ubus -S call network.interface.$IFACE status 2>/dev/null | tr -d ' \t')
+				case "$st" in
+				*'"up":true'*) ;;
+				*)
+					log "SIM present, bringing $IFACE up"
+					ifup "$IFACE" 2>/dev/null
+					;;
+				esac
+			fi
+			;;
+		"")
+			: # modem off the bus: the PDP check below cannot help either
+			;;
+		*)
+			# The card detect line is masked, so the card can only be read
+			# after a modem reset - but do not reset on one flaky QMI read.
+			simfail=$((simfail + 1))
+			if [ "$simfail" -lt 2 ]; then
+				log "SIM state $card, confirming"
+			else
+				st=$(ubus -S call network.interface.$IFACE status 2>/dev/null | tr -d ' \t')
+				case "$st" in
+				*'"up":true'*)
+					log "SIM $card, dropping $IFACE"
+					ifdown "$IFACE" 2>/dev/null
+					;;
+				esac
+				if [ $((now - resetat)) -ge "$SIMRESET" ]; then
+					log "SIM $card, resetting modem"
+					/usr/bin/modem-at -t 5 'AT+CFUN=1,1' >/dev/null 2>&1
+					resetat=$now
+				fi
+			fi
+			gap=$MINGAP
+			continue
+			;;
+		esac
+	fi
 
 	# ubus -S answers compact JSON, plain call answers with tabs.
 	st=$(ubus -S call network.interface.$IFACE status 2>/dev/null | tr -d ' \t')
@@ -54,7 +130,6 @@ while :; do
 
 	[ "$mdm" = "$ifv" ] && { gap=$MINGAP; continue; }
 
-	now=$(date +%s)
 	[ $((now - last)) -ge "$gap" ] || continue
 
 	log "wwan0=$ifv modem=$mdm, re-dialling $IFACE"

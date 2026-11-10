@@ -126,3 +126,41 @@ Lmask2 = band−65，B66 在 Lmask2 的 bit1），随后 `AT!BAND=0B` + `AT!RESE
 | `uqmi` + `proto qmi` | ✅ 内置（LuCI 可建 qmi 接口） |
 | qmi_wwan 帧格式 | `proto qmi` 自动设 802.3（必要时切 raw-ip），无需手动处理 |
 | AT 配置（SIMHOTSWAPDIS/UIMS/SELRAT） | 已写入模组 NVRAM，换镜像后仍保留 |
+
+## 刷完新镜像怎么配
+
+镜像本身已经把模组相关内容装齐（驱动、`uqmi`、`proto qmi`、LuCI 的 `luci-proto-qmi`、状态页、
+`modem-at`、`modem-wan-watch`），首次启动时 `zzz99-edge610-network-modem` 还会把数据接口建好。
+所以刷完只需要确认三件事：
+
+| 项 | 刷机后状态 | 要做什么 |
+| --- | --- | --- |
+| 驱动 / QMI / 页面 | 镜像自带 | 无（不需要再手补 `qmi.js` / `qmi.sh`，也不需要 `/root/kmods`） |
+| `network.wwan` 接口 | `zzz99-edge610-network-modem` 建好：`proto qmi`、`/dev/cdc-wdm0`、`apn cmnet`、`pdptype ipv4v6`、`metric 100`、`auto 1` | APN 不是 cmnet 就在「设置」页改（写的是 `network.wwan.apn`，拨号读的就是它） |
+| 防火墙 | `wwan` 自动加进 `wan` zone | 无需手动加 |
+| SIM 槽 / 制式 / 锁频 | 模组 NVRAM（`SIMHOTSWAPDIS=1`、`UIMS=0`、`SELRAT=06`） | 刷机不动 NVRAM，保持原样 |
+| 中文界面 | 默认 `auto` | 系统 → 语言，或 `uci set luci.main.lang=zh_cn` |
+
+已经刷过、但版本早于 `zzz99-edge610-network-modem` 的机器，手动补一次即可：
+
+```sh
+uci set network.wwan=interface
+uci set network.wwan.proto='qmi'
+uci set network.wwan.device='/dev/cdc-wdm0'
+uci set network.wwan.apn='cmnet'
+uci set network.wwan.pdptype='ipv4v6'
+uci set network.wwan.metric='100'
+uci set network.wwan.auto='1'
+uci commit network
+uci add_list firewall.@zone[1].network='wwan'   # zone[1] 是 wan
+uci commit firewall
+ifup wwan
+```
+
+**不要**再把 `/root/kmods` 的 `insmod` 写进 `rc.local`：镜像自带这些模块，重复加载只会
+报 `File exists`。SIM 卡必须插**上槽**（槽 2 在硬件上没接，`AT!UIMS=1` 指向它，选了就没卡）。
+
+`modem-wan-watch` 现在除了校正 PDP 地址漂移，还看卡：连续两次读到 `present` 以外
+（`absent` / `error: possibly-removed`）就 `ifdown wwan` 清掉死地址，并按 10 分钟节流
+发一次 `AT+CFUN=1,1`。检测线被 `SIMHOTSWAPDIS` 屏蔽，所以插回卡后模组不会自己重新识别，
+必须复位——这段看门狗就是替你做这件事。
