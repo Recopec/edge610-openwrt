@@ -4,6 +4,7 @@ local ID_CACHE = "/tmp/.modem-id"
 -- The status page polls this; a short server-side cache keeps several open
 -- tabs (or a refresh click) from queueing on the AT port.
 local DATA_CACHE = "/tmp/.modem-data"
+local SMS_SENT_LOG = "/etc/modem-sms-sent"
 local DATA_TTL = 5
 
 local function at(cmd)
@@ -626,7 +627,8 @@ function sms()
 	local http = require "luci.http"
 	local sys = require "luci.sys"
 
-	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=0;+CMGL=4' 2>/dev/null") or ""
+	local o = sys.exec("/usr/bin/modem-at -t 20 'AT+CMGF=0;+CMGL=4;+CPMS?' 2>/dev/null") or ""
+	local mem, used, slots = o:match('+CPMS:%s*"(%u+)",%s*(%d+),%s*(%d+)')
 	local raw, cur = {}, nil
 	for _, l in ipairs(lines(o)) do
 		local idx, stat = l:match("^%+CMGL:%s*(%d+),(%d+)")
@@ -661,11 +663,13 @@ function sms()
 		local key = m.ref and ("ref:" .. m.ref .. ":" .. m.from) or (m.from .. "|" .. m.time)
 		local g = groups[key]
 		if not g then
-			g = { from = m.from, time = m.time, stat = m.stat, index = m.index, parts = {} }
+			g = { from = m.from, time = m.time, stat = m.stat, index = m.index,
+				parts = {}, indices = {} }
 			groups[key] = g
 			order[#order + 1] = key
 		end
 		g.parts[#g.parts + 1] = m
+		g.indices[#g.indices + 1] = m.index
 		if m.index < g.index then
 			g.index = m.index
 		end
@@ -681,24 +685,30 @@ function sms()
 			text[#text + 1] = p.text
 		end
 		out[#out + 1] = {
-			index = g.index, stat = g.stat, from = g.from, time = g.time,
-			text = table.concat(text), parts = #g.parts,
+			index = g.index, indices = g.indices, stat = g.stat, from = g.from,
+			time = g.time, text = table.concat(text), parts = #g.parts,
 		}
 	end
 
 	http.prepare_content("application/json")
-	http.write_json({ messages = out })
+	http.write_json({
+		messages = out,
+		storage = { mem = mem, used = tonum(used), total = tonum(slots) },
+	})
 end
 
 function smsdel()
 	local http = require "luci.http"
 	local sys = require "luci.sys"
-	local idx = http.formvalue("idx")
-	if idx and idx:match("^%d+$") then
-		sys.exec("/usr/bin/modem-at 'AT+CMGD=" .. idx .. "' >/dev/null 2>&1")
+	-- A concatenated SMS occupies several slots: delete every index of the group.
+	local idx = http.formvalue("idx") or ""
+	local dropped = 0
+	for i in idx:gmatch("%d+") do
+		sys.exec("/usr/bin/modem-at 'AT+CMGD=" .. tonum(i) .. "' >/dev/null 2>&1")
+		dropped = dropped + 1
 	end
 	http.prepare_content("application/json")
-	http.write_json({ ok = true })
+	http.write_json({ ok = dropped > 0, dropped = dropped })
 end
 
 function atrun()
@@ -794,7 +804,7 @@ function smsend()
 	local ok = out:match("OK") and not out:match("ERROR") and not out:match("\+CMS ERROR")
 	if ok then
 		local esc = txt:gsub("\\", "\\\\"):gsub("\t", "\\t"):gsub("\n", "\\n")
-		local f = io.open("/etc/modem-sms-sent", "a")
+		local f = io.open(SMS_SENT_LOG, "a")
 		if f then
 			f:write(os.time() .. "\t" .. num .. "\t" .. esc .. "\n")
 			f:close()
@@ -807,19 +817,51 @@ end
 function smssent()
 	local http = require "luci.http"
 	local out = {}
-	local f = io.open("/etc/modem-sms-sent", "r")
+	local f = io.open(SMS_SENT_LOG, "r")
+	local line = 0
 	if f then
 		for l in f:lines() do
+			line = line + 1
 			local t, n, x = l:match("^(%d+)\t([^\t]*)\t(.*)$")
 			if t then
 				x = x:gsub("\\n", "\n"):gsub("\\t", "\t"):gsub("\\\\", "\\")
-				out[#out + 1] = { t = tonum(t), number = n, text = x }
+				out[#out + 1] = { line = line, t = tonum(t), number = n, text = x }
 			end
 		end
 		f:close()
 	end
 	http.prepare_content("application/json")
 	http.write_json({ messages = out })
+end
+
+-- Sent messages live only in this file (the modem keeps none), so deleting one
+-- means rewriting the log without it.
+function smsdelsent()
+	local http = require "luci.http"
+	local all = http.formvalue("all") == "1"
+	local line = tonum(http.formvalue("line")) or 0
+	local keep, n = {}, 0
+	local f = io.open(SMS_SENT_LOG, "r")
+	if f then
+		for l in f:lines() do
+			n = n + 1
+			if not all and n ~= line then
+				keep[#keep + 1] = l
+			end
+		end
+		f:close()
+	end
+	local w = io.open(SMS_SENT_LOG .. ".new", "w")
+	local ok = false
+	if w then
+		for _, l in ipairs(keep) do
+			w:write(l, "\n")
+		end
+		w:close()
+		ok = os.rename(SMS_SENT_LOG .. ".new", SMS_SENT_LOG) and true or false
+	end
+	http.prepare_content("application/json")
+	http.write_json({ ok = ok, left = #keep })
 end
 
 function index()
@@ -844,6 +886,7 @@ function index()
 	entry({"admin", "status", "modem", "sms", "delete"}, call("smsdel")).leaf = true
 	entry({"admin", "status", "modem", "sms", "send"}, call("smsend")).leaf = true
 	entry({"admin", "status", "modem", "sms", "sent"}, call("smssent")).leaf = true
+	entry({"admin", "status", "modem", "sms", "delsent"}, call("smsdelsent")).leaf = true
 	entry({"admin", "status", "modem", "at"}, template("modem/at"), _("AT"), 45).leaf = true
 	entry({"admin", "status", "modem", "at", "run"}, call("atrun")).leaf = true
 end

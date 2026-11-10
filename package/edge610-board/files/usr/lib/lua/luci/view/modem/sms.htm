@@ -9,6 +9,7 @@ local T = {
 		send = "Send", number = "Number", message = "Message", sending = "Sending…", sent = "Sent",
 		send_title = "Compose", sent_title = "Sent", sent_empty = "Nothing sent yet",
 		inbox = "Inbox", unread = "unread", msgs = "messages",
+		storage = "storage", clear = "Clear",
 	},
 	zh = {
 		title = "短信", refresh = "刷新", from = "发送方", time = "时间", text = "内容",
@@ -16,6 +17,7 @@ local T = {
 		send = "发送", number = "号码", message = "内容", sending = "发送中…", sent = "已发送",
 		send_title = "发送短信", sent_title = "已发送", sent_empty = "还没有发送记录",
 		inbox = "收件箱", unread = "未读", msgs = "条",
+		storage = "存储", clear = "清空",
 	},
 }
 local t = T[lang] or T.en
@@ -52,12 +54,12 @@ local t = T[lang] or T.en
 </section>
 
 <section class="md-card">
-	<h3><%=t.inbox%><span class="md-act"><span id="sms-count" class="md-tag"></span></span></h3>
+	<h3><%=t.inbox%><span class="md-act"><span id="sms-storage" class="md-tag off"></span> <span id="sms-count" class="md-tag"></span></span></h3>
 	<div class="md-body" id="sms-list"><div class="md-muted"><%=t.loading%></div></div>
 </section>
 
 <section class="md-card">
-	<h3><%=t.sent_title%></h3>
+	<h3><%=t.sent_title%><span class="md-act"><button id="sms-sent-clear" class="md-btn sm"><%=t.clear%></button></span></h3>
 	<div class="md-body" id="sms-sent"><div class="md-muted"><%=t.loading%></div></div>
 </section>
 
@@ -89,7 +91,9 @@ local t = T[lang] or T.en
 	var DEL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delete")%>';
 	var SEND = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "send")%>';
 	var SENT = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "sent")%>';
-	var L = { del: '<%=t.del%>', empty: '<%=t.empty%>', unread: '<%=t.unread%>', msgs: '<%=t.msgs%>' };
+	var DELSENT = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delsent")%>';
+	var L = { del: '<%=t.del%>', empty: '<%=t.empty%>', unread: '<%=t.unread%>',
+		msgs: '<%=t.msgs%>', storage: '<%=t.storage%>' };
 
 	// Modem timestamp: yy/MM/dd,hh:mm:ss+zz (zz is quarter-hours).
 	function fmtTime(s) {
@@ -111,6 +115,12 @@ local t = T[lang] or T.en
 			.then(function(d) {
 				var msgs = d.messages || [];
 				st.textContent = new Date().toLocaleTimeString();
+				var sto = document.getElementById('sms-storage');
+				if (sto) {
+					var sv = d.storage || {};
+					sto.textContent = sv.total ? L.storage + ' ' + sv.used + ' / ' + sv.total + (sv.mem ? ' (' + sv.mem + ')' : '') : '';
+					sto.className = 'md-tag ' + (sv.total && sv.used >= sv.total ? 'err' : 'off');
+				}
 				var badge = document.getElementById('sms-count');
 				var unread = msgs.filter(function(m) { return m.stat && m.stat.indexOf('UNREAD') >= 0; }).length;
 				badge.textContent = msgs.length ? (unread ? unread + ' <%=t.unread%> / ' : '') + msgs.length + ' <%=t.msgs%>' : '';
@@ -124,7 +134,8 @@ local t = T[lang] or T.en
 						'<div class="md-msg-top">' + (isNew ? '<span class="md-msg-new"></span>' : '') +
 							'<b>' + esc(m.from) + '</b>' +
 							'<span class="md-msg-time">' + esc(fmtTime(m.time)) + '</span>' +
-							'<button type="button" class="md-btn sm" data-idx="' + esc(m.index) + '">' + L.del + '</button>' +
+							'<button type="button" class="md-btn sm" data-idx="' +
+								esc((m.indices && m.indices.length ? m.indices : [m.index]).join(',')) + '">' + L.del + '</button>' +
 						'</div>' +
 						'<div class="md-msg-text">' + esc(m.text) + '</div></div>';
 				});
@@ -154,13 +165,29 @@ local t = T[lang] or T.en
 				var h = '<div class="md-msgs">';
 				msgs.slice().reverse().forEach(function(m) {
 					h += '<div class="md-msg"><div class="md-msg-top"><b>' + esc(m.number) + '</b>' +
-						'<span class="md-msg-time">' + esc(new Date(m.t * 1000).toLocaleString()) + '</span></div>' +
-						'<div class="md-msg-text">' + esc(m.text) + '</div></div>';
+						'<span class="md-msg-time">' + esc(new Date(m.t * 1000).toLocaleString()) + '</span>' +
+						'<button type="button" class="md-btn sm" data-line="' + esc(m.line) + '">' + L.del + '</button>' +
+						'</div><div class="md-msg-text">' + esc(m.text) + '</div></div>';
 				});
 				el.innerHTML = h + '</div>';
+				Array.prototype.forEach.call(el.querySelectorAll('button[data-line]'), function(b) {
+					b.addEventListener('click', function() {
+						b.disabled = true;
+						fetch(DELSENT, {method: 'POST', credentials: 'same-origin',
+							headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+							body: 'line=' + b.getAttribute('data-line')})
+							.then(function() { loadSent(); });
+					});
+				});
 			})
 			.catch(function() { el.textContent = 'ERR'; });
 	}
+
+	document.getElementById('sms-sent-clear').addEventListener('click', function() {
+		fetch(DELSENT, {method: 'POST', credentials: 'same-origin',
+			headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'all=1'})
+			.then(function() { loadSent(); });
+	});
 
 	document.getElementById('sms-send').addEventListener('click', function() {
 		var num = document.getElementById('sms-num').value.trim();
