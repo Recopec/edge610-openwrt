@@ -204,7 +204,8 @@ function data()
 	-- cost ~5.3 s of serial time, the merged line ~2.5 s. AT!SELRAT? must stay
 	-- on a line of its own, chaining it makes the modem answer garbage.
 	local all = at("AT+CPIN?;+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG?;"
-		.. "!GSTATUS?;!LTEINFO?;!BAND?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1")
+		.. "!GSTATUS?;!LTEINFO?;!BAND?;!UIMS?;+CGDCONT?;!PCTEMP?;+CCLK?;+CGATT?;+CGACT?;+CGPADDR=1;"
+		.. "+CNUM;+CGCONTRDP;!PCVOLT?;!TMSTATUS?")
 	local basic, radio, extra = all, all, all
 	local bandblk = all:match("Index, Name[%s%S]-!UIMS:") or ""
 	-- A missing/unreadable SIM answers "+CME ERROR: SIM failure" instead of
@@ -335,6 +336,7 @@ function data()
 	end
 	res.net.uims = tonum(extra:match("!UIMS:%s*(%d+)"))
 	res.net.apn = extra:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
+	res.net.pdptype = extra:match('+CGDCONT:%s*%d+,"([%w]+)"')
 	res.sig.temp_state = trim(extra:match("Temp state:%s*([%a ]+)"))
 	res.modem.clock = extra:match("+CCLK:%s*\"([^\"]+)\"")
 	local cy, cmo, cd, ch, cmi, cs, ctz =
@@ -352,6 +354,26 @@ function data()
 	res.wan.cid = tonum(cid)
 	res.wan.context = tonum(act)
 	res.wan.ip_modem = extra:match("+CGPADDR:%s*%d+,%s*([%d%.]+)")
+
+	-- MSISDN, operator DNS, supply voltage, thermal limits. All read-only and
+	-- carried on the merged line above, so none of them costs serial time.
+	res.modem.msisdn = extra:match('+CNUM:%s*,"([^"]+)"')
+	local cdr = extra:match("+CGCONTRDP:%s*([^\r\n]+)") or ""
+	local cf = {}
+	for f in (cdr .. ","):gmatch("([^,]*),") do cf[#cf + 1] = f end
+	-- 3GPP order: cid,bearer,apn,local[/mask],gateway,dns1,dns2 - the v6 half
+	-- rides in the same fields as dotted-decimal bytes, so take the first IPv4.
+	local function dnsv(sv) return sv and sv:match("(%d+%.%d+%.%d+%.%d+)") end
+	res.wan.dns1 = dnsv(cf[7])
+	res.wan.dns2 = dnsv(cf[8])
+	res.modem.volt_mv = tonum(extra:match("Power supply voltage:%s*(%d+)%s*mV"))
+	res.modem.volt_state = trim(extra:match("Volt state:%s*(%a+)"))
+	local lvl = 0
+	for v in (extra:match("Device%s+Level([%s%S]-)OK") or ""):gmatch("%a[%w_]*%s+(%d+)") do
+		local n = tonum(v)
+		if n and n > lvl then lvl = n end
+	end
+	res.modem.thermal = lvl
 
 	local body = require("luci.jsonc").stringify(res)
 	local wf = io.open(DATA_CACHE, "w")
@@ -807,7 +829,9 @@ function index()
 
 	entry({"admin", "status", "modem"}, firstchild(), _("Modem"), 60).dependent = false
 	entry({"admin", "status", "modem", "status"}, template("modem/status"), _("Status"), 10).leaf = true
-	-- no title: resolves for old bookmarks without showing up as a tab
+	-- The RF view was folded into the status page: keep old links resolving, and
+	-- leave the node untitled so the tab bar skips it (it is built client-side
+	-- from the menu tree).
 	entry({"admin", "status", "modem", "signal"}, call("signal_moved")).leaf = true
 	entry({"admin", "status", "modem", "settings"}, template("modem/settings"), _("Settings"), 20).leaf = true
 	entry({"admin", "status", "modem", "gps"}, template("modem/gps"), _("GPS"), 30).leaf = true

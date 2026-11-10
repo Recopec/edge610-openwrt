@@ -21,6 +21,8 @@ local T = {
 		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Modem uptime",
 		modemstate = "Modem", resets = "Resets", clock = "Clock", bandlock = "Band lock",
 		selrat = "Radio mode", simslot = "SIM slot", apn = "APN", power = "Mode",
+		msisdn = "Phone number", pdptype = "PDP type", dns = "DNS",
+		volt = "Supply voltage", thermal = "Thermal limit",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
 		ready = "ready", connected = "connected", disconnected = "disconnected",
 		data_on = "Online", data_off = "Offline",
@@ -49,6 +51,8 @@ local T = {
 		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "模组运行时长",
 		modemstate = "模组", resets = "复位次数", clock = "时钟", bandlock = "锁频",
 		selrat = "制式设置", simslot = "SIM 槽", apn = "APN", power = "模式",
+		msisdn = "本机号码", pdptype = "PDP 类型", dns = "DNS",
+		volt = "供电电压", thermal = "热降级",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
 		ready = "就绪", connected = "已连接", disconnected = "未连接",
 		data_on = "已开启", data_off = "已关闭",
@@ -242,6 +246,8 @@ local v = V[lang] or V.en
 		session: '<%=t.session%>',
 		offline: '<%=t.offline%>', updated: '<%=t.updated%>', loading: '<%=t.loading%>',
 		ip: '<%=t.ip%>', cid: '<%=t.cid%>', peak: '<%=t.peak%>',
+		msisdn: '<%=t.msisdn%>', pdptype: '<%=t.pdptype%>', dns: '<%=t.dns%>',
+		volt: '<%=t.volt%>', thermal: '<%=t.thermal%>',
 		csq: '<%=t.csq%>', rsrp: '<%=t.rsrp%>', rsrq: '<%=t.rsrq%>', sinr: '<%=t.sinr%>',
 		rssi: '<%=t.rssi%>', txpower: '<%=t.txpower%>', snr: '<%=t.snr%>', ber: '<%=t.ber%>',
 		ant_main: '<%=t.ant_main%>', ant_sub: '<%=t.ant_sub%>',
@@ -511,6 +517,7 @@ local v = V[lang] or V.en
 			cell(L.imei_sv, esc(hw.imei_sv)) +
 			cell(L.imsi, esc(hw.imsi), 'mono') +
 			cell(L.iccid, esc(hw.iccid), 'mono') +
+			cell(L.msisdn, esc(hw.msisdn), 'mono') +
 			cell(L.fsn, esc(hw.fsn), 'mono'));
 
 		specs('c-mod',
@@ -523,6 +530,9 @@ local v = V[lang] or V.en
 			cell(L.bandlock, esc(tv(net.bandlock))) +
 			cell(L.selrat, esc(tv(net.selrat))) +
 			cell(L.simslot, net.uims == null ? '-' : (net.uims === 0 ? '1' : String(net.uims + 1))) +
+			cell(L.volt, hw.volt_mv == null ? '-'
+				: (hw.volt_mv + ' mV' + (hw.volt_state ? ' \u00b7 ' + esc(hw.volt_state) : ''))) +
+			cell(L.thermal, hw.thermal == null ? '-' : esc(hw.thermal)) +
 			cell(L.pri, (hw.pri_pn ? hw.pri_pn : '-') + (hw.pri_rev ? ' / ' + hw.pri_rev : ''), 'mono'));
 
 		document.getElementById('md-data-toggle').checked = on;
@@ -530,9 +540,13 @@ local v = V[lang] or V.en
 		dst.textContent = on ? L.data_on : L.data_off;
 		dst.className = 'md-tag ' + (on ? 'ok' : 'off');
 
+		var dns = [wan.dns1, wan.dns2].filter(function(v) { return v; }).join(', ');
+
 		specs('c-data',
 			cell(L.ip, esc(wan.ip_modem || wan.ip), 'mono') +
 			cell(L.apn, esc(net.apn)) +
+			cell(L.pdptype, esc(net.pdptype)) +
+			cell(L.dns, esc(dns || '-'), 'mono') +
 			cell(L.cid, esc(wan.cid)) +
 			cell(L.session, fmtUptime(wan.uptime) || '-'));
 	}
