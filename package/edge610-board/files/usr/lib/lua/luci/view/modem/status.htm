@@ -11,17 +11,18 @@ local T = {
 		band = "Band", bw = "Bandwidth", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
 		eci = "ECI", scc = "SCC", rxlev = "RXLV",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
-		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Uptime",
+		imsi = "IMSI", iccid = "ICCID", temp = "Temperature", uptime = "Modem uptime",
 		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
 		simslot = "SIM slot", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
-		sinr = "SINR", rssi = "RSSI", txpower = "Tx power", rxd = "RxD", snr = "SNR",
-		ber = "BER", du = "D / U", serving = "serving",
+		sinr = "SINR", rssi = "RSSI", txpower = "Tx power", snr = "SNR",
+		ber = "BER", serving = "serving",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
 		offline = "AT port not found", excellent = "Excellent", good = "Good",
 		fair = "Fair", poor = "Poor", attached = "attached", detached = "detached",
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
-		ip = "IP", rx = "RX", tx = "TX", power = "Mode",
+		ip = "IP (modem)", rx = "RX (wwan0)", tx = "TX (wwan0)", power = "Mode",
 		prio = "Priority", tlow = "threshX-Low", thigh = "threshX-High",
+		du = "DL/UL bandwidth", rxd = "RxD (diversity)",
 		state = "Link", cid = "CID",
 		pri = "PRI", customer = "Customer",
 		sim_settings = "SIM, RAT and band lock",
@@ -34,17 +35,18 @@ local T = {
 		band = "频段", bw = "带宽", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
 		eci = "ECI", scc = "SCC", rxlev = "RXLV",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
-		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "运行时长",
+		imsi = "IMSI", iccid = "ICCID", temp = "温度", uptime = "模组运行时长",
 		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
 		simslot = "SIM 槽", apn = "APN", csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ",
-		sinr = "SINR", rssi = "RSSI", txpower = "发射功率", rxd = "分集", snr = "SNR",
-		ber = "BER", du = "下行/上行", serving = "服务",
+		sinr = "SINR", rssi = "RSSI", txpower = "发射功率", snr = "SNR",
+		ber = "BER", serving = "服务",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
 		offline = "AT 端口未找到", excellent = "优秀", good = "良好",
 		fair = "一般", poor = "差", attached = "已连接", detached = "已断开",
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
-		ip = "IP", rx = "接收", tx = "发送", power = "模式",
+		ip = "IP（模组）", rx = "接收（wwan0）", tx = "发送（wwan0）", power = "模式",
 		prio = "优先级", tlow = "低门限", thigh = "高门限",
+		du = "下行/上行带宽", rxd = "分集接收",
 		state = "链路", cid = "上下文",
 		pri = "PRI", customer = "客户",
 		sim_settings = "SIM / 制式 / 锁频",
@@ -357,7 +359,7 @@ local v = V[lang] or V.en
 			bar(L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
 			'<table class="md-table" style="margin-top:.4rem">' +
 			row(L.txpower, sig.txpower != null ? sig.txpower + ' dBm' : '-') +
-			row(L.rxd, (sig.rssi_rxd != null ? sig.rssi_rxd + ' dBm' : '-') + ' / ' + (sig.rsrp_rxd != null ? sig.rsrp_rxd + ' dBm' : '-')) +
+			row(L.rxd, 'RSSI ' + (sig.rssi_rxd != null ? sig.rssi_rxd + ' dBm' : '-') + ' / RSRP ' + (sig.rsrp_rxd != null ? sig.rsrp_rxd + ' dBm' : '-')) +
 			row(L.snr, cell.snr != null ? cell.snr + ' dB' : '-') +
 			row(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber : '-') +
 			'</table>');
