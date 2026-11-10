@@ -62,10 +62,6 @@ log "sync edge610-board package"
 rm -rf "$OW/package/edge610-board"
 cp -r "$REPO/package/edge610-board" "$OW/package/"
 
-log "sync luci-app-modemdata package"
-rm -rf "$OW/package/luci-app-modemdata"
-cp -r "$REPO/package/luci-app-modemdata" "$OW/package/"
-
 cd "$OW"
 
 # 2. Feeds ------------------------------------------------------------------
@@ -213,9 +209,6 @@ CONFIG_PACKAGE_kmod-usb-printer=y
 CONFIG_PACKAGE_kmod-usb-serial=y
 CONFIG_PACKAGE_kmod-usb-serial-wwan=y
 CONFIG_PACKAGE_kmod-usb-serial-option=y
-CONFIG_PACKAGE_sms-tool=y
-CONFIG_PACKAGE_comgt=y
-CONFIG_PACKAGE_luci-app-modemdata=y
 CONFIG_PACKAGE_kmod-usb-wdm=y
 CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
 CONFIG_PACKAGE_uqmi=y
