@@ -175,6 +175,7 @@ CONFIG_PACKAGE_luci-app-ddns=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-proto-wireguard=y
 CONFIG_PACKAGE_luci-proto-ipv6=y
+CONFIG_PACKAGE_luci-proto-qmi=y
 # LuCI i18n packages are HIDDEN with DEFAULT:=LUCI_LANG_<lang>: selecting the
 # language symbol is the only way to pull them in (per-package symbols are
 # ignored by defconfig). The po dir is zh_Hans, the package name keeps the
