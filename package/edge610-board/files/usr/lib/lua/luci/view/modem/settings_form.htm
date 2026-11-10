@@ -22,6 +22,8 @@ local T = {
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved.", nochange = "nothing changed.",
+		resetmodem = "Reset modem",
+		reset_done = "Modem reset sent. It is off the bus for ~40 s and redials by itself; the AT port is unavailable meanwhile.",
 	},
 	zh = {
 		legend = "Sierra Wireless EM7565",
@@ -40,6 +42,8 @@ local T = {
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存。", nochange = "没有变化。",
+		resetmodem = "复位模组",
+		reset_done = "已发出复位指令。模组会离线约 40 秒后自动重新拨号，期间 AT 口不可用。",
 	},
 }
 local t = T[lang] or T.en
@@ -93,6 +97,10 @@ local function hex64(bits)
 end
 
 local msg
+if http.formvalue("reset") then
+	sys.exec("/usr/bin/modem-at -t 5 'AT+CFUN=1,1' 2>&1")
+	msg = t.reset_done
+end
 if http.formvalue("apply") then
 	local nsim = http.formvalue("sim") or "0"
 	local nrat = http.formvalue("rat") or "06"
@@ -269,6 +277,8 @@ end
 		</div>
 		<div class="cbi-page-actions">
 			<input type="submit" name="apply" class="cbi-button cbi-button-apply" value="<%=t.save%>"/>
+			<input type="submit" name="reset" class="cbi-button cbi-button-action" value="<%=t.resetmodem%>"
+				onclick="return confirm('<%=t.resetmodem%>?')"/>
 		</div>
 	</form>
 	<% if msg then %><div class="alert-message success"><%=msg%></div><% end %>

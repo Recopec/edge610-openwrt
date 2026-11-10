@@ -180,7 +180,9 @@ function data()
 
 	-- SIM / registration / operator / CSQ ---------------------------------
 	local basic = at("AT+CPIN?;+CSQ;+COPS=3,0;+COPS?;+COPS=3,2;+COPS?;+CEREG?")
-	res.sim.state = basic:match("+CPIN:%s*([%a ]+)")
+	-- A missing/unreadable SIM answers "+CME ERROR: SIM failure" instead of
+	-- "+CPIN: READY"; without the fallback the page just showed an empty row.
+	res.sim.state = basic:match("+CPIN:%s*([%a ]+)") or basic:match("%+CME ERROR:%s*([%a ]+)")
 	res.sig.csq = tonum(basic:match("+CSQ:%s*(%d+)"))
 	res.sig.ber = tonum(basic:match("+CSQ:%s*%d+,(%d+)"))
 	res.net.operator = basic:match('+COPS:%s*%d+,0,"([^"]*)"')

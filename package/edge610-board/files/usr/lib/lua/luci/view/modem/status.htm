@@ -12,6 +12,7 @@ local T = {
 		resets = "Resets", clock = "Clock", bandlock = "Band lock", selrat = "Radio mode",
 		simslot = "SIM slot", apn = "APN",
 		unreg = "Not registered", searching = "Searching", registered = "Registered",
+		ready = "ready",
 		offline = "AT port not found", attached = "attached", detached = "detached",
 		autorefresh = "Auto refresh", refresh = "Refresh", loading = "Loading…",
 		ip = "IP (modem)", rx = "RX (wwan0)", tx = "TX (wwan0)", power = "Mode",
@@ -26,6 +27,7 @@ local T = {
 		resets = "复位次数", clock = "时钟", bandlock = "锁频", selrat = "制式设置",
 		simslot = "SIM 槽", apn = "APN",
 		unreg = "未注册", searching = "搜索中", registered = "已注册",
+		ready = "就绪",
 		offline = "AT 端口未找到", attached = "已连接", detached = "已断开",
 		autorefresh = "自动刷新", refresh = "刷新", loading = "加载中…",
 		ip = "IP（模组）", rx = "接收（wwan0）", tx = "发送（wwan0）", power = "模式",
@@ -97,6 +99,7 @@ local v = V[lang] or V.en
 		resets: '<%=t.resets%>', clock: '<%=t.clock%>', bandlock: '<%=t.bandlock%>', selrat: '<%=t.selrat%>',
 		simslot: '<%=t.simslot%>', apn: '<%=t.apn%>',
 		unreg: '<%=t.unreg%>', searching: '<%=t.searching%>', registered: '<%=t.registered%>',
+		ready: '<%=t.ready%>',
 		offline: '<%=t.offline%>', attached: '<%=t.attached%>', detached: '<%=t.detached%>',
 		ip: '<%=t.ip%>', rx: '<%=t.rx%>', tx: '<%=t.tx%>', power: '<%=t.power%>',
 		state: '<%=t.state%>', cid: '<%=t.cid%>', pri: '<%=t.pri%>', customer: '<%=t.customer%>'
@@ -125,7 +128,9 @@ local v = V[lang] or V.en
 			row(L.plmn, esc(net.plmn)) +
 			row(L.mode, esc(act)) +
 			row(L.reg, regTxt) +
-			row(L.sim, esc(tv(sim.state))) +
+			row(L.sim, sim.state == null ? '-' : sim.state === 'READY'
+				? '<span class="md-tag ok">' + L.ready + '</span>'
+				: '<span class="md-tag err">' + esc(sim.state) + '</span>') +
 			row('PS', esc(tv(net.ps))) +
 			row('EMM', esc(tv(net.emm))) +
 			row(L.rrc, esc(tv(net.rrc))) +
