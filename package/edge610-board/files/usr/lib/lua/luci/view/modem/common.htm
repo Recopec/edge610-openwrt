@@ -9,7 +9,7 @@
 @media(max-width:820px){.md-grid{grid-template-columns:minmax(0,1fr)}}
 .md-full{margin-top:.75rem}
 .md-card{background:#fff;border:1px solid #e6e8ee;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}
-.md-card h3{margin:0;padding:.62rem .9rem;font-size:.74rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#667085;background:#fbfbfd;border-bottom:1px solid #eef0f5}
+.md-card h3{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin:0;padding:.55rem .9rem;font-size:.74rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#667085;background:#fbfbfd;border-bottom:1px solid #eef0f5}
 .md-card .md-body{padding:.3rem .9rem .55rem}
 
 /* The theme stripes table rows and pads them; drop both and use hairlines. */
@@ -19,14 +19,16 @@
 .md-table tr:first-child td{border-top:0}
 .md-l{color:#667085;white-space:nowrap;padding-right:.9rem;width:1%}
 .md-v{text-align:right;color:#101828;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.md-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;letter-spacing:-.01em}
+.md-card,.md-card td,.md-card th,.md-card b,.md-tag,.md-row,.md-hl{font-family:inherit}
+.md-card b,.md-v,.md-row{font-variant-numeric:tabular-nums}
+.md-mono{font-variant-numeric:tabular-nums;letter-spacing:.01em}
 
 /* Bars: label left, value right, track below. */
-.md-row{margin:.42rem 0}
-.md-hd{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;font-size:.84rem}
-.md-hd .md-hl{color:#667085}
-.md-hd b{color:#101828;font-weight:500;font-variant-numeric:tabular-nums}
-.md-bar{height:5px;background:#eef1f6;border-radius:3px;overflow:hidden;margin:.28rem 0 0}
+.md-row{display:flex;align-items:center;gap:.55rem;font-size:.84rem;padding:.26rem 0;border-top:1px solid #f2f3f7}
+.md-row:first-child{border-top:0}
+.md-hl{flex:0 0 92px;white-space:nowrap;color:#667085}
+.md-row b{flex:0 0 auto;order:3;margin-left:auto;color:#101828;font-weight:500}
+.md-bar{flex:0 0 116px;height:5px;background:#eef1f6;border-radius:3px;overflow:hidden;order:2}
 .md-bar>span{display:block;height:100%;border-radius:3px;background:#4caf50}
 
 .md-tag{display:inline-block;padding:.06rem .42rem;border-radius:6px;font-size:.74rem;font-weight:500;background:#eff4ff;color:#3538cd}
@@ -49,7 +51,8 @@
 .md-skel span:nth-child(even){width:85%}
 @keyframes mdpulse{0%,100%{opacity:.55}50%{opacity:1}}
 
-.md-switchrow{display:flex;align-items:center;gap:.6rem;margin:.15rem 0 .35rem}
+.md-card h3 .md-act{display:flex;align-items:center;gap:.45rem;text-transform:none;letter-spacing:0;font-weight:400}
+.md-card h3 .md-act .md-tag{text-transform:none}
 .md-switch{position:relative;display:inline-block;width:42px;height:22px;flex:0 0 auto}
 .md-switch input{opacity:0;width:0;height:0}
 .md-switch span{position:absolute;inset:0;background:#d0d5dd;border-radius:22px;cursor:pointer;transition:.2s}
@@ -84,10 +87,10 @@ function qual(v, levels) {
 
 function bar(label, value, unit, pct, color) {
 	color = color || '#4caf50';
-	return '<div class="md-row"><div class="md-hd"><span class="md-hl">' + label + '</span><b>' +
-		esc(value) + (value == null || !unit ? '' : ' ' + unit) + '</b></div>' +
-		'<div class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
-		'%;background:' + color + '"></span></div></div>';
+	return '<div class="md-row"><span class="md-hl">' + label + '</span>' +
+		'<span class="md-bar"><span style="width:' + (pct == null ? 0 : Math.max(0, Math.min(100, pct))) +
+		'%;background:' + color + '"></span></span>' +
+		'<b>' + esc(value) + (value == null || !unit ? '' : ' ' + unit) + '</b></div>';
 }
 
 // First colour whose threshold the value reaches, darkest last.

@@ -298,11 +298,15 @@ function data()
 	-- the modem answers "Unknown RAT mode. Use AT!SELRAT to set band." instead
 	-- of the stored mode, in any position.
 	local selraw = at("AT!SELRAT?"):match("!SELRAT:%s*([^\r\n]+)")
-	if selraw then
-		selraw = trim(selraw)
-		local code = selraw:match("^(%d%d),")
-		local names = { ["00"] = "Automatic", ["06"] = "LTE Only" }
-		res.net.selrat = (code and names[code]) or "?"
+	local selname = { ["00"] = "Automatic", ["06"] = "LTE Only" }
+	local code = selraw and trim(selraw):match("^(%d%d),")
+	if code and selname[code] then
+		res.net.selrat = selname[code]
+	else
+		-- The modem intermittently answers the "Unknown RAT mode" complaint even
+		-- for a plain query; the mode we wrote is the better answer then.
+		local uci = require("luci.model.uci").cursor()
+		res.net.selrat = selname[uci:get("modem", "main", "rat") or ""] or "?"
 	end
 	res.net.uims = tonum(extra:match("!UIMS:%s*(%d+)"))
 	res.net.apn = extra:match('+CGDCONT:%s*%d+,"[%w]+","([^"]*)"')
