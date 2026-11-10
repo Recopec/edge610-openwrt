@@ -73,6 +73,46 @@
 .md-skel.md-specs span{width:88%}
 @keyframes mdpulse{0%,100%{opacity:.5}50%{opacity:1}}
 
+/* Buttons: one shape for every page. */
+.md-btn{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;height:30px;padding:0 .8rem;font-family:inherit;font-size:.8rem;font-weight:500;line-height:1;color:#344054;background:#fff;border:1px solid #e4e7ec;border-radius:8px;box-shadow:none;cursor:pointer;white-space:nowrap}
+.md-btn:hover{background:#f9fafb;color:#101828}
+.md-btn.md-accent{background:#5e72e4;border-color:#5e72e4;color:#fff}
+.md-btn.md-accent:hover{background:#4c5fd0;color:#fff}
+.md-btn.md-danger{color:#b42318;border-color:#fecdca}
+.md-btn.md-danger:hover{background:#fef3f2}
+.md-btn[disabled]{opacity:.55;cursor:default}
+.md-btn.sm{height:26px;padding:0 .6rem;font-size:.74rem}
+
+/* Form grid used by the settings page. */
+.md-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem 1.2rem;padding:.9rem 1.1rem .2rem}
+@media(max-width:1000px){.md-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.md-form{grid-template-columns:minmax(0,1fr)}}
+.md-sub{border-top:1px solid #f2f4f7;margin-top:.2rem;padding:.75rem 1.1rem .2rem}
+.md-sub-t{font-size:.8rem;font-weight:600;color:#101828;margin-right:.4rem}
+.md-sub .md-muted{font-size:.76rem;line-height:1.55}
+.md-field{display:flex;flex-direction:column;gap:.28rem;min-width:0}
+.md-field label{font-size:.74rem;color:#667085;margin:0;font-weight:400}
+.md-field input,.md-field select{width:100%;height:32px;padding:0 .5rem;font-size:.82rem;line-height:1.2;color:#101828;background:#fff;border:1px solid #e4e7ec;border-radius:8px;box-shadow:none}
+.md-field input:focus,.md-field select:focus{border-color:#5e72e4;outline:0;box-shadow:0 0 0 3px rgba(94,114,228,.12)}
+.md-hint{font-size:.74rem;line-height:1.55;color:#98a2b3;margin:.55rem 1.1rem .8rem}
+.md-body .md-hint{margin:.5rem 0 .2rem}
+
+/* Band chips: the checkbox is invisible, the pill is the control. */
+.md-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:.4rem;padding:.9rem 1.1rem .1rem}
+.md-body .md-chips{padding:.1rem 0 .2rem}
+.md-chip{position:relative;display:block;margin:0;min-width:0}
+.md-chip input{position:absolute;left:0;top:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.md-chip span{display:block;padding:.34rem .4rem;border:1px solid #e4e7ec;border-radius:8px;background:#fff;font-size:.76rem;color:#475467;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-chip input:checked+span{background:#eef1ff;border-color:#9aa8ff;color:#3538cd;font-weight:500}
+.md-chip input:focus-visible+span{box-shadow:0 0 0 3px rgba(94,114,228,.18)}
+
+.md-actions-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.6rem 1.1rem .9rem}
+.md-body .md-actions-row{padding:0 0 .6rem}
+.md-actions-row .md-hint{margin:0}
+.md-actions-row.md-end{justify-content:flex-end;padding:.3rem 0 0}
+
+.md-notice{margin-bottom:.9rem;padding:.6rem .85rem;border:1px solid #d1fadf;border-radius:10px;background:#ecfdf3;color:#067647;font-size:.82rem;line-height:1.5}
+
 .md-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto}
 .md-switch input{opacity:0;width:0;height:0}
 .md-switch span{position:absolute;inset:0;background:#d0d5dd;border-radius:20px;cursor:pointer;transition:.18s}

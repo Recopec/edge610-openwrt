@@ -5,53 +5,82 @@ local lang = (luci.i18n.context and luci.i18n.context.lang or "en"):gsub("[-_].*
 local T = {
 	en = {
 		title = "SMS", refresh = "Refresh", from = "From", time = "Time", text = "Text",
-		del = "Delete", empty = "No messages", loading = "Loading…", delall = "Delete all",
+		del = "Delete", empty = "No messages", loading = "Loading…",
 		send = "Send", number = "Number", message = "Message", sending = "Sending…", sent = "Sent",
-		sent_title = "Sent messages", sent_empty = "Nothing sent yet",
+		send_title = "Compose", sent_title = "Sent", sent_empty = "Nothing sent yet",
+		inbox = "Inbox", unread = "unread", msgs = "messages",
 	},
 	zh = {
 		title = "短信", refresh = "刷新", from = "发送方", time = "时间", text = "内容",
-		del = "删除", empty = "没有短信", loading = "加载中…", delall = "全部删除",
+		del = "删除", empty = "没有短信", loading = "加载中…",
 		send = "发送", number = "号码", message = "内容", sending = "发送中…", sent = "已发送",
-		sent_title = "已发送", sent_empty = "还没有发送记录",
+		send_title = "发送短信", sent_title = "已发送", sent_empty = "还没有发送记录",
+		inbox = "收件箱", unread = "未读", msgs = "条",
 	},
 }
 local t = T[lang] or T.en
 %>
 
-<h2 name="content"><%=t.title%></h2>
+<%+modem/common%>
 
-<div class="cbi-section">
-	<button id="sms-refresh" class="btn cbi-button cbi-button-action"><%=t.refresh%></button>
+<div class="md-page">
+
+<div class="md-toolbar">
 	<span id="sms-state" class="md-muted"><%=t.loading%></span>
+	<button id="sms-refresh" class="md-btn"><%=t.refresh%></button>
 </div>
 
-<div class="cbi-section">
-	<div class="sms-send">
-		<input id="sms-num" type="text" placeholder="<%=t.number%>" />
-		<textarea id="sms-text" rows="2" placeholder="<%=t.message%>"></textarea>
-		<button id="sms-send" class="btn cbi-button cbi-button-apply"><%=t.send%></button>
-		<span id="sms-send-state" class="md-muted"></span>
+<section class="md-card">
+	<h3><%=t.send_title%>
+		<span class="md-act">
+			<span id="sms-send-state" class="md-muted"></span>
+			<button id="sms-send" class="md-btn md-accent sm"><%=t.send%></button>
+		</span>
+	</h3>
+	<div class="md-body">
+		<div class="md-send">
+			<div class="md-field md-send-num">
+				<label for="sms-num"><%=t.number%></label>
+				<input id="sms-num" type="tel" inputmode="tel" autocomplete="off" placeholder="+8613800138000"/>
+			</div>
+			<div class="md-field md-send-text">
+				<label for="sms-text"><%=t.message%></label>
+				<textarea id="sms-text" rows="2" placeholder="…"></textarea>
+			</div>
+		</div>
 	</div>
-</div>
+</section>
 
-<div id="sms-list" class="cbi-section"></div>
+<section class="md-card">
+	<h3><%=t.inbox%><span class="md-act"><span id="sms-count" class="md-tag"></span></span></h3>
+	<div class="md-body" id="sms-list"><div class="md-muted"><%=t.loading%></div></div>
+</section>
 
-<div class="cbi-section">
+<section class="md-card">
 	<h3><%=t.sent_title%></h3>
-	<div id="sms-sent" class="md-muted"><%=t.loading%></div>
+	<div class="md-body" id="sms-sent"><div class="md-muted"><%=t.loading%></div></div>
+</section>
+
 </div>
 
 <style>
-.sms-table{width:100%;border-collapse:collapse;font-size:.9rem}
-.sms-table th{text-align:left;color:#888;font-weight:500;font-size:.8rem;border-bottom:1px solid #eee;padding:.4rem .3rem}
-.sms-table td{padding:.4rem .3rem;border-bottom:1px solid #f0f0f0;vertical-align:top}
-.sms-text{white-space:pre-wrap;word-break:break-word}
-.sms-unread{font-weight:600}
-.md-muted{color:#888;font-size:.85rem}
-.sms-send{display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap}
-.sms-send input{width:180px}
-.sms-send textarea{flex:1 1 320px;font-family:inherit}
+.md-send{display:flex;align-items:flex-start;gap:.6rem;flex-wrap:wrap}
+.md-send .md-field textarea{min-height:56px}
+.md-send-num{flex:0 0 200px}
+.md-send-text{flex:1 1 320px;min-width:0;max-width:720px}
+.md-send .md-field textarea{width:100%;padding:.45rem .55rem;font-family:inherit;font-size:.82rem;line-height:1.5;color:#101828;background:#fff;border:1px solid #e4e7ec;border-radius:8px;resize:vertical;box-shadow:none}
+.md-send .md-field textarea:focus{border-color:#5e72e4;outline:0;box-shadow:0 0 0 3px rgba(94,114,228,.12)}
+
+.md-msgs{display:flex;flex-direction:column}
+.md-msg{padding:.6rem 0;border-top:1px solid #f2f4f7}
+.md-msg:first-child{border-top:0}
+.md-msg-top{display:flex;align-items:baseline;gap:.5rem;font-size:.78rem;color:#667085}
+.md-msg-top b{font-size:.84rem;font-weight:600;color:#101828;font-variant-numeric:tabular-nums}
+.md-msg-new{display:inline-block;width:6px;height:6px;border-radius:50%;background:#5e72e4;margin-right:.1rem}
+.md-msg-top .md-msg-time{margin-left:auto;font-variant-numeric:tabular-nums;color:#98a2b3}
+.md-msg-top .md-btn{margin-left:.2rem}
+.md-msg-text{margin-top:.22rem;font-size:.84rem;line-height:1.55;color:#344054;white-space:pre-wrap;word-break:break-word}
+.md-msg.unread .md-msg-text{color:#101828;font-weight:500}
 </style>
 
 <script>
@@ -60,10 +89,13 @@ local t = T[lang] or T.en
 	var DEL = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "delete")%>';
 	var SEND = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "send")%>';
 	var SENT = '<%=luci.dispatcher.build_url("admin", "status", "modem", "sms", "sent")%>';
-	var L = {
-		from: '<%=t.from%>', time: '<%=t.time%>', text: '<%=t.text%>',
-		del: '<%=t.del%>', empty: '<%=t.empty%>'
-	};
+	var L = { del: '<%=t.del%>', empty: '<%=t.empty%>', unread: '<%=t.unread%>', msgs: '<%=t.msgs%>' };
+
+	// Modem timestamp: yy/MM/dd,hh:mm:ss+zz (zz is quarter-hours).
+	function fmtTime(s) {
+		var m = String(s == null ? '' : s).match(/(\d{2})\/(\d{2})\/(\d{2}),(\d{2}:\d{2})/);
+		return m ? m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] : (s || '');
+	}
 
 	function esc(s) {
 		return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
@@ -79,18 +111,27 @@ local t = T[lang] or T.en
 			.then(function(d) {
 				var msgs = d.messages || [];
 				st.textContent = new Date().toLocaleTimeString();
+				var badge = document.getElementById('sms-count');
+				var unread = msgs.filter(function(m) { return m.stat && m.stat.indexOf('UNREAD') >= 0; }).length;
+				badge.textContent = msgs.length ? (unread ? unread + ' <%=t.unread%> / ' : '') + msgs.length + ' <%=t.msgs%>' : '';
+				badge.className = 'md-tag' + (unread ? '' : ' off');
 				var el = document.getElementById('sms-list');
 				if (!msgs.length) { el.innerHTML = '<div class="md-muted">' + L.empty + '</div>'; return; }
-				var h = '<table class="sms-table"><thead><tr><th>#</th><th>' + L.from + '</th><th>' + L.time + '</th><th>' + L.text + '</th><th></th></tr></thead><tbody>';
+				var h = '<div class="md-msgs">';
 				msgs.forEach(function(m) {
-					h += '<tr><td>' + esc(m.index) + '</td><td>' + esc(m.from) + '</td><td>' + esc(m.time) + '</td>' +
-						'<td class="sms-text' + (m.stat && m.stat.indexOf('UNREAD') >= 0 ? ' sms-unread' : '') + '">' + esc(m.text) + '</td>' +
-						'<td><button type="button" class="btn cbi-button" data-idx="' + esc(m.index) + '">' + L.del + '</button></td></tr>';
+					var isNew = m.stat && m.stat.indexOf('UNREAD') >= 0;
+					h += '<div class="md-msg' + (isNew ? ' unread' : '') + '">' +
+						'<div class="md-msg-top">' + (isNew ? '<span class="md-msg-new"></span>' : '') +
+							'<b>' + esc(m.from) + '</b>' +
+							'<span class="md-msg-time">' + esc(fmtTime(m.time)) + '</span>' +
+							'<button type="button" class="md-btn sm" data-idx="' + esc(m.index) + '">' + L.del + '</button>' +
+						'</div>' +
+						'<div class="md-msg-text">' + esc(m.text) + '</div></div>';
 				});
-				h += '</tbody></table>';
-				el.innerHTML = h;
+				el.innerHTML = h + '</div>';
 				Array.prototype.forEach.call(el.querySelectorAll('button[data-idx]'), function(b) {
 					b.addEventListener('click', function() {
+						b.disabled = true;
 						fetch(DEL, {method: 'POST', credentials: 'same-origin',
 							headers: {'Content-Type': 'application/x-www-form-urlencoded'},
 							body: 'idx=' + b.getAttribute('data-idx')})
@@ -110,11 +151,13 @@ local t = T[lang] or T.en
 			.then(function(d) {
 				var msgs = d.messages || [];
 				if (!msgs.length) { el.innerHTML = '<div class="md-muted">' + '<%=t.sent_empty%>' + '</div>'; return; }
-				var h = '<table class="sms-table"><thead><tr><th>' + L.time + '</th><th><%=t.number%></th><th>' + L.text + '</th></tr></thead><tbody>';
+				var h = '<div class="md-msgs">';
 				msgs.slice().reverse().forEach(function(m) {
-					h += '<tr><td>' + esc(new Date(m.t * 1000).toLocaleString()) + '</td><td>' + esc(m.number) + '</td><td class="sms-text">' + esc(m.text) + '</td></tr>';
+					h += '<div class="md-msg"><div class="md-msg-top"><b>' + esc(m.number) + '</b>' +
+						'<span class="md-msg-time">' + esc(new Date(m.t * 1000).toLocaleString()) + '</span></div>' +
+						'<div class="md-msg-text">' + esc(m.text) + '</div></div>';
 				});
-				el.innerHTML = h + '</tbody></table>';
+				el.innerHTML = h + '</div>';
 			})
 			.catch(function() { el.textContent = 'ERR'; });
 	}

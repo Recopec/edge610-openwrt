@@ -6,58 +6,70 @@ local T = {
 	en = {
 		title = "AT debug", desc = "Send raw AT commands to the modem and see the full response.",
 		cmd = "Command", run = "Run", out = "Output", timeout = "Timeout",
-		sec = "s", hint = "Command is sent as one line; use ';' to chain. Output is raw, including the echoed command.",
-		empty = "(no output)",
+		sec = "s", hint = "Sent as one line; use ';' to chain. Output is raw, including the echoed command.",
+		empty = "(no output)", quick = "Common", copy = "Copy", copied = "Copied",
+		run_hint = "Ctrl+Enter runs it",
 	},
 	zh = {
 		title = "AT 调试", desc = "向模组发送原始 AT 指令，查看完整回显。",
 		cmd = "指令", run = "执行", out = "输出", timeout = "超时",
-		sec = "秒", hint = "指令按一行发送，可用 ';' 串联。输出为原始回显，包含命令本身。",
-		empty = "（无输出）",
+		sec = "秒", hint = "按一行发送，可用 ';' 串联。输出为原始回显，包含命令本身。",
+		empty = "（无输出）", quick = "常用指令", copy = "复制", copied = "已复制",
+		run_hint = "Ctrl+Enter 执行",
 	},
 }
 local t = T[lang] or T.en
 %>
 
-<h2 name="content"><%=t.title%></h2>
-<p class="md-muted"><%=t.desc%></p>
+<%+modem/common%>
 
-<div class="cbi-section">
-	<textarea id="at-cmd" rows="3" spellcheck="false" placeholder="AT+CSQ"></textarea>
-	<div class="at-row">
-		<button id="at-run" class="btn cbi-button cbi-button-apply"><%=t.run%></button>
-		<label><%=t.timeout%>
-			<select id="at-to">
+<div class="md-page">
+
+<section class="md-card">
+	<h3><%=t.cmd%>
+		<span class="md-act">
+			<label for="at-to" class="md-muted"><%=t.timeout%></label>
+			<select id="at-to" class="md-select">
 				<option value="3">3 <%=t.sec%></option>
-				<option value="10">10 <%=t.sec%></option>
+				<option value="10" selected>10 <%=t.sec%></option>
 				<option value="30">30 <%=t.sec%></option>
 				<option value="90">90 <%=t.sec%></option>
 			</select>
-		</label>
-		<span id="at-timing" class="md-muted"></span>
+		</span>
+	</h3>
+	<div class="md-body">
+		<textarea id="at-cmd" class="md-cmd" rows="2" spellcheck="false" placeholder="AT+CSQ">AT+CSQ</textarea>
+		<div class="md-actions-row">
+			<button id="at-run" class="md-btn md-accent"><%=t.run%></button>
+			<span id="at-timing" class="md-muted"><%=t.run_hint%></span>
+		</div>
+		<div id="at-quick" class="md-quick"></div>
+		<p class="md-hint"><%=t.hint%></p>
 	</div>
-	<div id="at-quick" class="at-row"></div>
-	<p class="md-muted" style="margin-top:6px"><%=t.hint%></p>
-</div>
+</section>
 
-<div class="cbi-section">
-	<h3><%=t.out%></h3>
+<section class="md-card">
+	<h3><%=t.out%><span class="md-act"><button id="at-copy" class="md-btn sm"><%=t.copy%></button></span></h3>
 	<pre id="at-out" class="at-out"><%=t.empty%></pre>
+</section>
+
 </div>
 
 <style>
-#at-cmd{width:100%;box-sizing:border-box;font-family:monospace;font-size:.9rem}
-.at-row{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.at-row label{display:flex;gap:4px;align-items:center;font-size:.85rem;color:#666}
-.at-out{min-height:180px;max-height:60vh;overflow:auto;background:#f7f7f7;border:1px solid #e5e5e5;padding:8px;font-family:monospace;font-size:.85rem;white-space:pre-wrap;word-break:break-all;margin:0}
-.md-muted{color:#888;font-size:.85rem}
+.md-cmd{width:100%;padding:.5rem .6rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;color:#101828;background:#fff;border:1px solid #e4e7ec;border-radius:8px;resize:vertical;box-shadow:none}
+.md-cmd:focus{border-color:#5e72e4;outline:0;box-shadow:0 0 0 3px rgba(94,114,228,.12)}
+.md-quick{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.2rem}
+.md-quick .md-btn{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;height:26px;padding:0 .5rem;color:#475467}
+.md-card h3 .md-select{height:26px;padding:0 .35rem;font-size:.74rem;color:#475467;background:#fff;border:1px solid #e4e7ec;border-radius:7px;box-shadow:none;font-weight:400}
+.at-out{margin:0;padding:.7rem 1.1rem;min-height:220px;max-height:60vh;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.55;color:#344054;background:#fcfcfd;border-top:1px solid #f2f4f7;white-space:pre-wrap;word-break:break-word}
 </style>
 
 <script>
 (function() {
 	var RUN = '<%=luci.dispatcher.build_url("admin", "status", "modem", "at", "run")%>';
-	var L = { empty: '<%=t.empty%>' };
-	var QUICK = ['ATI', 'AT+CSQ', 'AT!GSTATUS?', 'AT+CPIN?', 'AT+CREG?', 'AT+CGDCONT?', 'AT!LTEINFO', 'AT+COPS?', 'AT!BAND?', 'AT+CGATT?'];
+	var L = { empty: '<%=t.empty%>', copied: '<%=t.copied%>', copy: '<%=t.copy%>' };
+	var QUICK = ['ATI', 'AT+CSQ', 'AT!GSTATUS?', 'AT+CPIN?', 'AT+COPS?', 'AT+CEREG?',
+		'AT+CGDCONT?', 'AT!SELRAT?', 'AT!BAND?', 'AT+CGATT?'];
 
 	var cmd = document.getElementById('at-cmd'),
 	    out = document.getElementById('at-out'),
@@ -68,7 +80,8 @@ local t = T[lang] or T.en
 
 	QUICK.forEach(function(c) {
 		var b = document.createElement('button');
-		b.className = 'btn cbi-button';
+		b.type = 'button';
+		b.className = 'md-btn sm';
 		b.textContent = c;
 		b.addEventListener('click', function() { cmd.value = c; run(); });
 		quick.appendChild(b);
@@ -82,6 +95,7 @@ local t = T[lang] or T.en
 		var t0 = Date.now();
 		fetch(RUN, {
 			method: 'POST',
+			credentials: 'same-origin',
 			headers: {'Content-Type': 'application/x-www-form-urlencoded'},
 			body: 'cmd=' + encodeURIComponent(c) + '&timeout=' + encodeURIComponent(to.value)
 		}).then(function(r) { return r.text(); }).then(function(txt) {
@@ -96,6 +110,23 @@ local t = T[lang] or T.en
 	btn.addEventListener('click', run);
 	cmd.addEventListener('keydown', function(e) {
 		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
+	});
+
+	document.getElementById('at-copy').addEventListener('click', function() {
+		var b = this;
+		var done = function() {
+			b.textContent = L.copied;
+			setTimeout(function() { b.textContent = L.copy; }, 1200);
+		};
+		if (navigator.clipboard) {
+			navigator.clipboard.writeText(out.textContent).then(done, function() {});
+		} else {
+			var r = document.createRange();
+			r.selectNodeContents(out);
+			var sel = window.getSelection();
+			sel.removeAllRanges(); sel.addRange(r);
+			try { document.execCommand('copy'); done(); } catch (e) {}
+		}
 	});
 })();
 </script>

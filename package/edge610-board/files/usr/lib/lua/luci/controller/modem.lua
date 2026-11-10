@@ -674,6 +674,13 @@ function atrun()
 	http.write(out or "")
 end
 
+-- The RF view was folded into the status page; keep old links working.
+function signal_moved()
+	local http = require "luci.http"
+	local disp = require "luci.dispatcher"
+	http.redirect(disp.build_url("admin", "status", "modem", "status"))
+end
+
 local function utf8_to_ucs2hex(s)
 	local out, i = {}, 1
 	while i <= #s do
@@ -773,7 +780,8 @@ function index()
 
 	entry({"admin", "status", "modem"}, firstchild(), _("Modem"), 60).dependent = false
 	entry({"admin", "status", "modem", "status"}, template("modem/status"), _("Status"), 10).leaf = true
-	entry({"admin", "status", "modem", "signal"}, template("modem/signal"), _("Signal"), 15).leaf = true
+	-- no title: resolves for old bookmarks without showing up as a tab
+	entry({"admin", "status", "modem", "signal"}, call("signal_moved")).leaf = true
 	entry({"admin", "status", "modem", "settings"}, template("modem/settings"), _("Settings"), 20).leaf = true
 	entry({"admin", "status", "modem", "gps"}, template("modem/gps"), _("GPS"), 30).leaf = true
 	entry({"admin", "status", "modem", "data"}, call("data")).leaf = true

@@ -7,6 +7,13 @@ local T = {
 		conn = "Connection", hardware = "Hardware", data = "Data connection",
 		link = "Mobile network", k_link = "Link", k_signal = "Signal",
 		k_modem = "Modem",
+		signal = "Signal", cell = "Cell", neigh = "Neighbour cells",
+		band = "Band", bw = "Bandwidth", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", rxlev = "RXLV", du = "Modulation", scc = "SCC",
+		csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ", sinr = "SINR", rssi = "RSSI",
+		txpower = "Tx power", snr = "SNR", ber = "BER",
+		ant_main = "Main antenna", ant_sub = "Aux antenna",
+		intra = "Same frequency", inter = "Other frequencies",
 		operator = "Operator", netname = "Network name", plmn = "PLMN", mode = "Technology",
 		reg = "Registration", sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "Model", fw = "Firmware", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -27,6 +34,13 @@ local T = {
 		conn = "连接与注册", hardware = "硬件", data = "数据连接",
 		link = "移动网络", k_link = "链路", k_signal = "信号",
 		k_modem = "模组",
+		signal = "信号", cell = "服务小区", neigh = "邻区",
+		band = "频段", bw = "带宽", pci = "PCI", earfcn = "EARFCN", tac = "TAC",
+		eci = "ECI", rxlev = "RXLV", du = "调制", scc = "载波",
+		csq = "CSQ", rsrp = "RSRP", rsrq = "RSRQ", sinr = "SINR", rssi = "RSSI",
+		txpower = "发射功率", snr = "SNR", ber = "误码率",
+		ant_main = "主天线", ant_sub = "副天线",
+		intra = "同频", inter = "异频",
 		operator = "运营商", netname = "网络名称", plmn = "PLMN", mode = "制式",
 		reg = "注册状态", sim = "SIM", ps = "PS", emm = "EMM", rrc = "RRC", ims = "IMS",
 		model = "型号", fw = "固件", imei = "IMEI", imei_sv = "IMEI SV", fsn = "FSN",
@@ -151,7 +165,7 @@ local v = V[lang] or V.en
 		<div class="md-stat"><span class="md-k"><%=t.tx%></span><span class="md-v sm"><b id="h-tx">-</b></span></div>
 	</div>
 
-	<div class="md-chart"><svg id="h-chart" viewBox="0 0 600 84" preserveAspectRatio="none"></svg></div>
+	<div class="md-chart"><svg id="h-chart" viewBox="0 0 600 60" preserveAspectRatio="none"></svg></div>
 	<div class="md-foot">
 		<span class="md-legend"><i class="dn"></i><%=t.chart_dn%><i class="up"></i><%=t.chart_up%> · <%=t.samples%><span id="h-peak"></span></span>
 		<span class="md-foot-r">
@@ -175,6 +189,12 @@ local v = V[lang] or V.en
 			<div class="md-specs md-skel" id="c-conn"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
 		</section>
 		<section class="md-card">
+			<h3><%=t.signal%></h3>
+			<div class="md-body" id="c-sig"><div class="md-skel"><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+		</section>
+	</div>
+	<div class="md-col">
+		<section class="md-card">
 			<h3><%=t.data%>
 				<span class="md-act">
 					<label class="md-switch"><input type="checkbox" id="md-data-toggle"/><span></span></label>
@@ -183,8 +203,10 @@ local v = V[lang] or V.en
 			</h3>
 			<div class="md-specs md-skel" id="c-data"><span></span><span></span><span></span><span></span></div>
 		</section>
-	</div>
-	<div class="md-col">
+		<section class="md-card">
+			<h3><%=t.cell%></h3>
+			<div class="md-specs md-skel" id="c-cell"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+		</section>
 		<section class="md-card">
 			<h3><%=t.hardware%></h3>
 			<div class="md-specs md-skel" id="c-hw"><span></span><span></span><span></span><span></span><span></span><span></span></div>
@@ -195,6 +217,11 @@ local v = V[lang] or V.en
 		</section>
 	</div>
 </div>
+
+<section class="md-card">
+	<h3><%=t.neigh%></h3>
+	<div class="md-body" id="c-neigh"><div class="md-skel"><span></span><span></span><span></span><span></span></div></div>
+</section>
 
 </div>
 
@@ -215,6 +242,12 @@ local v = V[lang] or V.en
 		session: '<%=t.session%>',
 		offline: '<%=t.offline%>', updated: '<%=t.updated%>', loading: '<%=t.loading%>',
 		ip: '<%=t.ip%>', cid: '<%=t.cid%>', peak: '<%=t.peak%>',
+		csq: '<%=t.csq%>', rsrp: '<%=t.rsrp%>', rsrq: '<%=t.rsrq%>', sinr: '<%=t.sinr%>',
+		rssi: '<%=t.rssi%>', txpower: '<%=t.txpower%>', snr: '<%=t.snr%>', ber: '<%=t.ber%>',
+		ant_main: '<%=t.ant_main%>', ant_sub: '<%=t.ant_sub%>',
+		band: '<%=t.band%>', bw: '<%=t.bw%>', pci: '<%=t.pci%>', earfcn: '<%=t.earfcn%>',
+		tac: '<%=t.tac%>', eci: '<%=t.eci%>', du: '<%=t.du%>', rxlev: '<%=t.rxlev%>', scc: '<%=t.scc%>',
+		intra: '<%=t.intra%>', inter: '<%=t.inter%>',
 	};
 	var V = {
 		'Attached': '<%=v.Attached%>', 'Detached': '<%=v.Detached%>', 'Registered': '<%=v.Registered%>',
@@ -301,6 +334,35 @@ local v = V[lang] or V.en
 		document.getElementById('h-peak').textContent = ' · ' + L.peak + ' ' + scale[0] + ' ' + scale[1];
 	}
 
+	// Neighbour tables: intra-frequency first, then the inter-frequency ones.
+	function neighRows(d) {
+		var serving = d.cell && d.cell.pci;
+		var intra = arr(d.neigh && d.neigh.intra);
+		var inter = arr(d.neigh && d.neigh.inter);
+		if (!intra.length && !inter.length) return '<div class="md-muted">-</div>';
+		var h = '', both = intra.length && inter.length;
+		if (intra.length) {
+			var t1 = '<table class="md-neigh"><thead><tr><th>PCI</th><th>RSRP dBm</th><th>RSRQ dB</th><th>RSSI dBm</th><th>RXLV</th></tr></thead><tbody>';
+			intra.forEach(function(n) {
+				t1 += '<tr' + (n.pci === serving ? ' class="md-serv"' : '') + '><td>' + esc(n.pci) +
+					'</td><td>' + esc(n.rsrp) + '</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) +
+					'</td><td>' + esc(n.rxlev) + '</td></tr>';
+			});
+			h += '<div class="md-neigh-col">' + (both ? '<div class="md-cap">' + L.intra + '</div>' : '') +
+				t1 + '</tbody></table></div>';
+		}
+		if (inter.length) {
+			var t2 = '<table class="md-neigh"><thead><tr><th>EARFCN</th><th>PCI</th><th>RSRP dBm</th><th>RSRQ dB</th><th>RSSI dBm</th></tr></thead><tbody>';
+			inter.forEach(function(n) {
+				t2 += '<tr><td>' + esc(n.earfcn) + '</td><td>' + esc(n.pci) + '</td><td>' + esc(n.rsrp) +
+					'</td><td>' + esc(n.rsrq) + '</td><td>' + esc(n.rssi) + '</td></tr>';
+			});
+			h += '<div class="md-neigh-col">' + (both ? '<div class="md-cap">' + L.inter + '</div>' : '') +
+				t2 + '</tbody></table></div>';
+		}
+		return '<div class="md-neigh-wrap">' + h + '</div>';
+	}
+
 	function cell(label, value, cls) {
 		return '<div class="md-cell"><span class="md-k2">' + label + '</span>' +
 			'<span class="md-v2 ' + (cls || '') + '">' + value + '</span></div>';
@@ -367,6 +429,7 @@ local v = V[lang] or V.en
 
 	function render(d) {
 		var sig = d.sig || {}, net = d.net || {}, sim = d.sim || {}, hw = d.modem || {}, wan = d.wan || {};
+		var cl = d.cell || {};
 		var act = RAT[net.act] || net.sysmode || '-';
 		var on = wan.attach === 1 && wan.context === 1;
 
@@ -388,6 +451,45 @@ local v = V[lang] or V.en
 			cell('RRC', esc(tv(net.rrc))) +
 			cell('IMS', esc(tv(net.ims))) +
 			cell(L.power, esc(tv(net.mode))));
+
+		var G = [[20, '#12b76a'], [13, '#7cb518'], [0, '#f79009'], [-999, '#f04438']];
+		html('c-sig',
+			bar(L.csq, sig.csq, '/31', sig.csq == null ? null : sig.csq / 31 * 100,
+				sig.csq == null ? null : qcol(sig.csq, [[20, '#12b76a'], [15, '#7cb518'], [10, '#f79009'], [0, '#f04438']])) +
+			bar(L.rsrq, sig.rsrq, 'dB', sig.rsrq == null ? null : clamp((sig.rsrq + 20) / 20 * 100, 0, 100),
+				sig.rsrq == null ? null : qcol(sig.rsrq, [[-10, '#12b76a'], [-15, '#7cb518'], [-20, '#f79009'], [-999, '#f04438']])) +
+			bar(L.sinr, sig.sinr, 'dB', sig.sinr == null ? null : clamp((sig.sinr + 10) / 40 * 100, 0, 100),
+				sig.sinr == null ? null : qcol(sig.sinr, G)) +
+			bar(L.snr, cl.snr, 'dB', cl.snr == null ? null : clamp(cl.snr / 30 * 100, 0, 100),
+				cl.snr == null ? null : qcol(cl.snr, G)) +
+			bar(L.ber, sig.ber != null && sig.ber != 99 ? sig.ber + (BER[sig.ber] ? ' (' + BER[sig.ber] + ')' : '') : null, '',
+				sig.ber == null || sig.ber == 99 ? null : (7 - sig.ber) / 7 * 100,
+				sig.ber == null || sig.ber == 99 ? null : qcol(7 - sig.ber, [[6, '#12b76a'], [4, '#7cb518'], [2, '#f79009'], [-999, '#f04438']])) +
+			bar(L.ant_main + ' ' + L.rsrp, sig.rsrp, 'dBm', sig.rsrp == null ? null : clamp((sig.rsrp + 140) / 60 * 100, 0, 100),
+				sig.rsrp == null ? null : qcol(sig.rsrp, [[-80, '#12b76a'], [-90, '#7cb518'], [-100, '#f79009'], [-999, '#f04438']])) +
+			bar(L.ant_main + ' ' + L.rssi, sig.rssi, 'dBm', sig.rssi == null ? null : clamp((sig.rssi + 120) / 60 * 100, 0, 100), null) +
+			bar(L.ant_sub + ' ' + L.rsrp, sig.rsrp_rxd, 'dBm', sig.rsrp_rxd == null ? null : clamp((sig.rsrp_rxd + 140) / 60 * 100, 0, 100),
+				sig.rsrp_rxd == null ? null : qcol(sig.rsrp_rxd, [[-80, '#12b76a'], [-90, '#7cb518'], [-100, '#f79009'], [-999, '#f04438']])) +
+			bar(L.ant_sub + ' ' + L.rssi, sig.rssi_rxd, 'dBm', sig.rssi_rxd == null ? null : clamp((sig.rssi_rxd + 120) / 60 * 100, 0, 100), null) +
+			bar(L.txpower, sig.txpower, 'dBm', sig.txpower == null ? null : clamp((sig.txpower + 10) / 33 * 100, 0, 100),
+				sig.txpower == null ? null : qcol(sig.txpower, [[15, '#12b76a'], [10, '#7cb518'], [5, '#f79009'], [-999, '#f04438']])));
+
+		var cellRows =
+			cell(L.band, esc(cl.band)) +
+			cell(L.bw, cl.bw ? bwMHz(cl.bw) : null) +
+			cell(L.pci, esc(cl.pci)) +
+			cell(L.earfcn, cl.earfcn_dl ? 'DL ' + cl.earfcn_dl + ' / UL ' + (cl.earfcn_ul || '-') : null, 'mono') +
+			cell(L.tac, cl.tac ? parseInt(cl.tac, 16) + ' (' + cl.tac + ')' : null, 'mono') +
+			cell(L.eci, cl.ci ? parseInt(cl.ci, 16) + ' (' + cl.ci + ')' : null, 'mono') +
+			cell(L.plmn, cl.mcc ? cl.mcc + cl.mnc : null) +
+			cell(L.du, (cl.dl_mod != null || cl.ul_mod != null) ? bwMHz(cl.dl_mod) + ' / ' + bwMHz(cl.ul_mod) : null) +
+			cell(L.rxlev, esc(cl.rxlev));
+		arr(cl.scc).forEach(function(sc) {
+			cellRows += cell(L.scc + sc.n, esc(sc.band) + (sc.bw ? ' @' + sc.bw + ' MHz' : ''));
+		});
+		specs('c-cell', cellRows);
+
+		html('c-neigh', neighRows(d));
 
 		specs('c-hw',
 			cell(L.model, esc(((hw.manufacturer || '') + ' ' + (hw.model || ''))

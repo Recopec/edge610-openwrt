@@ -23,6 +23,9 @@ local T = {
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved.", nochange = "nothing changed.",
+		sec_net = "Network", sec_scan = "Network selection", sec_band = "Band lock",
+		all = "All", none = "None", chosen = "selected", allbands = "All bands",
+		hint_scan = "Scanning asks the modem for nearby networks; it takes up to 60 s and blocks other AT commands meanwhile.",
 		resetmodem = "Reset modem",
 		reset_done = "Modem reset sent. It is off the bus for ~40 s and redials by itself; the AT port is unavailable meanwhile.",
 	},
@@ -44,6 +47,9 @@ local T = {
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存。", nochange = "没有变化。",
+		sec_net = "网络", sec_scan = "网络选择", sec_band = "锁频",
+		all = "全选", none = "清空", chosen = "已选", allbands = "全部频段",
+		hint_scan = "扫描会向模组查询周边网络，最长 60 秒，期间其他 AT 指令会被阻塞。",
 		resetmodem = "复位模组",
 		reset_done = "已发出复位指令。模组会离线约 40 秒后自动重新拨号，期间 AT 口不可用。",
 	},
@@ -199,93 +205,92 @@ if http.formvalue("apply") then
 end
 %>
 
-<fieldset class="cbi-section">
-	<legend><%=t.legend%></legend>
-	<form method="post">
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="sim"><%=t.simslot%></label>
-			<div class="cbi-value-field">
+<%+modem/common%>
+
+<% if msg then %><div class="md-notice ok"><%=msg%></div><% end %>
+
+<form method="post" class="md-page">
+
+	<section class="md-card">
+		<h3><%=t.sec_net%></h3>
+		<div class="md-form">
+			<div class="md-field">
+				<label for="sim"><%=t.simslot%></label>
 				<select name="sim" id="sim">
 					<option value="0"<% if sim ~= "1" then %> selected<% end %>><%=t.sim1%></option>
 					<option value="1"<% if sim == "1" then %> selected<% end %>><%=t.sim2%></option>
 				</select>
-				<div class="cbi-value-description"><%=t.simhint%></div>
 			</div>
-		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="rat"><%=t.rat%></label>
-			<div class="cbi-value-field">
+			<div class="md-field">
+				<label for="rat"><%=t.rat%></label>
 				<select name="rat" id="rat">
 					<option value="00"<% if rat == "00" then %> selected<% end %>><%=t.auto%></option>
 					<option value="06"<% if rat == "06" then %> selected<% end %>><%=t.lte%></option>
 				</select>
 			</div>
-		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="apn"><%=t.apn%></label>
-			<div class="cbi-value-field">
+			<div class="md-field">
+				<label for="apn"><%=t.apn%></label>
 				<input type="text" name="apn" id="apn" value="<%=apn%>" placeholder="cmnet"/>
 			</div>
-		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="pdptype"><%=t.pdptype%></label>
-			<div class="cbi-value-field">
+			<div class="md-field">
+				<label for="pdptype"><%=t.pdptype%></label>
 				<select name="pdptype" id="pdptype">
 					<option value="IP"<% if pdptype == "IP" then %> selected<% end %>>IPv4</option>
 					<option value="IPV6"<% if pdptype == "IPV6" then %> selected<% end %>>IPv6</option>
 					<option value="IPV4V6"<% if pdptype == "IPV4V6" then %> selected<% end %>>IPv4/IPv6</option>
 				</select>
 			</div>
-		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="auth"><%=t.auth%></label>
-			<div class="cbi-value-field">
+			<div class="md-field">
+				<label for="auth"><%=t.auth%></label>
 				<select name="auth" id="auth">
 					<option value="0"<% if auth == "0" then %> selected<% end %>><%=t.auth_none%></option>
 					<option value="1"<% if auth == "1" then %> selected<% end %>><%=t.pap%></option>
 					<option value="2"<% if auth == "2" then %> selected<% end %>><%=t.chap%></option>
 				</select>
 			</div>
-		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="user"><%=t.user%></label>
-			<div class="cbi-value-field">
-				<input type="text" name="user" id="user" value="<%=user%>"/>
+			<div class="md-field">
+				<label for="user"><%=t.user%></label>
+				<input type="text" name="user" id="user" value="<%=user%>" autocomplete="off"/>
+			</div>
+			<div class="md-field">
+				<label for="pass"><%=t.pass%></label>
+				<input type="password" name="pass" id="pass" value="<%=pass%>" autocomplete="new-password"/>
 			</div>
 		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title" for="pass"><%=t.pass%></label>
-			<div class="cbi-value-field">
-				<input type="password" name="pass" id="pass" value="<%=pass%>"/>
+		<p class="md-hint"><%=t.simhint%></p>
+		<div class="md-sub">
+			<div class="md-actions-row">
+				<span class="md-sub-t"><%=t.sec_scan%></span>
+				<button type="button" id="md-scan" class="md-btn md-accent"><%=t.scan%></button>
+				<button type="button" id="md-auto" class="md-btn"><%=t.auto_net%></button>
 			</div>
+			<div id="md-scan-result" class="md-muted"><%=t.hint_scan%></div>
 		</div>
-		<div class="cbi-value">
-			<label class="cbi-value-title"><%=t.net%></label>
-			<div class="cbi-value-field">
-				<button type="button" id="md-scan" class="btn cbi-button cbi-button-action"><%=t.scan%></button>
-				<button type="button" id="md-auto" class="btn cbi-button"><%=t.auto_net%></button>
-				<div id="md-scan-result" class="md-muted" style="margin-top:.5rem"></div>
-			</div>
+	</section>
+
+<section class="md-card">
+	<h3><%=t.sec_band%><span class="md-act"><span id="md-band-count" class="md-tag"></span></span></h3>
+	<div class="md-body">
+		<div class="md-chips">
+			<% for _, b in ipairs(bands) do %>
+			<label class="md-chip"><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/><span><%=b[2]%></span></label>
+			<% end %>
 		</div>
-		<div class="cbi-value cbi-value-last">
-			<label class="cbi-value-title"><%=t.bandlock%></label>
-			<div class="cbi-value-field">
-				<div class="band-grid">
-					<% for _, b in ipairs(bands) do %>
-					<label><input type="checkbox" name="band" value="<%=b[1]%>"<% if cur[b[1]] then %> checked<% end %>/> <%=b[2]%></label>
-					<% end %>
-				</div>
-				<div class="cbi-value-description"><%=t.hint%></div>
-			</div>
+		<div class="md-actions-row">
+			<button type="button" class="md-btn" id="md-band-all"><%=t.all%></button>
+			<button type="button" class="md-btn" id="md-band-none"><%=t.none%></button>
+			<span class="md-hint"><%=t.hint%></span>
 		</div>
-		<div class="cbi-page-actions">
-			<input type="submit" name="apply" class="cbi-button cbi-button-apply" value="<%=t.save%>"/>
-			<input type="submit" name="reset" class="cbi-button cbi-button-action" value="<%=t.resetmodem%>"
-				onclick="return confirm('<%=t.resetmodem%>?')"/>
-		</div>
-	</form>
-	<% if msg then %><div class="alert-message success"><%=msg%></div><% end %>
-</fieldset>
+	</div>
+</section>
+
+<div class="md-actions-row md-end">
+	<input type="submit" name="apply" class="md-btn md-accent" value="<%=t.save%>"/>
+	<input type="submit" name="reset" class="md-btn md-danger" value="<%=t.resetmodem%>"
+		onclick="return confirm('<%=t.resetmodem%>?')"/>
+</div>
+
+</form>
 
 <script>
 (function() {
@@ -295,6 +300,26 @@ end
 	var autoBtn = document.getElementById('md-auto');
 	var out = document.getElementById('md-scan-result');
 	if (!scanBtn || !out) return;
+
+	var boxes = Array.prototype.slice.call(document.querySelectorAll('input[name="band"]'));
+	var badge = document.getElementById('md-band-count');
+
+	function count() {
+		var n = boxes.filter(function(b) { return b.checked; }).length;
+		if (badge) {
+			badge.textContent = n ? '<%=t.chosen%> ' + n + ' / ' + boxes.length : '<%=t.allbands%>';
+			badge.className = 'md-tag' + (n ? '' : ' off');
+		}
+	}
+	boxes.forEach(function(b) { b.addEventListener('change', count); });
+	count();
+
+	document.getElementById('md-band-all').addEventListener('click', function() {
+		boxes.forEach(function(b) { b.checked = true; }); count();
+	});
+	document.getElementById('md-band-none').addEventListener('click', function() {
+		boxes.forEach(function(b) { b.checked = false; }); count();
+	});
 
 	var tries = 0;
 	function poll() {
@@ -306,13 +331,13 @@ end
 				window.mdPaused = false;
 				var ops = d.operators || [];
 				if (!ops.length) { out.textContent = '<%=t.no_net%>'; return; }
-				var h = '<table class="md-table"><thead><tr><th>PLMN</th><th>Name</th><th>Act</th><th>Status</th><th></th></tr></thead><tbody>';
+				var h = '<table class="md-neigh" style="width:100%"><thead><tr><th>PLMN</th><th>运营商</th><th>制式</th><th>状态</th><th></th></tr></thead><tbody>';
 				ops.forEach(function(o) {
-					h += '<tr><td>' + o.plmn + '</td><td>' + o.name + '</td><td>' + o.act + '</td><td>' + o.status + '</td>' +
-						'<td><button type="button" class="btn cbi-button" data-plmn="' + o.plmn + '"><%=t.lock%></button></td></tr>';
+					h += '<tr><td>' + esc(o.plmn) + '</td><td>' + esc(o.name) + '</td><td>' + esc(o.act) + '</td>' +
+						'<td>' + esc(o.status) + '</td>' +
+						'<td style="text-align:right"><button type="button" class="md-btn" data-plmn="' + esc(o.plmn) + '"><%=t.lock%></button></td></tr>';
 				});
-				h += '</tbody></table>';
-				out.innerHTML = h;
+				out.innerHTML = h + '</tbody></table>';
 				Array.prototype.forEach.call(out.querySelectorAll('button[data-plmn]'), function(b) {
 					b.addEventListener('click', function() {
 						fetch(SETNET, {method: 'POST', credentials: 'same-origin',
@@ -339,17 +364,3 @@ end
 	});
 })();
 </script>
-
-<style>
-.band-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-	gap: 4px 18px;
-}
-.band-grid label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin: 0;
-}
-</style>
