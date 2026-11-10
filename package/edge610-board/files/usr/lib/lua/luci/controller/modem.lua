@@ -365,6 +365,28 @@ function smsdel()
 	http.write_json({ ok = true })
 end
 
+function atrun()
+	local http = require "luci.http"
+	local sys = require "luci.sys"
+	local cmd = trim(http.formvalue("cmd") or "")
+	if #cmd == 0 or #cmd > 1024 then
+		http.status(400, "Bad Request")
+		http.prepare_content("text/plain")
+		http.write("empty or too long command\n")
+		return
+	end
+	local to = tonum(http.formvalue("timeout")) or 3
+	if to < 1 then
+		to = 1
+	elseif to > 120 then
+		to = 120
+	end
+	local quoted = "'" .. cmd:gsub("'", "'\\''") .. "'"
+	local out = sys.exec("MODEM_AT_TIMEOUT=" .. to .. " /usr/bin/modem-at " .. quoted .. " 2>&1")
+	http.prepare_content("text/plain")
+	http.write(out or "")
+end
+
 function index()
 	if not nixio.fs.access("/usr/bin/modem-at") then
 		return
@@ -381,4 +403,6 @@ function index()
 	entry({"admin", "status", "modem", "sms"}, template("modem/sms"), _("SMS"), 40).leaf = true
 	entry({"admin", "status", "modem", "sms", "list"}, call("sms")).leaf = true
 	entry({"admin", "status", "modem", "sms", "delete"}, call("smsdel")).leaf = true
+	entry({"admin", "status", "modem", "at"}, template("modem/at"), _("AT"), 45).leaf = true
+	entry({"admin", "status", "modem", "at", "run"}, call("atrun")).leaf = true
 end
