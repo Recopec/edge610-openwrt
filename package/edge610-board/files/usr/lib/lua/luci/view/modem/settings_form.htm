@@ -21,7 +21,7 @@ local T = {
 		user = "Username", pass = "Password",
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
-		saved = "Saved; the modem has been reset.",
+		saved = "Saved.", nochange = "nothing changed.",
 	},
 	zh = {
 		legend = "Sierra Wireless EM7565",
@@ -39,7 +39,7 @@ local T = {
 		user = "用户名", pass = "密码",
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
-		saved = "已保存，模组已复位。",
+		saved = "已保存。", nochange = "没有变化。",
 	},
 }
 local t = T[lang] or T.en
@@ -121,47 +121,71 @@ if http.formvalue("apply") then
 	local npass = http.formvalue("pass") or ""
 	if npdptype ~= "IPV6" and npdptype ~= "IPV4V6" then npdptype = "IP" end
 	if nauth ~= "1" and nauth ~= "2" then nauth = "0" end
+
+	-- Only push what changed: each modem-at call costs 1-2 s and the
+	-- modem does not need a reset for any of these settings.
+	local oldband = uci:get("modem", "main", "band") or ""
+	local newband = table.concat(list, " ")
+	local runs = {}
+	local function add(name, cmd)
+		runs[#runs + 1] = { name, cmd }
+	end
+	if oldband ~= newband then
+		if #list == 0 or #list == #bands then
+			add("band", "-p 'AT!BAND=00'")
+		else
+			add("band", "-p 'AT!BAND=0B,\"custom\",0," .. hex64(l1) .. "," .. hex64(l2) .. ",0,0,0'")
+			add("band", "-p 'AT!BAND=0B'")
+		end
+	end
+	if nsim ~= sim then
+		add("sim", "'AT!UIMS=" .. nsim .. "'")
+	end
+	if nrat ~= rat then
+		add("rat", "-p 'AT!SELRAT=" .. nrat .. "'")
+	end
+	local apn_changed = napn ~= apn or npdptype ~= pdptype
+	if apn_changed then
+		add("apn", "'AT+CGDCONT=1,\"" .. npdptype .. "\",\"" .. napn .. "\"'")
+	end
+	if nauth ~= auth or nuser ~= user or npass ~= pass then
+		if nauth ~= "0" then
+			add("auth", "'AT+CGAUTH=1," .. nauth .. ",\"" .. nuser .. "\",\"" .. npass .. "\"'")
+		else
+			add("auth", "'AT+CGAUTH=1,0'")
+		end
+	end
+
 	uci:set("modem", "main", "apn", napn)
 	uci:set("modem", "main", "pdptype", npdptype)
 	uci:set("modem", "main", "auth", nauth)
 	uci:set("modem", "main", "user", nuser)
 	uci:set("modem", "main", "pass", npass)
-
 	uci:set("modem", "main", "sim", nsim)
 	uci:set("modem", "main", "rat", nrat)
-	uci:set("modem", "main", "band", table.concat(list, " "))
+	uci:set("modem", "main", "band", newband)
 	uci:commit("modem")
+
+	local res = {}
+	for _, r in ipairs(runs) do
+		local o = sys.exec("/usr/bin/modem-at " .. r[2] .. " 2>&1") or ""
+		local last = ""
+		for l in o:gmatch("[^\r\n]+") do
+			last = l
+		end
+		res[#res + 1] = r[1] .. ": " .. (last ~= "" and last or "?")
+	end
 
 	sim, rat, cur = nsim, nrat, {}
 	for _, v in ipairs(list) do
 		cur[tonumber(v)] = true
 	end
-
-	local function at(cmd)
-		sys.exec("/usr/bin/modem-at " .. cmd .. " 2>&1")
-	end
-
-	-- -p unlocks password-protected commands in the same AT session
-	if #list == 0 or #list == #bands then
-		at("-p 'AT!BAND=00'")
-	else
-		at("-p 'AT!BAND=0B,\"custom\",0," .. hex64(l1) .. "," .. hex64(l2) .. ",0,0,0'")
-		at("-p 'AT!BAND=0B'")
-	end
-	at("'AT!UIMS=" .. nsim .. "'")
-	at("-p 'AT!SELRAT=" .. nrat .. "'")
-	at("'AT+CGDCONT=1,\"" .. npdptype .. "\",\"" .. napn .. "\"'")
-	if nauth ~= "0" then
-		at("'AT+CGAUTH=1," .. nauth .. ",\"" .. nuser .. "\",\"" .. npass .. "\"'")
-	else
-		at("'AT+CGAUTH=1,0'")
-	end
-	at("'AT+CGACT=0,1'")
-	at("'AT+CGACT=1,1'")
-	at("'AT!RESET'")
-
 	apn, pdptype, auth, user, pass = napn, npdptype, nauth, nuser, npass
-	msg = t.saved
+	if #runs == 0 then
+		msg = t.saved .. " " .. t.nochange
+	else
+		msg = t.saved .. " " .. table.concat(res, "; ")
+	end
 end
 %>
 
