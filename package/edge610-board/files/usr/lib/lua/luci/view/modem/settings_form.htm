@@ -15,7 +15,7 @@ local T = {
 		auto = "Automatic",
 		lte = "LTE only",
 		bandlock = "Band lock",
-		hint = "Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active.",
+		hint = "Leave all unticked to use every band. A custom set clears the UMTS mask, so 3G is unavailable while a lock is active. Changing the set redials the data call; a band with no coverage leaves the link down until another set is applied.",
 		save = "Save & Apply",
 		apn = "APN", pdptype = "PDP type", auth = "Authentication",
 		auth_none = "None", pap = "PAP", chap = "CHAP",
@@ -23,6 +23,7 @@ local T = {
 		net = "Network selection", scan = "Scan networks", auto_net = "Automatic",
 		scanning = "Scanning (up to 60 s)…", no_net = "No networks found", lock = "Select",
 		saved = "Saved.", nochange = "nothing changed.",
+		reconnect = "wwan is re-dialling in the background.",
 		sec_sim = "SIM and radio", sec_dial = "Data call", sec_scan = "Network selection",
 		sec_band = "Band lock",
 		dialhint = "Leave the APN empty to use the operator default. Nothing here redials by itself: reconnect the data connection or reset the modem to pick the values up.",
@@ -41,7 +42,7 @@ local T = {
 		auto = "自动",
 		lte = "仅 LTE",
 		bandlock = "锁频",
-		hint = "全部不勾选表示使用全部频段；锁定频段会清空 UMTS 掩码，锁定期间 3G 不可用。",
+		hint = "全部不勾选表示使用全部频段；锁定频段会清空 UMTS 掩码，锁定期间 3G 不可用。改动集合后会自动重拨数据连接；锁到没有覆盖的频段会让链路断开，直到换回其他集合。",
 		save = "保存并应用",
 		apn = "APN", pdptype = "PDP 类型", auth = "鉴权方式",
 		auth_none = "无", pap = "PAP", chap = "CHAP",
@@ -49,6 +50,7 @@ local T = {
 		net = "网络选择", scan = "扫描网络", auto_net = "自动选网",
 		scanning = "扫描中（最长 60 秒）…", no_net = "未发现网络", lock = "选择",
 		saved = "已保存。", nochange = "没有变化。",
+		reconnect = "已在后台重拨 wwan。",
 		sec_sim = "SIM 与制式", sec_dial = "数据拨号", sec_scan = "网络选择",
 		sec_band = "锁频",
 		dialhint = "APN 留空表示使用运营商默认值。这里改完不会自动重新拨号，需要重新连接或复位模组才会生效。",
@@ -196,6 +198,16 @@ if http.formvalue("apply") then
 		res[#res + 1] = r[1] .. ": " .. (last ~= "" and last or "?")
 	end
 
+	-- A new band set, radio mode or UIM slot tears the call down and the modem
+	-- comes back on a fresh session, but netifd keeps routing from the previous
+	-- address until modem-wan-watch notices (up to 30 s of a dead backup link).
+	-- Redial here instead of waiting for the watcher.
+	local redial = oldband ~= newband or nsim ~= sim or nrat ~= rat
+	if redial then
+		sys.exec("( /sbin/ifdown wwan; /usr/bin/modem-at 'AT+CGACT=0,1' >/dev/null 2>&1;"
+			.. " sleep 2; /sbin/ifup wwan ) >/dev/null 2>&1 &")
+	end
+
 	sim, rat, cur = nsim, nrat, {}
 	for _, v in ipairs(list) do
 		cur[tonumber(v)] = true
@@ -205,6 +217,9 @@ if http.formvalue("apply") then
 		msg = t.saved .. " " .. t.nochange
 	else
 		msg = t.saved .. " " .. table.concat(res, "; ")
+	end
+	if redial then
+		msg = msg .. " " .. t.reconnect
 	end
 end
 %>
