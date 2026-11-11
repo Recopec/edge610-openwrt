@@ -398,9 +398,10 @@ done
 grep -qE '^lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
   || { echo "ath10k QCA988X firmware missing"; exit 1; }
 NW=package/edge610-board/files/etc/uci-defaults/zzz99-edge610-network
-grep -q "config interface 'wan'" "$NW" || { echo "WAN interface missing from network defaults"; exit 1; }
-grep -q "option device 'lan6'" "$NW" || { echo "WAN is not on lan6"; exit 1; }
-! grep -q "list ports 'lan6'" "$NW" || { echo "lan6 must not be in the LAN bridge"; exit 1; }
+grep -q "uci -q set network.wan='interface'" "$NW" || { echo "WAN interface missing from network defaults"; exit 1; }
+grep -q "uci -q set network.wan.device='lan6'" "$NW" || { echo "WAN is not on lan6"; exit 1; }
+grep -q 'for port in lan1 lan2 lan3 lan4 lan5 eth3 eth2; do' "$NW" || { echo "LAN bridge is not the DSA ports plus both SFP cages"; exit 1; }
+! grep -qE 'for port in .*lan6' "$NW" || { echo "lan6 must not be in the LAN bridge"; exit 1; }
 for m in edge610_switch_standalone edge610_dsa i2c-ismt mv88e6xxx ixgbe; do
   find build_dir -path '*/lib/modules/*' -name "$m.ko" | grep -q . || { echo "module missing: $m"; exit 1; }
 done

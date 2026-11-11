@@ -435,9 +435,10 @@ jobs:
           grep -q "config interface 'lan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "LAN interface missing"; exit 1; }
           grep -q "list ports 'lan5'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "LAN bridge missing lan5"; exit 1; }
           # lan6 is the WAN port: DHCP client, not part of the LAN bridge.
-          grep -q "config interface 'wan'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN interface missing"; exit 1; }
-          grep -q "option device 'lan6'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN is not on lan6"; exit 1; }
-          ! grep -q "list ports 'lan6'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "lan6 must not be in the LAN bridge"; exit 1; }
+          grep -q "uci -q set network.wan='interface'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN interface missing"; exit 1; }
+          grep -q "uci -q set network.wan.device='lan6'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "WAN is not on lan6"; exit 1; }
+          grep -q 'for port in lan1 lan2 lan3 lan4 lan5 eth3 eth2; do' /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "LAN bridge is not the DSA ports plus both SFP cages"; exit 1; }
+          ! grep -qE 'for port in .*lan6' /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "lan6 must not be in the LAN bridge"; exit 1; }
           ! grep -qE "^config [a-z]+ '[^']*-[^']*'" /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network || { echo "uci section name contains '-': /tmp/rootcheck/etc/uci-defaults/zzz99-edge610-network"; exit 1; }
 
           # DSA port rename baked into the compiled module.
