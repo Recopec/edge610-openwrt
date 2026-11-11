@@ -329,3 +329,9 @@ Fix: decide on the pristine factory state instead - only a non-192.168.1.1 `lan.
 ## 2026-11-12 Preset root password on factory installs
 
 A fresh install has no root password, dropbear refuses blank-password logins, so the only way in was the serial console. The image now ships `zzz99-edge610-password`: it writes the sha256-crypt hash of `edge610pass` only when root's hash in `/etc/shadow` is empty, so a keep-config upgrade (root already hashed) never fires it. Changing the password with `passwd` afterwards makes the script stop matching.
+
+### Fix: the factory-default check missed `192.168.1.1/24`
+
+The first version compared `[ "$ipaddr" != "192.168.1.1" ]`, but current OpenWrt board.d writes `list ipaddr '192.168.1.1/24'`, so `uci get` returns `192.168.1.1/24` and the factory config looked user-modified - the script exited again (`br-lan` with only `eth0`). Use a `case` that accepts both spellings.
+
+Also bumped `PKG_RELEASE` to 2: the package build keyed off directory mtimes, so the freshly added `zzz99-edge610-password` never made it into the cached apk and a clean flash still had an empty root password.

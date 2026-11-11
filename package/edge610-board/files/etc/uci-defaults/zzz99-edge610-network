@@ -20,9 +20,19 @@
 stamp=/etc/edge610-network-applied
 [ -e "$stamp" ] && exit 0
 
+# board.d writes either "option ipaddr 192.168.1.1" or the newer
+# "list ipaddr '192.168.1.1/24'"; both are the factory default.
 ipaddr="$(uci -q get network.lan.ipaddr)"
 gateway="$(uci -q get network.lan.gateway)"
-if [ -n "$gateway" ] || { [ -n "$ipaddr" ] && [ "$ipaddr" != "192.168.1.1" ]; }; then
+case "$ipaddr" in
+""|192.168.1.1|192.168.1.1/24) ;;
+*)
+	logger -t edge610 "network already configured by the user, keeping it"
+	touch "$stamp"
+	exit 0
+	;;
+esac
+if [ -n "$gateway" ]; then
 	logger -t edge610 "network already configured by the user, keeping it"
 	touch "$stamp"
 	exit 0
