@@ -1,0 +1,20 @@
+#!/bin/sh
+# mwan3 ships with 1.0.0.1 / 1.1.1.1 / 208.67.x.x as its health probes. Those
+# do not answer ICMP from a Chinese mobile/wired line, so the moment the
+# service is enabled it marks a working WAN as down. Point the probes at
+# hosts that do answer: AliDNS and 114DNS.
+#
+# This only rewrites the probe list; whether mwan3 runs, and which interfaces
+# it balances, stays with the user (LuCI -> Network -> MultiWAN Manager).
+
+[ -f /etc/config/mwan3 ] || exit 0
+
+for sec in wan wanb; do
+	uci -q get "mwan3.$sec" >/dev/null || continue
+	uci -q delete "mwan3.$sec.track_ip"
+	uci add_list "mwan3.$sec.track_ip=223.5.5.5"
+	uci add_list "mwan3.$sec.track_ip=114.114.114.114"
+done
+
+uci commit mwan3
+exit 0

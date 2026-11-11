@@ -68,6 +68,7 @@ define Package/edge610-board/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/etc/uci-defaults/zzz99-edge610-network $(1)/etc/uci-defaults/zzz99-edge610-network
 	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz99-edge610-network-modem $(1)/etc/uci-defaults/zzz99-edge610-network-modem
+	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz99-edge610-mwan3 $(1)/etc/uci-defaults/zzz99-edge610-mwan3
 	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz98-edge610-resize $(1)/etc/uci-defaults/zzz98-edge610-resize
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
