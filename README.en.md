@@ -24,6 +24,45 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 
 > Captured on real hardware: Argon v3 theme, Chinese UI. The box in the screenshots uses `10.1.2.3/24`; the image defaults to `192.168.1.1/24`.
 
+### 4G/LTE modem (EM7565)
+
+Status → **Modem** has five tabs, all supplied by this repo's `edge610-board` package — no extra plugin:
+
+| Tab | Contents |
+| --- | --- |
+| Status | The answer first: link (carrier / RAT / band / attach), signal (RSRP as the headline plus SINR/RSRQ and a 60-sample sparkline), live down/up rates and session totals; below that serving cell, connection & registration, signal bars, data connection, hardware, neighbours (intra / inter frequency), modem state |
+| Settings | SIM slot (`AT!UIMS`), RAT (`AT!SELRAT`), network scan / auto select, APN and auth, band lock (`AT!BAND`, changing it redials); **Reset modem** in the header (`AT+CFUN=1,1`) |
+| GPS | Start/stop, latitude/longitude and time-to-first-fix, satellites in view (elevation / azimuth / SNR), raw `AT!GPSSTATUS?;!GPSLOC?;!GPSSATINFO?` |
+| SMS | Send, inbox (delete per message), sent items (delete / clear) |
+| AT | Raw AT console: quick commands, timeout, `;` chaining, copy output |
+
+| Status (the answer on top) |
+| --- |
+| ![Modem status](docs/screenshots/07-modem-status.jpg) |
+
+| Settings | GPS |
+| --- | --- |
+| ![Modem settings](docs/screenshots/08-modem-settings.jpg) | ![GPS](docs/screenshots/09-modem-gps.jpg) |
+
+| SMS | AT |
+| --- | --- |
+| ![SMS](docs/screenshots/10-modem-sms.jpg) | ![AT console](docs/screenshots/11-modem-at.jpg) |
+
+Beyond the pages, the image also ships:
+
+- **Interface on first boot**: `zzz99-edge610-network-modem` creates `network.wwan` (qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`) and adds it to the firewall `wan` zone; `/etc/config/network` is left alone when a `lan` interface already exists.
+- **`modem-at`**: probes for the AT port (the option driver's index follows the USB composition — `ttyUSB1` or `ttyUSB2`) and takes a `flock` so it never races the page.
+- **`modem-wan-watch`**: 30 s loop. Every 60 s it reads slot 1 over QMI; two consecutive non-`present` readings → `ifdown wwan` + `AT+CFUN=1,1` (throttled to 10 min), and `ifup` once the card is readable and `auto=1`. It also compares `AT+CGPADDR` with the `wwan0` address and redials when the PDP address drifts (backoff 120→900 s).
+- **What "rate" means**: QMI WDS only reports session parameters (IP / gateway / DNS / MTU) — there is no negotiated-rate field. Radio capability comes from `AT!GSTATUS?` (band / bandwidth / CA), throughput from `wwan0` counters — the headline down/up rate is the average between two polls, so a longer refresh interval is smoother.
+
+Known limits:
+
+- **A new SIM needs a reset**: the card-detect line is masked with `AT!CUSTOM="SIMHOTSWAPDIS",1`, so the modem does not re-initialise after a hot swap. Hit **Reset modem** once; measured recovery to registration and dial-up is about 50 s.
+- **Slot 1 only**: `AT!UIMS=0` selects the wired slot 1, `AT!UIMS=1` is unwired slot 2, and `AT!UIMS=2` answers `ERROR` on this firmware.
+- **The AT page has no command whitelist**: anyone with LuCI rights can send `AT!RESET` or `AT!USBCOMP` and lose the AT port. A few queries (e.g. `AT!SELRAT?`) return `Unknown RAT mode` when chained, so send them alone.
+
+> IMEI / IMSI / ICCID / MSISDN / SMS verification code / coordinates are redacted in these screenshots.
+
 ## Hardware photos
 
 | Front | Rear |
@@ -181,6 +220,11 @@ package/edge610-board/
     ├── etc/init.d/edge610           watchdog off + ordered bring-up (standalone -> ixgbe -> DSA)
     ├── etc/modprobe.d/edge610.conf  board module parameters
     ├── etc/uci-defaults/zzz99-edge610-network  first-boot network (LAN only, no WAN)
+    ├── etc/uci-defaults/zzz99-edge610-network-modem  first-boot network.wwan (LTE)
+    ├── usr/bin/modem-at            AT port probe + flock
+    ├── usr/bin/modem-wan-watch     SIM / PDP address watchdog
+    ├── usr/lib/lua/luci/controller/modem.lua         modem page backend (AT/QMI)
+    ├── usr/lib/lua/luci/view/modem/                  Status / Settings / GPS / SMS / AT
     └── etc/openhsalc/core/          hsalc_meta downloaded by CI (gitignored)
 ```
 

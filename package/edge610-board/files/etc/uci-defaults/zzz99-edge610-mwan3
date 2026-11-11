@@ -1,8 +1,10 @@
 #!/bin/sh
-# mwan3 ships with 1.0.0.1 / 1.1.1.1 / 208.67.x.x as its health probes. Those
-# do not answer ICMP from a Chinese mobile/wired line, so the moment the
-# service is enabled it marks a working WAN as down. Point the probes at
-# hosts that do answer: AliDNS and 114DNS.
+# mwan3 ships with 1.0.0.1 / 1.1.1.1 / 208.67.x.x as its health probes, and
+# reachability of any given host is route dependent. Measured on this box over
+# both the LAN uplink and the LTE link: 9.9.9.9, 8.8.8.8 and 223.5.5.5 answer
+# on both, 1.1.1.1 loses ~50% over LTE, 1.0.0.1 loses ~50% on both, and
+# 114.114.114.114 is dropped entirely. Probe three diverse hosts so one being
+# blocked later does not report a healthy link as down.
 #
 # This only rewrites the probe list; whether mwan3 runs, and which interfaces
 # it balances, stays with the user (LuCI -> Network -> MultiWAN Manager).
@@ -12,8 +14,9 @@
 for sec in wan wanb; do
 	uci -q get "mwan3.$sec" >/dev/null || continue
 	uci -q delete "mwan3.$sec.track_ip"
+	uci add_list "mwan3.$sec.track_ip=9.9.9.9"
+	uci add_list "mwan3.$sec.track_ip=8.8.8.8"
 	uci add_list "mwan3.$sec.track_ip=223.5.5.5"
-	uci add_list "mwan3.$sec.track_ip=114.114.114.114"
 done
 
 uci commit mwan3

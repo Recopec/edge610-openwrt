@@ -24,6 +24,45 @@
 
 > 实机截图：Argon v3 主题 + 中文界面。该机 LAN 为 `10.1.2.3/24`，镜像默认 `192.168.1.1/24`。
 
+### 4G/LTE 模组（EM7565）
+
+状态 → **Modem** 下有五个页签，全部由本仓库的 `edge610-board` 包提供，不依赖额外插件：
+
+| 页签 | 内容 |
+| --- | --- |
+| 状态 | 首屏直接给结论：链路（运营商 / 制式 / 频段 / 附着）、信号（RSRP 主值 + SINR/RSRQ + 近 60 次采样折线）、实时上下行与累计流量；下面是服务小区、连接与注册、信号条、数据连接、硬件、邻区（同频 / 异频）、模组状态 |
+| 设置 | SIM 槽（`AT!UIMS`）、制式（`AT!SELRAT`）、扫描 / 自动选网、APN 与鉴权、频段锁（`AT!BAND`，改动即重拨）；右上角**复位模组**（`AT+CFUN=1,1`） |
+| GPS | 启动/停止定位、经纬度与首次定位耗时（TTFF）、可见卫星（仰角 / 方位 / SNR）、`AT!GPSSTATUS?;!GPSLOC?;!GPSSATINFO?` 原始输出 |
+| 短信 | 发送、收件箱（按条删除）、已发送（单条删除 / 清空） |
+| AT | 原始 AT 调试：快捷命令、超时、`;` 串联、输出复制 |
+
+| 状态（首屏即结论） |
+| --- |
+| ![模组状态](docs/screenshots/07-modem-status.jpg) |
+
+| 设置 | GPS |
+| --- | --- |
+| ![模组设置](docs/screenshots/08-modem-settings.jpg) | ![GPS](docs/screenshots/09-modem-gps.jpg) |
+
+| 短信 | AT |
+| --- | --- |
+| ![短信](docs/screenshots/10-modem-sms.jpg) | ![AT 调试](docs/screenshots/11-modem-at.jpg) |
+
+页面之外，镜像还带这些：
+
+- **首启建接口**：`zzz99-edge610-network-modem` 创建 `network.wwan`（qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`）并加入防火墙 `wan` zone；已有 `lan` 配置时不重写 `/etc/config/network`。
+- **`modem-at`**：自动探测 AT 口（option 驱动的序号随 USB 组合变化，可能是 `ttyUSB1` 或 `ttyUSB2`），用 `flock` 与页面轮询互斥。
+- **`modem-wan-watch`**：30 s 循环。SIM 每 60 s 用 QMI 查一次槽 1，连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流），卡可读且 `auto=1` → `ifup`；同时比对 `AT+CGPADDR` 与 `wwan0` 地址，PDP 地址漂移就重拨（退避 120→900 s）。
+- **速率的口径**：QMI WDS 只给会话参数（IP / 网关 / DNS / MTU），没有“协商速率”这种字段；空口能力看 `AT!GSTATUS?`（频段 / 带宽 / CA），实际吞吐看 `wwan0` 计数差分——首屏的“下行 / 上行”是相邻两次轮询的平均值，刷新间隔越大越平滑。
+
+已知限制：
+
+- **换卡必须复位**：SIM 检测线被 `AT!CUSTOM="SIMHOTSWAPDIS",1` 屏蔽，热插拔后模组不会自己重新初始化；拔插后点一次「复位模组」，实测约 50 s 恢复注册与拨号。
+- **只能插上槽**：`AT!UIMS=0` 落在已接线的槽 1，`AT!UIMS=1` 是未接线的槽 2，`AT!UIMS=2` 该固件直接回 `ERROR`。
+- **AT 页没有命令白名单**：有 LuCI 权限即可发 `AT!RESET`、`AT!USBCOMP` 等，改错会丢 AT 口。串联时个别查询（如 `AT!SELRAT?`）会回 `Unknown RAT mode`，需单独发送。
+
+> 模组截图中的 IMEI / IMSI / ICCID / 本机号码 / 短信验证码 / 坐标已打码。
+
 ## 实机照片
 
 | 正面 | 背面 |
@@ -181,6 +220,11 @@ package/edge610-board/
     ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
     ├── etc/modprobe.d/edge610.conf  板级模块参数
     ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（仅 LAN，无 WAN）
+    ├── etc/uci-defaults/zzz99-edge610-network-modem  首启建 LTE 接口 network.wwan
+    ├── usr/bin/modem-at            AT 口自动探测 + flock 互斥
+    ├── usr/bin/modem-wan-watch     SIM / PDP 地址看门狗
+    ├── usr/lib/lua/luci/controller/modem.lua         模组页面后端（AT/QMI 采集）
+    ├── usr/lib/lua/luci/view/modem/                  状态 / 设置 / GPS / 短信 / AT 五个页面
     └── etc/openhsalc/core/          hsalc_meta 由 CI 下载（已 gitignore）
 ```
 
