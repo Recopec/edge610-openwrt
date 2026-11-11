@@ -219,6 +219,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan5` + `eth3`/`eth2`（两个 SFP 笼），静态 `192.168.1.1/24`；**`lan6` 作 WAN**（DHCP 客户端，metric 0） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
+| 默认密码 | 全新安装的 root 密码预置为 `edge610pass`（`zzz99-edge610-password` 只在 `/etc/shadow` 里 root 为空时写入；保留配置升级不会覆盖用户改过的密码）。**首次登录后请改掉** |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
 | 安全/证书 | `acme`+`uhttpd`（Let's Encrypt HTTPS）、`banip`（爆破封禁）、`acl`（多用户权限） |

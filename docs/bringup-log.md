@@ -321,3 +321,7 @@ fi
 干净刷机后发现 `br-lan` 里只有 `eth0`、没有 `wan`：`zzz99-edge610-network` 用「`network.lan` 是否存在」判断"用户已经配置过"，可 board.d 的 `99-default_network` 在这之前就已经生成了 `lan=br-lan(eth0)`，于是脚本直接退出，六个 RJ45 口和两个 SFP 笼子全都没进桥（`eth0` 是 DSA conduit，把它当普通网卡桥接反而更糟）。
 
 修复：改用"是否为出厂默认"判断——`lan.ipaddr` 不是 `192.168.1.1` 或设置了 `lan.gateway` 才算用户改过（并写 `/etc/edge610-network-applied` 标记，之后的升级直接跳过）；否则只改板子拥有的部分：替换 br-lan 的 ports 为 `lan1..lan5 + eth3 + eth2`、确保 `lan` 指向 `br-lan`、在缺 `wan` 时加 `wan=lan6(dhcp)`，其它包加的接口（`docker`、`wwan`）不动。
+
+## 2026-11-12 出厂预置 root 密码
+
+全新安装后 root 没有密码，dropbear 会拒绝空密码登录，必须接串口才能进系统。现在镜像里加 `zzz99-edge610-password`：只在 `/etc/shadow` 的 root 哈希为空时写入 `edge610pass` 的 sha256-crypt 值，保留配置升级（root 已有哈希）不会触发。用户登录后 `passwd` 改掉即可，脚本也不会再匹配。

@@ -325,3 +325,7 @@ Also raised the boot partition from 64 MB to **128 MB** (`CONFIG_TARGET_KERNEL_P
 After a clean flash `br-lan` held only `eth0` and there was no `wan`: `zzz99-edge610-network` treated "network.lan exists" as "the user already configured it", but board.d's `99-default_network` creates `lan=br-lan(eth0)` before the script runs, so it exited early and neither the six RJ45 ports nor the two SFP cages were bridged (eth0 is the DSA conduit, bridging it is worse than useless).
 
 Fix: decide on the pristine factory state instead - only a non-192.168.1.1 `lan.ipaddr` or a `lan.gateway` counts as user configuration (and then `/etc/edge610-network-applied` is written so later upgrades skip the script). Otherwise edit only what the board owns: replace the br-lan ports with `lan1..lan5 + eth3 + eth2`, point `lan` at `br-lan`, and add `wan=lan6(dhcp)` when no wan interface exists, leaving interfaces other packages added (`docker`, `wwan`) untouched.
+
+## 2026-11-12 Preset root password on factory installs
+
+A fresh install has no root password, dropbear refuses blank-password logins, so the only way in was the serial console. The image now ships `zzz99-edge610-password`: it writes the sha256-crypt hash of `edge610pass` only when root's hash in `/etc/shadow` is empty, so a keep-config upgrade (root already hashed) never fires it. Changing the password with `passwd` afterwards makes the script stop matching.

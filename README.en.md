@@ -218,6 +218,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x` (QCA986x/988x on board, no interface configured by default) |
 | Default network | `br-lan` = `lan1..lan5` + `eth3`/`eth2` (both SFP cages), static `192.168.1.1/24`; **`lan6` is the WAN** (DHCP client, metric 0) |
 | Rootfs | 1 GiB in the image; **grows to the whole eMMC on first boot** (`sfdisk` + `partx` + `resize2fs`) |
+| Default password | A fresh install presets root's password to `edge610pass` (`zzz99-edge610-password` only writes when root's hash in `/etc/shadow` is empty; keep-config upgrades never touch a password the user changed). **Change it after the first login** |
 | Theme | **Argon v3** (`jerrykuku/luci-theme-argon`, master; config page is part of the theme since v3) |
 | Base apps | Chinese LuCI, `ttyd` (web terminal), `package-manager`, `statistics`, `ddns`, `sqm`, `wireguard`, `firewall` |
 | Security / certs | `acme` + `uhttpd` (Let's Encrypt HTTPS), `banip` (brute-force bans), `acl` (multi-user permissions) |
