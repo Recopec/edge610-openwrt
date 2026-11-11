@@ -299,3 +299,19 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 修复：镜像种子配置加 `CONFIG_TARGET_KERNEL_PARTSIZE=64`（boot 分区 16→64 MB，可用空间约 57 MB）。代价是 rootfs 分区少 48 MB，但首启 `zzz98-edge610-resize` 会把它扩到整盘，实际无损失；已有设备升级时分区表变化会触发整盘写入（sysupgrade 自己处理）。
 
 注意：升级前可先手动 `sysupgrade -b backup.tar.gz` 并把备份拷到别处，以免再遇到同类截断。
+
+## 2026-11-11 开机 sh 报错：Intel 微码没装
+
+现象：每次开机串口/控制台都会出现 `sh: write error: Invalid argument`。定位到 OpenWrt x86 的 `/lib/preinit/02_load_x86_ucode`：
+
+```sh
+if [ -e "/sys/devices/system/cpu/microcode/reload" ]; then
+	echo 1 > /sys/devices/system/cpu/microcode/reload
+fi
+```
+
+内核开了 `CONFIG_MICROCODE_LATE_LOADING=y` + `CONFIG_MICROCODE_LATE_FORCE_MINREV=y`，但镜像里没有 `/lib/firmware/intel-ucode/`，于是写入 `reload` 返回 `EINVAL`（手动复现 `rc=1`），busybox sh 把它报成上面那行错。副作用不只是报错：`dmesg` 显示 `Register File Data Sampling: Vulnerable: No microcode`，CPU 停在出厂修订 `0x0000002e`。
+
+修复：镜像加 `CONFIG_PACKAGE_intel-microcode=y`（树内 `package/firmware/intel-microcode`，20251111，安装到 `/lib/firmware/intel-ucode/`）。preinit 的 reload 之后能正常加载，报错消失、RFDS 等漏洞由微码覆盖。
+
+顺带把启动分区从 64 MB 提到 **128 MB**（`CONFIG_TARGET_KERNEL_PARTSIZE=128`，等于上游 armsr 默认档）：配置备份随着 openclash 规则增长还有余量。

@@ -78,7 +78,7 @@ Known limits:
 | --- | --- |
 | CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz` (2C/2T, no AVX/AVX2) |
 | RAM | 4,003,672 kB ≈ 3.8 GiB |
-| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB (`/dev/mmcblk0`; HS400, ~293 MB/s sequential read). Image layout: p1 **64M** vfat `/boot`, p2 rootfs, p128 239K BIOS boot. p1 holds the keep-config upgrade backup; 16M cannot take a backup that includes openclash |
+| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB (`/dev/mmcblk0`; HS400, ~293 MB/s sequential read). Image layout: p1 **128M** vfat `/boot`, p2 rootfs, p128 239K BIOS boot. p1 holds the keep-config upgrade backup; 16M cannot take a backup that includes openclash |
 | NIC | 4× `8086:15c3` X553 Backplane (BIOS reports chip type **X550**) |
 | Port mapping | `eth0` = `03:00.0` = switch CPU link (**CPU port 10**, conduit); `eth1` = `03:00.1` unused; `eth2` = `05:00.0`, `eth3` = `05:00.1` = the two SFP ports |
 | SFP speed | **1G only** (no 2.5G, no 10G). Dell spec: Edge 610 = `2×1G SFP`, only 620/640/680 get `2×10G SFP+`. All four X553 functions are `8086:15c3` = `X550EM_A_KR_L` (1G backplane variant) and the driver returns 1G for that device ID. Forcing 2.5GBASE-X (`x553_speed=2500` + switch `MAC_CTL=0x303f`) still links at 1G |
@@ -214,6 +214,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | NIC driver | `kmod-ixgbe` (**autoload stripped**, loaded in order by the init script) |
 | Watchdog bus | `kmod-i2c-ismt` + `i2c-tools` |
 | Temperature | `kmod-hwmon-coretemp` + `lm-sensors` (Denverton via MSR; `/sys/class/thermal` has zones) |
+| CPU microcode | `intel-microcode` (20251111; kernel `CONFIG_MICROCODE_LATE_LOADING`, preinit writes `/sys/devices/system/cpu/microcode/reload`. Without it the boot log shows `sh: write error: Invalid argument` and the CPU stays at its factory revision, leaving RFDS and friends unmitigated) |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x` (QCA986x/988x on board, no interface configured by default) |
 | Default network | `br-lan` = `lan1..lan5` + `eth3`/`eth2` (both SFP cages), static `192.168.1.1/24`; **`lan6` is the WAN** (DHCP client, metric 0) |
 | Rootfs | 1 GiB in the image; **grows to the whole eMMC on first boot** (`sfdisk` + `partx` + `resize2fs`) |

@@ -303,3 +303,19 @@ Cause: sysupgrade writes the config backup to p1 (`/boot`, vfat), which the imag
 Fix: add `CONFIG_TARGET_KERNEL_PARTSIZE=64` to the image seed config (boot partition 16 -> 64 MB, ~57 MB free). The rootfs partition shrinks by 48 MB, but `zzz98-edge610-resize` grows it to the whole disk on first boot, so nothing is lost; existing devices see a partition-table change and sysupgrade falls back to a full-disk write by itself.
 
 Note: before upgrading, run `sysupgrade -b backup.tar.gz` manually and copy it off the device, in case a backup gets truncated the same way.
+
+## 2026-11-11 Boot-time sh error: Intel microcode was missing
+
+Every boot printed `sh: write error: Invalid argument` on the console. It comes from OpenWrt's x86 `/lib/preinit/02_load_x86_ucode`:
+
+```sh
+if [ -e "/sys/devices/system/cpu/microcode/reload" ]; then
+	echo 1 > /sys/devices/system/cpu/microcode/reload
+fi
+```
+
+The kernel builds with `CONFIG_MICROCODE_LATE_LOADING=y` and `CONFIG_MICROCODE_LATE_FORCE_MINREV=y`, but the image shipped no `/lib/firmware/intel-ucode/`, so writing `reload` returns `EINVAL` (reproduced by hand: `rc=1`) and busybox sh prints that error. The side effect is worse than the message: `dmesg` reports `Register File Data Sampling: Vulnerable: No microcode` and the CPU stays at its factory revision `0x0000002e`.
+
+Fix: ship `CONFIG_PACKAGE_intel-microcode=y` (in-tree `package/firmware/intel-microcode`, 20251111, installs `/lib/firmware/intel-ucode/`), so the preinit reload succeeds, the message disappears and the CPU gets its microcode (RFDS et al. mitigated).
+
+Also raised the boot partition from 64 MB to **128 MB** (`CONFIG_TARGET_KERNEL_PARTSIZE=128`, matching the upstream armsr default) so the config backup keeps headroom as openclash rules grow.

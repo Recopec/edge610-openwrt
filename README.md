@@ -78,7 +78,7 @@
 | --- | --- |
 | CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（2C/2T，无 AVX/AVX2） |
 | 内存 | 4,003,672 kB ≈ 3.8 GiB |
-| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 **64M** vfat `/boot`、p2 rootfs、p128 239K BIOS boot。p1 要放 keep-config 升级的配置备份，16M 装不下带 openclash 的备份） |
+| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 **128M** vfat `/boot`、p2 rootfs、p128 239K BIOS boot。p1 要放 keep-config 升级的配置备份，16M 装不下带 openclash 的备份） |
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
 | 网口映射 | `eth0` = `03:00.0` = 交换 CPU 链路（本机 **CPU port 10**，conduit）；`eth1` = `03:00.1` 未使用；`eth2` = `05:00.0`、`eth3` = `05:00.1` = 两个 SFP 口 |
 | SFP 速率 | **只有 1G**（不支持 2.5G，也不支持 10G）。Dell 规格书：Edge 610 = `2×1G SFP`，620/640/680 才是 `2×10G SFP+`；四个 X553 全是 `8086:15c3` = `X550EM_A_KR_L`（1G 背板版），驱动对该 device ID 只返回 1G。实测强制 2.5GBASE-X（`x553_speed=2500` + 交换机 `MAC_CTL=0x303f`）链路仍锁定 1G |
@@ -215,6 +215,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
+| CPU 微码 | `intel-microcode`（20251111；内核 `CONFIG_MICROCODE_LATE_LOADING`，preinit 写入 `/sys/devices/system/cpu/microcode/reload`。不装会报 `sh: write error: Invalid argument`，且 CPU 停在出厂修订、对应 RFDS 等漏洞） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
 | 默认网络 | `br-lan` = `lan1..lan5` + `eth3`/`eth2`（两个 SFP 笼），静态 `192.168.1.1/24`；**`lan6` 作 WAN**（DHCP 客户端，metric 0） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
