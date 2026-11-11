@@ -5,9 +5,10 @@
 # netifd starts (START=20).
 #
 # lan6 is the WAN port (DHCP client). The remaining five RJ45 ports and both
-# SFP cages are left for the user to assign: lan1..lan5 sit in the LAN bridge,
-# eth2/eth3 are the two ports of the second X553 controller (05:00.0/.1), eth0
-# is the switch conduit and eth1 (03:00.1) is unused.
+# SFP cages are LAN bridge members: lan1..lan5 are the DSA switch ports,
+# eth2/eth3 are the two SFP cages on the second X553 controller
+# (05:00.1 = the cage labelled SFP1, 05:00.0 = SFP2), eth0 is the switch
+# conduit and eth1 (03:00.1) is unused.
 
 # Keep an existing configuration: a sysupgrade that keeps /etc/config restores
 # the user's interfaces, and rewriting them here would drop their addressing
@@ -37,6 +38,8 @@ config device
 	list ports 'lan3'
 	list ports 'lan4'
 	list ports 'lan5'
+	list ports 'eth3'
+	list ports 'eth2'
 
 config interface 'lan'
 	option device 'br-lan'

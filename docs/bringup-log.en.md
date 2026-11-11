@@ -282,3 +282,14 @@ Verify: `lsblk` should show `mmcblk0p1/p2/p3` and `mount -o ro /dev/mmcblk0p2 /m
 | Keeping config | The script skips everything when `network.lan` already exists, so a keep-settings sysupgrade is no longer reset to 192.168.1.1 |
 | Modem watchdog | `modem-wan-watch` reads the slot-1 card state every 60 s; two consecutive non-`present` readings trigger `ifdown wwan` + `AT!CFUN=1,1` (10 min throttle); `ifup wwan` once the card is readable again |
 | First-boot interface | New `zzz99-edge610-network-modem`: creates `network.wwan` (qmi, `apn cmnet`, `ipv4v6`, metric 100, auto) and puts `wwan` into the `wan` firewall zone |
+
+## 2026-11-11 SFP port bring-up
+
+| Item | Result |
+| --- | --- |
+| Port mapping | With a module in SFP1 only `05:00.1` (`eth3`) returns module EEPROM, so **SFP1 = `eth3`** and SFP2 = `eth2` (`05:00.0`) |
+| Modules | Copper SFPs: `OEM` / `OYJ-SFP-T` rev A, 1.25G, serial `82608030053` (SFP1) / `82608150004` (SFP2), dated 2026-11-04 |
+| Link | With a cable attached: `ixgbe 0000:05:00.1 eth3: NIC Link is Up 1 Gbps, Flow Control: RX/TX`, full duplex, `rx_errors`/`rx_crc_errors` both 0. After `ip link set up` the module PHY needs ~2 s, so the first event is an `Up -> Down` pair |
+| Port mode | ixgbe reports `Supported link modes: 1000baseKX/Full`: the host side is fixed 1G SGMII/backplane, 10/100M is negotiated by the module's own PHY |
+| DDM | Both modules return byte-identical A2 pages (temp 19.8 degC, Vcc 3.31 V, fixed Tx/Rx values) - a copper part has no optics, so these are placeholders. A2 `0x0180` onwards is all zeroes, no copper PHY register map -> useless for monitoring |
+| Default network | `zzz99-edge610-network` now puts `lan1..lan5` + `eth3` + `eth2` into `br-lan`: both SFP cages are LAN ports by default and work as soon as a cable is plugged in; `lan6` stays the WAN |

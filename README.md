@@ -188,7 +188,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
-| 默认网络 | `br-lan` = `lan1..lan5`，静态 `192.168.1.1/24`；**`lan6` 作 WAN**（DHCP 客户端，metric 0），`eth2`/`eth3`（SFP）留空由用户在 LuCI 里分配 |
+| 默认网络 | `br-lan` = `lan1..lan5` + `eth3`/`eth2`（两个 SFP 笼），静态 `192.168.1.1/24`；**`lan6` 作 WAN**（DHCP 客户端，metric 0） |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |

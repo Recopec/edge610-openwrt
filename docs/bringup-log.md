@@ -277,3 +277,14 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 | 保留配置 | 脚本发现已有 `network.lan` 就整段跳过，保留配置的 sysupgrade 不会再被打回 192.168.1.1 |
 | 模组看门狗 | `modem-wan-watch` 每 60 s 读槽 1 卡状态；连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流）；卡恢复后 `ifup wwan` |
 | 首启接口 | 新增 `zzz99-edge610-network-modem`：建 `network.wwan`（qmi、`apn cmnet`、`ipv4v6`、metric 100、auto）并把 `wwan` 加进 `wan` 防火墙 zone |
+
+## 2026-11-11 SFP 口适配
+
+| 项 | 结论 |
+| --- | --- |
+| 端口映射 | 插 SFP1 后只有 `05:00.1`（`eth3`）能读出模块 EEPROM → **SFP1 = `eth3`**，SFP2 = `eth2`（`05:00.0`） |
+| 模块 | 电口 SFP：`OEM` / `OYJ-SFP-T` rev A，1.25G，序列号 `82608030053`（SFP1）/ `82608150004`（SFP2），日期 2026-11-04 |
+| 链路 | 插线后 `ixgbe 0000:05:00.1 eth3: NIC Link is Up 1 Gbps, Flow Control: RX/TX`，全双工、`rx_errors`/`rx_crc_errors` 均为 0；`ip link set up` 后模块 PHY 需约 2 s 才起 link，此前会看到一次 `Up → Down` |
+| 端口模式 | ixgbe 报 `Supported link modes: 1000baseKX/Full`——主机侧固定 1G SGMII 背板模式，10/100M 由模块自身 PHY 与对端协商 |
+| DDM | 两个模块 A2 页逐字节相同（temp 19.8 °C、Vcc 3.31 V、Tx/Rx 固定值），电口无光路，属占位数据；A2 `0x0180` 往后全 0，模块未实现铜口寄存器映射 → 不可用于监控 |
+| 默认网络 | `zzz99-edge610-network` 的 `br-lan` 端口表改为 `lan1..lan5` + `eth3` + `eth2`：两个 SFP 笼默认都是 LAN 口，插线即用；`lan6` 仍是 WAN |
