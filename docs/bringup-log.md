@@ -188,7 +188,7 @@ CI/本地构建均加了防回归断言：uci-defaults 里出现带引号的 sec
 1.25G 模块 = 千兆 SFP（8b/10b 编码，线速率 1.25Gbps），可直接使用。
 
 **SFP 口映射**：第二个 X553 控制器的两个口（`05:00.0`/`05:00.1` = `eth2`/`eth3`）即两个 SFP 笼子；
-`03:00.0`（`eth0`）是交换 conduit，`03:00.1`（`eth1`）空闲。固件不再预配 WAN，SFP 口留给用户自行分配。
+`03:00.0`（`eth0`）是交换 conduit，`03:00.1`（`eth1`）空闲。默认 WAN 是 `lan6`（见 2026-11-11 条目），SFP 口留给用户分配。
 
 **eMMC 现状**：`mmcblk0` 14.6 GiB；`p1` 128MB（EFI）+ `p2` 2GB（用户自行安装的 diag-os，605MB 占用），
 其余空间未使用。刷入本固件后 `p2` 由首启脚本扩到整盘。
@@ -266,3 +266,14 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 ```
 
 验证：`lsblk` 应出现 `mmcblk0p1/p2/p3`，且 `mount -o ro /dev/mmcblk0p2 /mnt` 成功。
+
+
+## 2026-11-11 默认 WAN 与模组看门狗
+
+| 项 | 实现 |
+| --- | --- |
+| 默认 WAN | `zzz99-edge610-network` 把 `lan6` 从 LAN 桥里拿出来做成 `wan`（DHCP 客户端），`br-lan` 只剩 `lan1..lan5`；SFP（`eth2`/`eth3`）仍留给用户 |
+| 出口顺序 | `wan`（lan6，metric 0）优先，`wwan`（LTE，metric 100）只在前者没有默认路由时接管——纯路由度量接管，没有健康检查 |
+| 保留配置 | 脚本发现已有 `network.lan` 就整段跳过，保留配置的 sysupgrade 不会再被打回 192.168.1.1 |
+| 模组看门狗 | `modem-wan-watch` 每 60 s 读槽 1 卡状态；连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流）；卡恢复后 `ifup wwan` |
+| 首启接口 | 新增 `zzz99-edge610-network-modem`：建 `network.wwan`（qmi、`apn cmnet`、`ipv4v6`、metric 100、auto）并把 `wwan` 加进 `wan` 防火墙 zone |

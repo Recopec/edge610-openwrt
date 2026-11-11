@@ -140,6 +140,7 @@ flashing there are only three things to confirm:
 | Drivers / QMI / pages | In the image | Nothing (no `qmi.js` / `qmi.sh` to copy by hand, no `/root/kmods`) |
 | `network.wwan` interface | Created by `zzz99-edge610-network-modem`: `proto qmi`, `/dev/cdc-wdm0`, `apn cmnet`, `pdptype ipv4v6`, `metric 100`, `auto 1` | If your APN is not cmnet, set it on the Settings page (it writes `network.wwan.apn`, which is what the dialer reads) |
 | Firewall | `wwan` added to the `wan` zone | Nothing |
+| Egress | `wan` on `lan6` (DHCP, metric 0) wins; `wwan` (metric 100) only takes over when `wan` has no default route; no health checks | Change `network.wwan.metric` to pin the order |
 | SIM slot / radio mode / band lock | Modem NVRAM (`SIMHOTSWAPDIS=1`, `UIMS=0`, `SELRAT=06`) | Survives a flash, nothing to redo |
 | Chinese UI | `auto` | System → Language, or `uci set luci.main.lang=zh_cn` |
 

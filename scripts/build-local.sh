@@ -387,9 +387,10 @@ for b in sfdisk partx resize2fs; do
 done
 grep -qE '^lib/firmware/ath10k/QCA988X/hw2.0/firmware-[0-9]+\.bin$' /tmp/rootfs-files.txt \
   || { echo "ath10k QCA988X firmware missing"; exit 1; }
-if grep -q "option device 'eth2'" package/edge610-board/files/etc/uci-defaults/zzz99-edge610-network; then
-  echo "WAN preset must not be in the network defaults"; exit 1
-fi
+NW=package/edge610-board/files/etc/uci-defaults/zzz99-edge610-network
+grep -q "config interface 'wan'" "$NW" || { echo "WAN interface missing from network defaults"; exit 1; }
+grep -q "option device 'lan6'" "$NW" || { echo "WAN is not on lan6"; exit 1; }
+! grep -q "list ports 'lan6'" "$NW" || { echo "lan6 must not be in the LAN bridge"; exit 1; }
 for m in edge610_switch_standalone edge610_dsa i2c-ismt mv88e6xxx ixgbe; do
   find build_dir -path '*/lib/modules/*' -name "$m.ko" | grep -q . || { echo "module missing: $m"; exit 1; }
 done

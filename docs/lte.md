@@ -135,6 +135,7 @@ AT!RESET
 | 驱动 / QMI / 页面 | 镜像自带 | 无（不需要再手补 `qmi.js` / `qmi.sh`，也不需要 `/root/kmods`） |
 | `network.wwan` 接口 | `zzz99-edge610-network-modem` 建好：`proto qmi`、`/dev/cdc-wdm0`、`apn cmnet`、`pdptype ipv4v6`、`metric 100`、`auto 1` | APN 不是 cmnet 就在「设置」页改（写的是 `network.wwan.apn`，拨号读的就是它） |
 | 防火墙 | `wwan` 自动加进 `wan` zone | 无需手动加 |
+| 出口 | `wan` 在 `lan6`（DHCP，metric 0）优先，`wwan`（metric 100）只在 `wan` 没有默认路由时接管；没有健康检查 | 想固定优先级就改 `network.wwan.metric` |
 | SIM 槽 / 制式 / 锁频 | 模组 NVRAM（`SIMHOTSWAPDIS=1`、`UIMS=0`、`SELRAT=06`） | 刷机不动 NVRAM，保持原样 |
 | 中文界面 | 默认 `auto` | 系统 → 语言，或 `uci set luci.main.lang=zh_cn` |
 

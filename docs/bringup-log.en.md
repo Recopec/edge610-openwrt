@@ -192,6 +192,7 @@ are 1G/2.5G max, no 10G**. A 1.25G module = 1G SFP (8b/10b, 1.25 Gbps line rate)
 
 **SFP port mapping**: the two ports of the second X553 controller (`05:00.0`/`05:00.1` = `eth2`/`eth3`)
 are the two SFP cages; `03:00.0` (`eth0`) is the switch conduit and `03:00.1` (`eth1`) is idle.
+The default WAN is `lan6` (see the 2026-11-11 entry); the SFP cages are left for the user.
 The firmware no longer preconfigures a WAN; the SFP ports are left for the user to assign.
 
 **eMMC state**: `mmcblk0` 14.6 GiB; `p1` 128 MB (EFI) + `p2` 2 GB (a diag-os the user installed,
@@ -270,3 +271,14 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 ```
 
 Verify: `lsblk` should show `mmcblk0p1/p2/p3` and `mount -o ro /dev/mmcblk0p2 /mnt` should succeed.
+
+
+## 2026-11-11 default WAN and the modem watchdog
+
+| Item | Implementation |
+| --- | --- |
+| Default WAN | `zzz99-edge610-network` takes `lan6` out of the LAN bridge and makes it `wan` (DHCP client); `br-lan` keeps `lan1..lan5`. The SFP cages (`eth2`/`eth3`) are still unassigned |
+| Egress order | `wan` (lan6, metric 0) first; `wwan` (LTE, metric 100) only takes over when the former has no default route - route-metric takeover, no health checks |
+| Keeping config | The script skips everything when `network.lan` already exists, so a keep-settings sysupgrade is no longer reset to 192.168.1.1 |
+| Modem watchdog | `modem-wan-watch` reads the slot-1 card state every 60 s; two consecutive non-`present` readings trigger `ifdown wwan` + `AT!CFUN=1,1` (10 min throttle); `ifup wwan` once the card is readable again |
+| First-boot interface | New `zzz99-edge610-network-modem`: creates `network.wwan` (qmi, `apn cmnet`, `ipv4v6`, metric 100, auto) and puts `wwan` into the `wan` firewall zone |

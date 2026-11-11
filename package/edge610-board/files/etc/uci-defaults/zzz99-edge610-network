@@ -1,13 +1,13 @@
 #!/bin/sh
 # First-boot network for the Edge 610: LAN is the DSA port bridge
-# (lan1..lan6) at 192.168.1.1. The zzz prefix runs after every other
+# (lan1..lan5) at 192.168.1.1, WAN is lan6. The zzz prefix runs after every other
 # uci-default (board.d eth0/eth1 defaults, ULA generation) and before
 # netifd starts (START=20).
 #
-# No WAN is preconfigured on purpose: the box boots as a pure LAN switch
-# (all six RJ45 ports plus both SFP cages are left for the user to assign).
-# eth2/eth3 are the two ports of the second X553 controller (05:00.0/.1);
-# eth0 is the switch conduit and eth1 (03:00.1) is unused.
+# lan6 is the WAN port (DHCP client). The remaining five RJ45 ports and both
+# SFP cages are left for the user to assign: lan1..lan5 sit in the LAN bridge,
+# eth2/eth3 are the two ports of the second X553 controller (05:00.0/.1), eth0
+# is the switch conduit and eth1 (03:00.1) is unused.
 
 # Keep an existing configuration: a sysupgrade that keeps /etc/config restores
 # the user's interfaces, and rewriting them here would drop their addressing
@@ -37,7 +37,6 @@ config device
 	list ports 'lan3'
 	list ports 'lan4'
 	list ports 'lan5'
-	list ports 'lan6'
 
 config interface 'lan'
 	option device 'br-lan'
@@ -45,6 +44,10 @@ config interface 'lan'
 	option ipaddr '192.168.1.1'
 	option netmask '255.255.255.0'
 	option ip6assign '60'
+
+config interface 'wan'
+	option device 'lan6'
+	option proto 'dhcp'
 
 EOF
 
