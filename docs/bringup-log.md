@@ -48,7 +48,7 @@
 ## 阶段 4 — 插件与工具链完善
 
 - run `42432099874`：全绿，产物 60.1MB
-- 烤入中文 LuCI、`luci-app-ttyd`、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、诊断工具（ethtool/tcpdump/htop/mtr/iperf3/iftop/bind-host/nano/pciutils/usbutils/lm-sensors/block-mount）、USB 网卡/存储 kmod
+- 烤入中文 LuCI、`luci-app-ttyd`、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、诊断工具（ethtool-full/tcpdump/htop/mtr/iperf3/iftop/bind-host/nano/pciutils/usbutils/lm-sensors/block-mount）、USB 网卡/存储 kmod
 - CI 加 `actions/cache` 缓存 `dl/`
 - 新增 `scripts/build-local.sh`（与 CI 同源的本地构建）
 

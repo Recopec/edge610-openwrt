@@ -203,7 +203,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | Operations | `commands`, `irqbalance`, `p910nd` (USB printing), `ser2net`, `filemanager` |
 | VPN / tunneling | kernel + protocol only (`kmod-wireguard`, `wireguard-tools`, `luci-proto-wireguard`); openvpn/tailscale/frpc via `apk add` |
 | Containers | **Docker built in**: `dockerd`/`containerd`/`runc`/`tini`/`docker` CLI/`docker-compose` + `luci-app-dockerman` (kernel deps veth/ipt-nat/ipt-physdev/nf-ipvs included) |
-| Diagnostics | `ethtool` `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
+| Diagnostics | `ethtool` (full variant, `-m` decodes SFP EEPROM) `tcpdump` `htop` `mtr` `iperf3` `iftop` `bind-host`(dig) `nano` `pciutils`(lspci) `usbutils`(lsusb) `lm-sensors` `block-mount` |
 | USB expansion | `kmod-usb-net-rtl8152` / `asix-ax88179` / `cdc-ether` (USB NIC or phone tethering as WAN), `kmod-usb-storage`, `kmod-fs-ext4` |
 
 ## Repository layout

@@ -48,7 +48,7 @@ New local package `package/edge610-board`:
 ## Phase 4 — Plugins and toolchain polish
 
 - run `42432099874`: all green, 60.1 MB artifact
-- Baked in Chinese LuCI, `luci-app-ttyd`, `package-manager`, `statistics`, `ddns`, `sqm`, `wireguard`, diagnostic tools (ethtool/tcpdump/htop/mtr/iperf3/iftop/bind-host/nano/pciutils/usbutils/lm-sensors/block-mount), USB NIC/storage kmods
+- Baked in Chinese LuCI, `luci-app-ttyd`, `package-manager`, `statistics`, `ddns`, `sqm`, `wireguard`, diagnostic tools (ethtool-full/tcpdump/htop/mtr/iperf3/iftop/bind-host/nano/pciutils/usbutils/lm-sensors/block-mount), USB NIC/storage kmods
 - CI now uses `actions/cache` for `dl/`
 - Added `scripts/build-local.sh` (same source as CI, local build)
 

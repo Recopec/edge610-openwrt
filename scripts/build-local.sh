@@ -181,7 +181,11 @@ CONFIG_PACKAGE_luci-proto-qmi=y
 # ignored by defconfig). The po dir is zh_Hans, the package name keeps the
 # legacy alias zh-cn.
 CONFIG_LUCI_LANG_zh_Hans=y
-CONFIG_PACKAGE_ethtool=y
+# ethtool-full, not the default "tiny" variant: tiny is built with
+# --disable-pretty-dump, which strips the SFF-8472 decoder and makes
+# "ethtool -m" print raw hex only.
+CONFIG_PACKAGE_ethtool-full=y
+# CONFIG_PACKAGE_ethtool is not set
 CONFIG_PACKAGE_tcpdump=y
 CONFIG_PACKAGE_htop=y
 CONFIG_PACKAGE_mtr=y
@@ -312,7 +316,7 @@ for sym in \
   CONFIG_PACKAGE_luci-app-ttyd=y \
   CONFIG_PACKAGE_luci-app-package-manager=y \
   CONFIG_PACKAGE_luci-proto-wireguard=y \
-  CONFIG_PACKAGE_ethtool=y \
+  CONFIG_PACKAGE_ethtool-full=y \
   CONFIG_PACKAGE_iperf3=y \
   CONFIG_PACKAGE_kmod-hwmon-coretemp=y \
   CONFIG_PACKAGE_kmod-ath10k=y \
@@ -328,6 +332,7 @@ for sym in \
   grep -q "^${sym}$" .config || { echo "MISSING after defconfig: $sym"; exit 1; }
 done
 grep -q '^# CONFIG_PACKAGE_dnsmasq is not set' .config || { echo "plain dnsmasq still enabled"; exit 1; }
+grep -q '^# CONFIG_PACKAGE_ethtool is not set' .config || { echo "tiny ethtool still enabled"; exit 1; }
 
 # 6. ixgbe autoload strip (probe order owned by /etc/init.d/edge610) --------
 MK=package/kernel/linux/modules/netdevices.mk
