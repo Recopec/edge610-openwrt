@@ -272,7 +272,7 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 
 | 项 | 实现 |
 | --- | --- |
-| 默认 WAN | `zzz99-edge610-network` 把 `lan6` 从 LAN 桥里拿出来做成 `wan`（DHCP 客户端），`br-lan` 只剩 `lan1..lan5`；SFP（`eth2`/`eth3`）仍留给用户 |
+| 默认 WAN | `zzz99-edge610-network` 把 `lan6` 从 LAN 桥里拿出来做成 `wan`（DHCP 客户端）；`br-lan` 为 `lan1..lan5` + 两个 SFP（`eth3`/`eth2`） |
 | 出口顺序 | `wan`（lan6，metric 0）优先，`wwan`（LTE，metric 100）只在前者没有默认路由时接管——纯路由度量接管，没有健康检查 |
 | 保留配置 | 脚本发现已有 `network.lan` 就整段跳过，保留配置的 sysupgrade 不会再被打回 192.168.1.1 |
 | 模组看门狗 | `modem-wan-watch` 每 60 s 读槽 1 卡状态；连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流）；卡恢复后 `ifup wwan` |
@@ -288,3 +288,4 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 | 端口模式 | ixgbe 报 `Supported link modes: 1000baseKX/Full`——主机侧固定 1G SGMII 背板模式，10/100M 由模块自身 PHY 与对端协商 |
 | DDM | 两个模块 A2 页逐字节相同（temp 19.8 °C、Vcc 3.31 V、Tx/Rx 固定值），电口无光路，属占位数据；A2 `0x0180` 往后全 0，模块未实现铜口寄存器映射 → 不可用于监控 |
 | 默认网络 | `zzz99-edge610-network` 的 `br-lan` 端口表改为 `lan1..lan5` + `eth3` + `eth2`：两个 SFP 笼默认都是 LAN 口，插线即用；`lan6` 仍是 WAN |
+| 模块信息 | 镜像装 `ethtool-full`（不是默认的 tiny 变体）：`ethtool -m eth3` 解码 A0 页（`Identifier`/`Vendor name`/`Vendor PN`/`Serial number`），tiny 变体带 `--disable-pretty-dump` 只会输出十六进制 |
