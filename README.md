@@ -144,6 +144,34 @@ make PORTABLE=1 PORT_DIR=linux \
 - **不支持 10G**：10G SFP+ 只在 Edge 620/640/680（4/8/16 核）上；610 的 X553 被 strap 成 KR_L（1G）。
 - 想要 2.5G/10G：换 620 以上机型，或外接 USB 2.5G 网卡（镜像已含 `kmod-usb-net-rtl8152`）。
 
+### SFP 口实测
+
+| 项 | 结论 |
+|---|---|
+| 端口映射 | 插模块后只有对应 netdev 能读出 EEPROM → **SFP1 = `eth3`（`05:00.1`）**，SFP2 = `eth2`（`05:00.0`） |
+| 默认配置 | 两个笼子都是 `br-lan` 成员（`lan1..lan5` + `eth3` + `eth2`），插线即用；`lan6` 为 WAN |
+| 模块 | 电口 SFP `OYJ-SFP-T`（OEM，1.25G，SN `82608030053` / `82608150004`，2026-11-04） |
+| 链路 | SFP1 接 1G 对端：`NIC Link is Up 1 Gbps, Flow Control: RX/TX`，全双工，`rx_errors`/`rx_crc_errors` = 0 |
+| 起链时序 | `ip link set up` 后模块 PHY 约 2 s 才起链，之前会看到一次 `Up → Down`；空槽时是 `NO-CARRIER` |
+| 速率协商 | 主机侧固定 1G SGMII/背板（`Supported link modes: 1000baseKX`），10/100M 由模块自身 PHY 与对端协商 |
+| DDM | 电口模块 A2 页是占位值（两个不同序列号逐字节相同、无光路仍报 Rx 功率），A2 `0x0180` 之后全 0 → 不能用于监控 |
+| 热插拔 | 模块插入即被识别（EEPROM 可读），不需要额外驱动；端口是常驻桥成员 |
+
+**为什么 610 上不了 2.5G/10G**：
+
+- 本板 4 个口全是 `8086:15c3` = `X550EM_A_KR_L`；`ixgbe` 的 `ixgbe_get_link_capabilities_X550em()` 对 `phy.type == x550em_kr` + `device_id == KR_L` **直接返回 1G**。
+- 2.5G 只有在该端口 NVM strap `IXGBE_NW_MNG_IF_SEL`（CSR `0x11178`）的 `PHY_SPEED_2_5G`(bit20) 置位时才给——本板未置位，且这不是插模块能改的。
+- 10G 需要 `X550EM_A_SFP`(`15ce`)/`SFP_N`(`15c4`)/`KR`(`15c2`) 这类 SKU；`allow_unsupported_sfp=1` 也无效，因为 KR_L 走 `x550em_kr` 分支，从不调用 SFP 白名单路径。
+
+| 机型 | SFP 口 | X553 配置 |
+|---|---|---|
+| Edge 610 | 2× **1G SFP** | KR_L（`15c3`） |
+| Edge 620 / 640 / 680 | 2× **1G/10G SFP+** | SFP / SFP_N（`15ce` / `15c4`） |
+
+> Edge 600 系列只有 610/620/640/680（另有 610C/610N/620C/620N/640N），**没有 630**。
+
+
+
 ## 构建产物
 
 Actions 运行成功后下载 artifact `Edge610-OpenWrt-Image`（zip 内）：

@@ -144,6 +144,33 @@ make PORTABLE=1 PORT_DIR=linux \
 - **No 10G**: 10G SFP+ exists only on Edge 620/640/680 (4/8/16 cores); the 610's X553 is strapped as KR_L (1G).
 - Want 2.5G/10G? Use a 620 or above, or add a USB 2.5G NIC (the image already ships `kmod-usb-net-rtl8152`).
 
+### SFP ports, as measured
+
+| Item | Result |
+| --- | --- |
+| Port mapping | Only the matching netdev returns the module EEPROM, so **SFP1 = `eth3` (`05:00.1`)** and SFP2 = `eth2` (`05:00.0`) |
+| Default config | Both cages are `br-lan` members (`lan1..lan5` + `eth3` + `eth2`), usable as soon as a cable is plugged in; `lan6` is the WAN |
+| Modules | Copper SFP `OYJ-SFP-T` (OEM, 1.25G, serials `82608030053` / `82608150004`, dated 2026-11-04) |
+| Link | SFP1 against a 1G peer: `NIC Link is Up 1 Gbps, Flow Control: RX/TX`, full duplex, `rx_errors`/`rx_crc_errors` = 0 |
+| Bring-up timing | After `ip link set up` the module PHY needs ~2 s, so the first events are an `Up -> Down` pair; an empty cage stays `NO-CARRIER` |
+| Speed negotiation | The host side is fixed 1G SGMII/backplane (`Supported link modes: 1000baseKX`); 10/100M is negotiated by the module's own PHY |
+| DDM | Copper parts return placeholder A2 pages (two different serials are byte-identical and report Rx power without optics); A2 `0x0180` onwards is all zeroes, so it is useless for monitoring |
+| Hot-plug | A module is detected as soon as it is inserted (EEPROM readable), no extra driver needed; the port is a permanent bridge member |
+
+**Why there is no 2.5G/10G on the 610**:
+
+- All four ports are `8086:15c3` = `X550EM_A_KR_L`; `ixgbe_get_link_capabilities_X550em()` returns 1G unconditionally for `phy.type == x550em_kr` + `device_id == KR_L`.
+- 2.5G is only reported when the port's NVM strap `IXGBE_NW_MNG_IF_SEL` (CSR `0x11178`) has `PHY_SPEED_2_5G` (bit 20) set - it is not set here, and no module can change that.
+- 10G needs an `X550EM_A_SFP` (`15ce`) / `SFP_N` (`15c4`) / `KR` (`15c2`) SKU; `allow_unsupported_sfp=1` does not help either, because KR_L takes the `x550em_kr` path and never calls the SFP whitelist.
+
+| Model | SFP ports | X553 configuration |
+| --- | --- | --- |
+| Edge 610 | 2x **1G SFP** | KR_L (`15c3`) |
+| Edge 620 / 640 / 680 | 2x **1G/10G SFP+** | SFP / SFP_N (`15ce` / `15c4`) |
+
+> The Edge 600 series is 610/620/640/680 (plus 610C/610N/620C/620N/640N variants); **there is no 630**.
+
+
 ## Build artifacts
 
 After a successful Actions run, download the `Edge610-OpenWrt-Image` artifact (zip):
