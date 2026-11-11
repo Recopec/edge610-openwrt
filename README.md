@@ -51,6 +51,7 @@
 页面之外，镜像还带这些：
 
 - **首启建接口**：`zzz99-edge610-network-modem` 创建 `network.wwan`（qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`）并加入防火墙 `wan` zone；已有 `lan` 配置时不重写 `/etc/config/network`。
+- **出口顺序**：有线 `lan6`（WAN，DHCP，metric 0）优先，LTE 是 metric 100 的备用，只有有线的默认路由消失时 netifd 才回落；没有健康检查，要做主动切换就启用 mwan3（默认关闭）。
 - **`modem-at`**：自动探测 AT 口（option 驱动的序号随 USB 组合变化，可能是 `ttyUSB1` 或 `ttyUSB2`），用 `flock` 与页面轮询互斥。
 - **`modem-wan-watch`**：30 s 循环。SIM 每 60 s 用 QMI 查一次槽 1，连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流），卡可读且 `auto=1` → `ifup`；同时比对 `AT+CGPADDR` 与 `wwan0` 地址，PDP 地址漂移就重拨（退避 120→900 s）。
 - **速率的口径**：QMI WDS 只给会话参数（IP / 网关 / DNS / MTU），没有“协商速率”这种字段；空口能力看 `AT!GSTATUS?`（频段 / 带宽 / CA），实际吞吐看 `wwan0` 计数差分——首屏的“下行 / 上行”是相邻两次轮询的平均值，刷新间隔越大越平滑。
@@ -187,7 +188,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 看门狗总线 | `kmod-i2c-ismt` + `i2c-tools` |
 | 温度 | `kmod-hwmon-coretemp` + `lm-sensors`（Denverton 走 MSR，`/sys/class/thermal` 有 zone） |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x`（板上 QCA986x/988x，默认未配置接口） |
-| 默认网络 | `br-lan` = `lan1..lan6`，静态 `192.168.1.1/24`；**不预置 WAN**（`eth2`/`eth3` 留空，由用户在 LuCI 里自行分配） |
+| 默认网络 | `br-lan` = `lan1..lan5`，静态 `192.168.1.1/24`；**`lan6` 作 WAN**（DHCP 客户端，metric 0），`eth2`/`eth3`（SFP）留空由用户在 LuCI 里分配 |
 | 根分区 | 镜像内 1 GiB；**首启自动扩容到整块 eMMC**（`sfdisk` + `partx` + `resize2fs`） |
 | 主题 | **Argon v3**（`jerrykuku/luci-theme-argon`，master；v3 起配置页内置在主题包） |
 | 预置插件（基础） | LuCI 中文、`ttyd`（Web 终端）、`package-manager`、`statistics`、`ddns`、`sqm`、`wireguard`、`firewall` |
@@ -219,7 +220,7 @@ package/edge610-board/
 └── files/
     ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
     ├── etc/modprobe.d/edge610.conf  板级模块参数
-    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（仅 LAN，无 WAN）
+    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（lan1..lan5 为 LAN，lan6 为 WAN）
     ├── etc/uci-defaults/zzz99-edge610-network-modem  首启建 LTE 接口 network.wwan
     ├── usr/bin/modem-at            AT 口自动探测 + flock 互斥
     ├── usr/bin/modem-wan-watch     SIM / PDP 地址看门狗
@@ -330,7 +331,7 @@ sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-corete
 | 日志 `P2SB BAR unavailable` | 该机 BIOS 隐藏了 P2SB（`8086:19dd` 不在 `lspci` 里）。模块会从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（通常 `0xfd000000`）；仍失败时手动指定：`modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` 和 `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
 | 4~5 分钟自动重启 | 看门狗未关：`logread -e edge610` 应无 `iSMT SMBus adapter not found`。手动确认：`modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`，然后 `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openhsalc/core/hsalc_meta` |
-| 没有 WAN | 默认不预置 WAN：`br-lan` 只含 `lan1..lan6`，`eth2`/`eth3`（SFP）保持未配置。需要 WAN 时在 LuCI「网络→接口→添加」里自己建，设备可选 `lan1..lan6` 或 `eth2/eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
+| 没有 WAN / 想换 WAN 口 | 默认 `lan6` 是 WAN（DHCP 客户端），`br-lan` 只含 `lan1..lan5`，`eth2`/`eth3`（SFP）保持未配置。换口：LuCI「网络→接口」把 `wan` 的设备改成 `lanN` / `eth2` / `eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建

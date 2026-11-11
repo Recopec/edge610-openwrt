@@ -106,11 +106,21 @@ AT!RESET
 
 | 标签 | 内容 |
 | --- | --- |
-| 状态 | 首屏四格 KPI（链路 / 信号 / 流量 / 模组）+ 连接、身份、模组状态、数据连接四张卡；信号条、服务小区、同频/异频邻区也在这一页 |
+| 状态 | 首屏一张卡给结论：运营商 / 制式 / 频段 / 附着 + RSRP（配 SINR / RSRQ 与近 60 次采样折线）+ 实时上下行与累计流量；下面依次是服务小区、连接与注册、信号、数据连接、硬件、邻区（同频 / 异频）、模组状态 |
 | 设置 | SIM 槽、制式、锁频、APN / PDP 类型 / 鉴权（写的是 `network.wwan`，拨号读它）、网络扫描与锁网、复位模组 |
 | GPS | 启停定位，`AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?` 原始回显 |
 | SMS | 收件箱（PDU 解析，长短信按 UDH 合并，可逐条删）、发送（中文走 PDU）、已发送记录（可删） |
 | AT | 原始 AT 调试：快捷命令、超时选择、输出复制；**无命令白名单**，有 LuCI 权限即可执行任意 AT |
+
+| 状态 | 设置 |
+| --- | --- |
+| ![状态](screenshots/07-modem-status.jpg) | ![设置](screenshots/08-modem-settings.jpg) |
+
+| GPS | 短信 | AT |
+| --- | --- | --- |
+| ![GPS](screenshots/09-modem-gps.jpg) | ![短信](screenshots/10-modem-sms.jpg) | ![AT](screenshots/11-modem-at.jpg) |
+
+> 截图中的 IMEI / IMSI / ICCID / 本机号码 / 短信验证码 / 坐标已打码。
 
 ## 镜像支持状态
 

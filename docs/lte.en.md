@@ -110,11 +110,21 @@ redirect to the status page):
 
 | Tab | Content |
 | --- | --- |
-| Status | Four KPI tiles (link / signal / traffic / modem) plus the connection, identity, modem-state and data cards; the signal bars, serving cell and the intra/inter-frequency neighbour tables live here too |
+| Status | One hero card gives the answer: carrier / RAT / band / attach, RSRP (with SINR / RSRQ and a ~60-sample sparkline) and live down/up plus session totals; then serving cell, connection & registration, signal, data connection, hardware, intra/inter-frequency neighbours and modem state |
 | Settings | SIM slot, radio mode, band lock, APN / PDP type / authentication (written to `network.wwan`, which is what the dialer reads), network scan and lock, modem reset |
 | GPS | Start/stop a fix and the raw `AT!GPSSTATUS?` / `AT!GPSLOC?` / `AT!GPSSATINFO?` replies |
 | SMS | Inbox (PDU decoded, concatenated parts merged by UDH, per-message delete), send (UCS2 via PDU for Chinese) and the sent log (deletable) |
 | AT | Raw AT debug: quick commands, timeout selector, copyable output; **no command whitelist**, anyone with LuCI access can send any AT command |
+
+| Status | Settings |
+| --- | --- |
+| ![Status](screenshots/07-modem-status.jpg) | ![Settings](screenshots/08-modem-settings.jpg) |
+
+| GPS | SMS | AT |
+| --- | --- | --- |
+| ![GPS](screenshots/09-modem-gps.jpg) | ![SMS](screenshots/10-modem-sms.jpg) | ![AT](screenshots/11-modem-at.jpg) |
+
+> IMEI / IMSI / ICCID / MSISDN / SMS verification code / coordinates are redacted in these screenshots.
 
 ## Image support status
 

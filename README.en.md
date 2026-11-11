@@ -51,6 +51,7 @@ Status → **Modem** has five tabs, all supplied by this repo's `edge610-board` 
 Beyond the pages, the image also ships:
 
 - **Interface on first boot**: `zzz99-edge610-network-modem` creates `network.wwan` (qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`) and adds it to the firewall `wan` zone; `/etc/config/network` is left alone when a `lan` interface already exists.
+- **Egress order**: the wired `lan6` (WAN, DHCP, metric 0) wins and LTE is the metric 100 fallback — netifd only falls back when the wired default route disappears. There are no health checks; enable mwan3 (off by default) if you want active failover.
 - **`modem-at`**: probes for the AT port (the option driver's index follows the USB composition — `ttyUSB1` or `ttyUSB2`) and takes a `flock` so it never races the page.
 - **`modem-wan-watch`**: 30 s loop. Every 60 s it reads slot 1 over QMI; two consecutive non-`present` readings → `ifdown wwan` + `AT+CFUN=1,1` (throttled to 10 min), and `ifup` once the card is readable and `auto=1`. It also compares `AT+CGPADDR` with the `wwan0` address and redials when the PDP address drifts (backoff 120→900 s).
 - **What "rate" means**: QMI WDS only reports session parameters (IP / gateway / DNS / MTU) — there is no negotiated-rate field. Radio capability comes from `AT!GSTATUS?` (band / bandwidth / CA), throughput from `wwan0` counters — the headline down/up rate is the average between two polls, so a longer refresh interval is smoother.
@@ -187,7 +188,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | Watchdog bus | `kmod-i2c-ismt` + `i2c-tools` |
 | Temperature | `kmod-hwmon-coretemp` + `lm-sensors` (Denverton via MSR; `/sys/class/thermal` has zones) |
 | WiFi | `kmod-ath10k` + `ath10k-firmware-qca988x` (QCA986x/988x on board, no interface configured by default) |
-| Default network | `br-lan` = `lan1..lan6`, static `192.168.1.1/24`; **no WAN preset** (`eth2`/`eth3` left unconfigured for the user to assign in LuCI) |
+| Default network | `br-lan` = `lan1..lan5`, static `192.168.1.1/24`; **`lan6` is the WAN** (DHCP client, metric 0); `eth2`/`eth3` (SFP) are left unconfigured for the user to assign in LuCI |
 | Rootfs | 1 GiB in the image; **grows to the whole eMMC on first boot** (`sfdisk` + `partx` + `resize2fs`) |
 | Theme | **Argon v3** (`jerrykuku/luci-theme-argon`, master; config page is part of the theme since v3) |
 | Base apps | Chinese LuCI, `ttyd` (web terminal), `package-manager`, `statistics`, `ddns`, `sqm`, `wireguard`, `firewall` |
@@ -219,7 +220,7 @@ package/edge610-board/
 └── files/
     ├── etc/init.d/edge610           watchdog off + ordered bring-up (standalone -> ixgbe -> DSA)
     ├── etc/modprobe.d/edge610.conf  board module parameters
-    ├── etc/uci-defaults/zzz99-edge610-network  first-boot network (LAN only, no WAN)
+    ├── etc/uci-defaults/zzz99-edge610-network  first-boot network (lan1..lan5 LAN, lan6 WAN)
     ├── etc/uci-defaults/zzz99-edge610-network-modem  first-boot network.wwan (LTE)
     ├── usr/bin/modem-at            AT port probe + flock
     ├── usr/bin/modem-wan-watch     SIM / PDP address watchdog
@@ -327,7 +328,7 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 | `P2SB BAR unavailable` in the log | this BIOS hides P2SB (`8086:19dd` is not in `lspci`). The module derives the BAR from `/proc/iomem` (`INTC3000:00`, usually `0xfd000000`); if that fails, pass it manually: `modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` and `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
 | Reboots every 4–5 minutes | watchdog still armed: `logread -e edge610` should not contain `iSMT SMBus adapter not found`. Check manually: `modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`, then `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openhsalc/core/hsalc_meta` |
-| No WAN | no WAN is preset: `br-lan` only contains `lan1..lan6`, and `eth2`/`eth3` (SFP) stay unconfigured. Create one in LuCI → Network → Interfaces, choosing `lan1..lan6` or `eth2/eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
+| No WAN / want a different WAN port | `lan6` is the WAN by default (DHCP client); `br-lan` only contains `lan1..lan5`, and `eth2`/`eth3` (SFP) stay unconfigured. To move it: LuCI → Network → Interfaces, change the `wan` device to `lanN` / `eth2` / `eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
 | More `ethX` ports than expected | X553 has four MACs and the enumerated count depends on the BIOS; trust the `conduit:` line and the physical cabling |
 
 ## Modifying and rebuilding
