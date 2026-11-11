@@ -319,3 +319,9 @@ The kernel builds with `CONFIG_MICROCODE_LATE_LOADING=y` and `CONFIG_MICROCODE_L
 Fix: ship `CONFIG_PACKAGE_intel-microcode=y` (in-tree `package/firmware/intel-microcode`, 20251111, installs `/lib/firmware/intel-ucode/`), so the preinit reload succeeds, the message disappears and the CPU gets its microcode (RFDS et al. mitigated).
 
 Also raised the boot partition from 64 MB to **128 MB** (`CONFIG_TARGET_KERNEL_PARTSIZE=128`, matching the upstream armsr default) so the config backup keeps headroom as openclash rules grow.
+
+## 2026-11-12 A clean install (sysupgrade -n) exposed a first-boot network bug
+
+After a clean flash `br-lan` held only `eth0` and there was no `wan`: `zzz99-edge610-network` treated "network.lan exists" as "the user already configured it", but board.d's `99-default_network` creates `lan=br-lan(eth0)` before the script runs, so it exited early and neither the six RJ45 ports nor the two SFP cages were bridged (eth0 is the DSA conduit, bridging it is worse than useless).
+
+Fix: decide on the pristine factory state instead - only a non-192.168.1.1 `lan.ipaddr` or a `lan.gateway` counts as user configuration (and then `/etc/edge610-network-applied` is written so later upgrades skip the script). Otherwise edit only what the board owns: replace the br-lan ports with `lan1..lan5 + eth3 + eth2`, point `lan` at `br-lan`, and add `wan=lan6(dhcp)` when no wan interface exists, leaving interfaces other packages added (`docker`, `wwan`) untouched.

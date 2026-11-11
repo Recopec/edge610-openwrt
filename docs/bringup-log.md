@@ -315,3 +315,9 @@ fi
 修复：镜像加 `CONFIG_PACKAGE_intel-microcode=y`（树内 `package/firmware/intel-microcode`，20251111，安装到 `/lib/firmware/intel-ucode/`）。preinit 的 reload 之后能正常加载，报错消失、RFDS 等漏洞由微码覆盖。
 
 顺带把启动分区从 64 MB 提到 **128 MB**（`CONFIG_TARGET_KERNEL_PARTSIZE=128`，等于上游 armsr 默认档）：配置备份随着 openclash 规则增长还有余量。
+
+## 2026-11-12 全新安装（`sysupgrade -n`）暴露的首启网络 bug
+
+干净刷机后发现 `br-lan` 里只有 `eth0`、没有 `wan`：`zzz99-edge610-network` 用「`network.lan` 是否存在」判断"用户已经配置过"，可 board.d 的 `99-default_network` 在这之前就已经生成了 `lan=br-lan(eth0)`，于是脚本直接退出，六个 RJ45 口和两个 SFP 笼子全都没进桥（`eth0` 是 DSA conduit，把它当普通网卡桥接反而更糟）。
+
+修复：改用"是否为出厂默认"判断——`lan.ipaddr` 不是 `192.168.1.1` 或设置了 `lan.gateway` 才算用户改过（并写 `/etc/edge610-network-applied` 标记，之后的升级直接跳过）；否则只改板子拥有的部分：替换 br-lan 的 ports 为 `lan1..lan5 + eth3 + eth2`、确保 `lan` 指向 `br-lan`、在缺 `wan` 时加 `wan=lan6(dhcp)`，其它包加的接口（`docker`、`wwan`）不动。

@@ -1,57 +1,61 @@
 #!/bin/sh
 # First-boot network for the Edge 610: LAN is the DSA port bridge
-# (lan1..lan5) at 192.168.1.1, WAN is lan6. The zzz prefix runs after every other
-# uci-default (board.d eth0/eth1 defaults, ULA generation) and before
-# netifd starts (START=20).
+# (lan1..lan5 plus both SFP cages) at 192.168.1.1, WAN is lan6. The zzz prefix
+# runs after every other uci-default (board.d eth0/eth1 defaults, ULA
+# generation, dockerd) and before netifd starts (START=20).
 #
 # lan6 is the WAN port (DHCP client). The remaining five RJ45 ports and both
 # SFP cages are LAN bridge members: lan1..lan5 are the DSA switch ports,
 # eth2/eth3 are the two SFP cages on the second X553 controller
 # (05:00.1 = the cage labelled SFP1, 05:00.0 = SFP2), eth0 is the switch
-# conduit and eth1 (03:00.1) is unused.
+# conduit and must not be bridged, eth1 (03:00.1) is unused.
+#
+# board.d/99-default_network already created lan=br-lan with eth0 in it before
+# this script runs, so "network.lan exists" cannot be used to detect a user
+# configuration - a virgin install would then keep the generic x86 layout and
+# the six RJ45 ports plus both cages would stay unbridged. Detect the pristine
+# x86 default instead and edit only the sections this board owns, leaving
+# interfaces added by other packages (docker, wwan) alone.
 
-# Keep an existing configuration: a sysupgrade that keeps /etc/config restores
-# the user's interfaces, and rewriting them here would drop their addressing
-# (this box is often deployed as a side router on a foreign subnet).
-if uci -q get network.lan >/dev/null 2>&1; then
-	logger -t edge610 "network already configured, keeping /etc/config/network"
+stamp=/etc/edge610-network-applied
+[ -e "$stamp" ] && exit 0
+
+ipaddr="$(uci -q get network.lan.ipaddr)"
+gateway="$(uci -q get network.lan.gateway)"
+if [ -n "$gateway" ] || { [ -n "$ipaddr" ] && [ "$ipaddr" != "192.168.1.1" ]; }; then
+	logger -t edge610 "network already configured by the user, keeping it"
+	touch "$stamp"
 	exit 0
 fi
 
-ula="$(uci -q get network.globals.ula_prefix)"
+# br-lan bridge device section (created by board.d with eth0 as its only port).
+brsec="$(uci -q show network | awk -F'[.=]' '/\.name=.br-lan.$/{print $2; exit}')"
+if [ -z "$brsec" ]; then
+	brsec="brlan"
+	uci -q set network.$brsec='device'
+	uci -q set network.$brsec.type='bridge'
+	uci -q set network.$brsec.name='br-lan'
+fi
 
-cat > /etc/config/network <<EOF
-config interface 'loopback'
-	option device 'lo'
-	option proto 'static'
-	option ipaddr '127.0.0.1'
-	option netmask '255.0.0.0'
+uci -q delete network.$brsec.ports
+for port in lan1 lan2 lan3 lan4 lan5 eth3 eth2; do
+	uci -q add_list network.$brsec.ports="$port"
+done
 
-config globals 'globals'
-${ula:+	option ula_prefix '$ula'}
+# LAN stays 192.168.1.1/24, it just moves onto the real port set.
+uci -q set network.lan.device='br-lan'
+uci -q set network.lan.proto='static'
+uci -q set network.lan.ip6assign='60'
 
-config device
-	option name 'br-lan'
-	option type 'bridge'
-	list ports 'lan1'
-	list ports 'lan2'
-	list ports 'lan3'
-	list ports 'lan4'
-	list ports 'lan5'
-	list ports 'eth3'
-	list ports 'eth2'
+# lan6 as the WAN port, unless the user already has a wan interface.
+if ! uci -q get network.wan >/dev/null 2>&1; then
+	uci -q set network.wan='interface'
+	uci -q set network.wan.device='lan6'
+	uci -q set network.wan.proto='dhcp'
+fi
 
-config interface 'lan'
-	option device 'br-lan'
-	option proto 'static'
-	option ipaddr '192.168.1.1'
-	option netmask '255.255.255.0'
-	option ip6assign '60'
+uci -q commit network
+touch "$stamp"
 
-config interface 'wan'
-	option device 'lan6'
-	option proto 'dhcp'
-
-EOF
-
+logger -t edge610 "first boot: br-lan=$(uci -q get network.$brsec.ports | tr ' ' ',') wan=$(uci -q get network.wan.device)"
 exit 0
