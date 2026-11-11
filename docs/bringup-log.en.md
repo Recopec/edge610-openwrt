@@ -293,3 +293,13 @@ Verify: `lsblk` should show `mmcblk0p1/p2/p3` and `mount -o ro /dev/mmcblk0p2 /m
 | DDM | Both modules return byte-identical A2 pages (temp 19.8 degC, Vcc 3.31 V, fixed Tx/Rx values) - a copper part has no optics, so these are placeholders. A2 `0x0180` onwards is all zeroes, no copper PHY register map -> useless for monitoring |
 | Default network | `zzz99-edge610-network` now puts `lan1..lan5` + `eth3` + `eth2` into `br-lan`: both SFP cages are LAN ports by default and work as soon as a cable is plugged in; `lan6` stays the WAN |
 | Module info | The image ships `ethtool-full` (not the default tiny variant): `ethtool -m eth3` decodes the A0 page (`Identifier`/`Vendor name`/`Vendor PN`/`Serial number`); the tiny variant is built with `--disable-pretty-dump` and prints hex only |
+
+## 2026-11-11 Flashing the image: a 16M boot partition cannot hold the config backup
+
+Flashing the repo's image onto the first real device with `sysupgrade` (keep config) left the **root password empty**: dropbear rejected logins (`User 'root' has blank password, rejected`), LuCI showed the "set a password" page and the serial console printed `There is no root password defined on this device!`. The network config itself was restored correctly (`lan` still 10.1.2.3 with `gateway 10.1.2.1`, `br-lan` ports include `eth2/eth3`).
+
+Cause: sysupgrade writes the config backup to p1 (`/boot`, vfat), which the image sizes at **16 MB**, leaving 9.5 MB after kernel+grub. A backup that includes openclash is **10.5 MB** (the 16 MB `etc/openclash/core/clash_meta` and 10 MB `GeoSite.dat` dominate even compressed). The backup does not fit, so the restore unpacks only the first part of the tar; `/etc/shadow` comes after the `/etc/config` entries, so the password is lost while the config survives.
+
+Fix: add `CONFIG_TARGET_KERNEL_PARTSIZE=64` to the image seed config (boot partition 16 -> 64 MB, ~57 MB free). The rootfs partition shrinks by 48 MB, but `zzz98-edge610-resize` grows it to the whole disk on first boot, so nothing is lost; existing devices see a partition-table change and sysupgrade falls back to a full-disk write by itself.
+
+Note: before upgrading, run `sysupgrade -b backup.tar.gz` manually and copy it off the device, in case a backup gets truncated the same way.

@@ -289,3 +289,13 @@ sfdisk /dev/mmcblk0 < /tmp/pt.dump
 | DDM | 两个模块 A2 页逐字节相同（temp 19.8 °C、Vcc 3.31 V、Tx/Rx 固定值），电口无光路，属占位数据；A2 `0x0180` 往后全 0，模块未实现铜口寄存器映射 → 不可用于监控 |
 | 默认网络 | `zzz99-edge610-network` 的 `br-lan` 端口表改为 `lan1..lan5` + `eth3` + `eth2`：两个 SFP 笼默认都是 LAN 口，插线即用；`lan6` 仍是 WAN |
 | 模块信息 | 镜像装 `ethtool-full`（不是默认的 tiny 变体）：`ethtool -m eth3` 解码 A0 页（`Identifier`/`Vendor name`/`Vendor PN`/`Serial number`），tiny 变体带 `--disable-pretty-dump` 只会输出十六进制 |
+
+## 2026-11-11 刷机实测：16M 启动分区装不下配置备份
+
+在第一台真机上用 `sysupgrade` 刷本仓库镜像（保留配置）时发现：刷完重启后 **root 密码变成空**，SSH 被 dropbear 拒绝（`User 'root' has blank password, rejected`），LuCI 停在"设置密码"页；串口上能看到 `There is no root password defined on this device!`。网络配置本身正常恢复（`lan` 仍是 10.1.2.3、`gateway 10.1.2.1`、`br-lan` 端口表含 `eth2/eth3`）。
+
+原因：sysupgrade 把配置备份写到 p1（`/boot`，vfat），镜像里该分区只有 **16 MB**，扣掉 kernel+grub 后剩 9.5 MB；而带 openclash 的备份实测 **10.5 MB**（`etc/openclash/core/clash_meta` 16 MB 与 `GeoSite.dat` 10 MB 被压缩后仍是大头）。备份写不下 → 恢复时 tar 只解开前半部分，`/etc/shadow` 排在后面，于是密码丢失；`/etc/config/*` 在前面所以恢复了。
+
+修复：镜像种子配置加 `CONFIG_TARGET_KERNEL_PARTSIZE=64`（boot 分区 16→64 MB，可用空间约 57 MB）。代价是 rootfs 分区少 48 MB，但首启 `zzz98-edge610-resize` 会把它扩到整盘，实际无损失；已有设备升级时分区表变化会触发整盘写入（sysupgrade 自己处理）。
+
+注意：升级前可先手动 `sysupgrade -b backup.tar.gz` 并把备份拷到别处，以免再遇到同类截断。

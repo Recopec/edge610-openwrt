@@ -78,7 +78,7 @@
 | --- | --- |
 | CPU | `Intel(R) Atom(TM) CPU C3308 @ 1.60GHz`（2C/2T，无 AVX/AVX2） |
 | 内存 | 4,003,672 kB ≈ 3.8 GiB |
-| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 16M vfat `/boot`、p2 rootfs、p128 239K BIOS boot） |
+| eMMC | `mmc0:0001 AJTD4R` 14.6 GiB（`/dev/mmcblk0`；HS400，实测顺序读 ~293 MB/s。镜像布局：p1 **64M** vfat `/boot`、p2 rootfs、p128 239K BIOS boot。p1 要放 keep-config 升级的配置备份，16M 装不下带 openclash 的备份） |
 | 网卡 | 4× `8086:15c3` X553 Backplane（BIOS 显示 Chip Type **X550**） |
 | 网口映射 | `eth0` = `03:00.0` = 交换 CPU 链路（本机 **CPU port 10**，conduit）；`eth1` = `03:00.1` 未使用；`eth2` = `05:00.0`、`eth3` = `05:00.1` = 两个 SFP 口 |
 | SFP 速率 | **只有 1G**（不支持 2.5G，也不支持 10G）。Dell 规格书：Edge 610 = `2×1G SFP`，620/640/680 才是 `2×10G SFP+`；四个 X553 全是 `8086:15c3` = `X550EM_A_KR_L`（1G 背板版），驱动对该 device ID 只返回 1G。实测强制 2.5GBASE-X（`x553_speed=2500` + 交换机 `MAC_CTL=0x303f`）链路仍锁定 1G |
