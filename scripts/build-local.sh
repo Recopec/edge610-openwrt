@@ -367,6 +367,12 @@ make package/feeds/luci/luci-base/compile || { echo "luci-base pre-build failed"
 # 16-vCPU/16GB runner; half the cores is stable and still fast.
 JOBS=$(( $(nproc) / 2 ))
 [ "$JOBS" -lt 4 ] && JOBS=4
+# The package install step is stamp-based, so files/ changes are not picked up
+# on an incremental tree. Clean it every run (seconds) so new uci-defaults and
+# Lua views always land in the image.
+log "clean edge610-board package"
+make package/edge610-board/clean >/dev/null 2>&1 || true
+
 log "make -j$JOBS"
 make -j"$JOBS"
 

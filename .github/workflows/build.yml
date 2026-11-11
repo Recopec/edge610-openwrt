@@ -369,6 +369,9 @@ jobs:
       - name: Build image (full source build)
         run: |
           cd openwrt
+          # The package install step is stamp-based, so files/ changes are not
+          # picked up on an incremental tree. Clean it every run (seconds).
+          make package/edge610-board/clean > clean.log 2>&1 || true
           make -j"$(nproc)" > build.log 2>&1 &
           MPID=$!
           while kill -0 $MPID 2>/dev/null; do
