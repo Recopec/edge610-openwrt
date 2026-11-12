@@ -202,17 +202,59 @@ if [ "$newsize" -gt 0 ] && \
 		|| echo "WARNING: partition grown but resize2fs failed; run: resize2fs $p2"
 fi
 
-# --- give the copy its own UUID so it does not shadow the source ----------
-new=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
-old=$(sfdisk -d "$target" | grep "^$p2 " | sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p')
-if [ -z "$old" ]; then
-	echo "WARNING: cannot read the rootfs UUID from $target; grub.cfg left alone"
-elif ! sfdisk --force --part-uuid "$target" 2 "$new" >/dev/null 2>&1; then
-	echo "WARNING: could not re-UUID ${p2}; the copy will collide with the source disk"
-	old=""
+# --- give the copy its own identity ---------------------------------------
+# A clone carries the source's GPT UUIDs, its FAT volume serial and its ext4
+# UUID. root= makes the two disks fight over the kernel command line, the
+# grub search line over the kernel itself.
+rnd_uuid() { cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F'; }
+gpt_uuid() { sfdisk -d "$1" 2>/dev/null | grep "^$2 " \
+	| sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p'; }
+
+# boot partition: FAT volume serial (4 bytes in the BPB; FAT32 at 0x43,
+# FAT12/16 at 0x27) and the GPT UUID.
+bootfs=$(dd if="$p1" bs=1 skip=54 count=8 2>/dev/null | tr -d '\0')
+case "$bootfs" in
+FAT32*) serial_off=67 ;;
+*)      serial_off=39 ;;
+esac
+# blkid prints the 4 BPB bytes little endian, i.e. reversed: the disk holds
+# cd ab 34 12 for the serial 1234-ABCD.
+print_serial() { # 8 hex chars as stored on disk -> "XXXX-YYYY"
+	printf '%s' "$(echo "$1" | cut -c7-8)$(echo "$1" | cut -c5-6)$(echo "$1" | cut -c3-4)$(echo "$1" | cut -c1-2 | tr a-f A-F)"
+}
+disk_bytes() { # "XXXXYYYY" -> the byte order the BPB wants
+	echo "$1" | cut -c7-8 | tr A-F a-f
+	echo "$1" | cut -c5-6 | tr A-F a-f
+	echo "$1" | cut -c3-4 | tr A-F a-f
+	echo "$1" | cut -c1-2 | tr A-F a-f
+}
+old_disk=$(dd if="$p1" bs=1 skip=$serial_off count=4 2>/dev/null \
+	| od -An -tx1 | tr -d ' \n')
+new_print=$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n' | tr a-f A-F)
+if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
+	bytes=""
+	for b in $(disk_bytes "$new_print"); do
+		bytes="$bytes\\x$b"
+	done
+	printf "$bytes" | dd of="$p1" bs=1 seek=$serial_off conv=notrunc 2>/dev/null
+	boot_serial=$(print_serial "$new_print" | cut -c1-4)-$(print_serial "$new_print" | cut -c5-8)
+	echo "boot serial: $(print_serial "$old_disk" | cut -c1-4)-$(print_serial "$old_disk" | cut -c5-8) -> $boot_serial"
 else
-	echo "rootfs UUID: $old -> $new"
+	boot_serial=
+	echo "WARNING: could not generate a boot-partition serial"
 fi
+
+for idx in 1 2; do
+	dev=$p1; [ "$idx" = 2 ] && dev=$p2
+	old=$(gpt_uuid "$target" "$dev")
+	[ -n "$old" ] || { echo "WARNING: cannot read the UUID of $dev"; continue; }
+	if sfdisk --force --part-uuid "$target" "$idx" "$(rnd_uuid)" >/dev/null 2>&1; then
+		echo "partition $idx UUID: $old -> $(gpt_uuid "$target" "$dev")"
+	else
+		echo "WARNING: could not re-UUID $dev; it collides with the source disk"
+	fi
+done
+root_uuid=$(gpt_uuid "$target" "$p2")
 
 mnt=$(mktemp -d)
 if mount "$p1" "$mnt" 2>/dev/null; then
@@ -220,16 +262,22 @@ if mount "$p1" "$mnt" 2>/dev/null; then
 	for c in "$mnt/boot/grub/grub.cfg" "$mnt/grub/grub.cfg"; do
 		[ -f "$c" ] && cfg=$c && break
 	done
-	if [ -n "$cfg" ] && [ -n "$old" ]; then
-		# Rewrite whatever root= value is there instead of substituting the
-		# UUID that was read before the write: after a clone the target's GPT
-		# is the source's, and the value read back is not what the file holds.
-		low=$(echo "$new" | tr 'A-F' 'a-f')
-		sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"
-		if grep -q "root=PARTUUID=$low" "$cfg"; then
-			echo "grub.cfg root= -> $low"
-		else
-			echo "WARNING: grub.cfg was not updated - fix root= by hand before booting"
+	if [ -n "$cfg" ]; then
+		# Rewrite whatever is there instead of substituting values read before
+		# the write: after a clone the target's GPT is the source's, and what
+		# is read back is not what the file holds.
+		if [ -n "$root_uuid" ]; then
+			low=$(echo "$root_uuid" | tr 'A-F' 'a-f')
+			sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"
+			grep -q "root=PARTUUID=$low" "$cfg" \
+				&& echo "grub.cfg root= -> $low" \
+				|| echo "WARNING: grub.cfg root= not updated"
+		fi
+		if [ -n "$boot_serial" ]; then
+			sed -i -E "s|(--fs-uuid +)[0-9A-Fa-f-]+|\\1$boot_serial|Ig" "$cfg"
+			grep -q -- "--fs-uuid $boot_serial" "$cfg" \
+				&& echo "grub.cfg fs-uuid -> $boot_serial" \
+				|| echo "WARNING: grub.cfg does not search by fs-uuid; label-based search left alone"
 		fi
 	fi
 	sync

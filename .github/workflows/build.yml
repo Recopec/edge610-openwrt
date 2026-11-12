@@ -92,6 +92,9 @@ jobs:
           git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0003-image-guid-salt.patch"
           grep -q EDGE610_IMAGE_SALT openwrt/include/image.mk
           echo "EDGE610_IMAGE_SALT=${GITHUB_SHA:0:8}" >> "$GITHUB_ENV"
+          # GRUB must not locate the kernel by FAT label (both disks carry it)
+          git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0004-grub-search-by-fs-uuid.patch"
+          ! grep -q 'search -l kernel' openwrt/target/linux/x86/image/grub-efi.cfg
           # EM7565 (1199:9091) is missing from option's table; without it the
           # modem has no AT ports (qmi_wwan still works).
           cp "$GITHUB_WORKSPACE/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \

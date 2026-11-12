@@ -64,6 +64,17 @@ if ! grep -q 'EDGE610_IMAGE_SALT' include/image.mk; then
     || { echo "image.mk GUID salt patch failed"; exit 1; }
 fi
 grep -q 'EDGE610_IMAGE_SALT' include/image.mk || { echo "GUID salt missing"; exit 1; }
+
+# 1d. GRUB must not look for the kernel across disks ---------------------
+# The stock template searches by FAT label ("kernel"), which two disks written
+# from the same image both carry; search by the boot partition's serial.
+if grep -q 'search -l kernel' target/linux/x86/image/grub-efi.cfg 2>/dev/null; then
+  log "patch grub-efi.cfg (search by fs-uuid)"
+  git apply "$REPO/patches/openwrt/0004-grub-search-by-fs-uuid.patch" \
+    || { echo "grub-efi.cfg patch failed"; exit 1; }
+fi
+! grep -q 'search -l kernel' target/linux/x86/image/grub-efi.cfg \
+  || { echo "grub still searches by label"; exit 1; }
 export EDGE610_IMAGE_SALT="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo 0)"
 
 # 1c. EM7565 (1199:9091) is missing from option's device table; without it
