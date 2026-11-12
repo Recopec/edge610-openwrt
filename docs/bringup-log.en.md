@@ -336,7 +336,7 @@ The first version compared `[ "$ipaddr" != "192.168.1.1" ]`, but current OpenWrt
 
 Also bumped `PKG_RELEASE` to 2: the package build keyed off directory mtimes, so the freshly added `zzz99-edge610-password` never made it into the cached apk and a clean flash still had an empty root password.
 
-## 2026-11-12 The switch module stopped finding the P2SB BAR
+## 2026-11-12 The switch module stopped finding the P2SB BAR: its depth is not fixed
 
 Symptom: after one boot `/sys/class/net` only had `lo/docker0/wwan0` - all six RJ45 ports and both SFP cages were gone, and dmesg said
 
@@ -362,3 +362,15 @@ so the scan came back empty, the module returned -ENODEV, the init script aborte
 Verified by hand: `insmod edge610_switch_standalone.ko p2sb_bar_addr=0xfd000000` succeeds immediately (`north window ... padbar=0x400`, `88E6190 rev 1`, `cpu10 link=up`), so the BAR value itself is unchanged.
 
 Fix: make `p2sb_bar_from_iomem()` walk the resource tree recursively in both modules.
+
+**Why it worked sometimes**: the BIOS e820 marks all of `fd000000-fe7fffff` reserved, so the kernel creates a root-level `Reserved` resource for it; the P2SB ACPI device then claims its `_CRS` window (`fdc20000-fdc2ffff`) inside the resource tree. Whether that window ends up at the root or nested under `Reserved` depends on which one is inserted first (ACPI/PNP init order) and on whether the firmware has set the P2SB hide bit (it is sticky, so cold and warm boots can differ). With the same kernel and board the shape can change between boots - the old code was simply lucky.
+
+**Diagnosing it**:
+
+```sh
+grep -n INTC3000 /proc/iomem      # indent: 2 spaces = root level, 4 = wrapped in Reserved
+ls /sys/class/net | tr '\n' ' '   # only lo/docker0/wwan0 = board bring-up aborted
+dmesg | grep -i edge610           # shows P2SB BAR unavailable / insmod failed
+```
+
+**Runtime workaround without reflashing**: pass the BAR explicitly (`fdc20000 - 0xc20000`) to both modules - add `p2sb_bar_addr=0xfd000000` to the two `load_module` calls in `/etc/init.d/edge610`; `lan1..lan6` come back after a reboot.

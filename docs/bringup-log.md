@@ -332,7 +332,7 @@ fi
 
 另外 `PKG_RELEASE` 提到 2：OpenWrt 的包构建按目录 mtime 判定是否需要重装文件，新增的 `zzz99-edge610-password` 没进到已缓存的 apk 里，干净刷机后 root 仍然是空密码。
 
-## 2026-11-12 开关模块找不到 P2SB BAR：ACPI 资源嵌到了 PCI 窗口下面
+## 2026-11-12 开关模块找不到 P2SB BAR：ACPI 窗口的层级不固定
 
 现象：某次开机后 `/sys/class/net` 只剩 `lo/docker0/wwan0`，6 个 RJ45 + 2 个 SFP 全没了；dmesg 报
 
@@ -358,3 +358,15 @@ fd000000-fe7fffff : Reserved
 手工验证：`insmod edge610_switch_standalone.ko p2sb_bar_addr=0xfd000000` 立刻成功（`north window ... padbar=0x400`、`88E6190 rev 1`、`cpu10 link=up`），确认 BAR 值本身没变。
 
 修复：`p2sb_bar_from_iomem()` 改为**递归**遍历资源树（两个模块同样修改），不再假设资源在第一层。
+
+**为什么会时好时坏**：BIOS 的 e820 把 `fd000000-fe7fffff` 整段标成 reserved，内核会为它建一个根级 `Reserved` 资源；P2SB 的 ACPI 设备再把自己的 `_CRS`（`fdc20000-fdc2ffff`）插进资源树。窗口最终在根层还是套在 `Reserved` 里，取决于**两者谁先插入**（ACPI/PNP 初始化顺序），以及 P2SB 的 hide 位是否被固件置上（该位是"粘"的，冷启动/热重启可能不同）。所以同一份内核、同一块板子，不同次开机都可能不一样；旧代码能跑属于运气。
+
+**现场怎么判断**：
+
+```sh
+grep -n INTC3000 /proc/iomem      # 看缩进：2 个空格 = 根层，4 个 = 被 Reserved 包住
+ls /sys/class/net | tr '\n' ' '   # 只剩 lo/docker0/wwan0 = 板级初始化已中止
+dmesg | grep -i edge610           # 会看到 P2SB BAR unavailable / insmod failed
+```
+
+**不刷机的临时救急**：给两个模块显式传 BAR（值可由 `fdc20000 - 0xc20000` 推出），或直接改 `/etc/init.d/edge610` 里的两处 `load_module` 调用加上 `p2sb_bar_addr=0xfd000000`，重启后 `lan1..lan6` 会回来。
