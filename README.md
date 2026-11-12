@@ -324,25 +324,7 @@ edge610-install --yes    # 免确认
 扩容不再依赖首启脚本（安装时就地完成）；`zzz98-edge610-resize` 仍保留，用于"直接 dd 镜像到 eMMC"的老路径——它按 `/dev/mmcblk0p2` + sysfs 定位，与 `PARTUUID` 无关，并且从 U 盘启动时会主动跳过。
 
 
-### 写盘之后必须先让 U 盘有自己的 `PARTUUID`
-
-镜像的分区 UUID 由 `md5(SOURCE_DATE_EPOCH + LINUX_VERMAGIC)` 推导，**同一个镜像刷到 eMMC 和 U 盘后两块盘的 p2 `PARTUUID` 完全相同**；GRUB 用的是 `root=PARTUUID=`，内核会挂到先枚举到的那块盘——通常是 eMMC。表现就是：从 U 盘启动，却进了 eMMC 的旧系统，`edge610-install: not found`（`lsblk` 里能看到 `/` 在 `mmcblk0p2`，而 `/boot` 在 `sdb1`）。
-
-写盘后二选一，然后再从 U 盘启动：
-
-1. 在任意 Linux 上（**不要**用这块 U 盘自己启动的系统）：
-   ```sh
-   sudo scripts/usb-prep.sh /dev/sdX        # 整个盘，不是分区
-   ```
-2. 或者已经这样启动、落进了 eMMC 系统（U 盘挂在 `/boot`），直接就地改：
-   ```sh
-   new=$(cat /proc/sys/kernel/random/uuid | tr a-f A-F)
-   sfdisk --part-uuid /dev/sdb 2 "$new"
-   low=$(echo "$new" | tr A-F a-f)
-   sed -i "s/<grub.cfg 里原来的 root= UUID>/$low/Ig" /boot/grub/grub.cfg
-   sync && reboot
-   ```
-   重启后 `/` 应落在 U 盘的 p2，`ls -l /usr/sbin/edge610-install` 能查到。
+> 第一次从 U 盘装、或 U 盘上的镜像和 eMMC 上的不是同一份，直接启动即可。只有**同一份镜像同时写进了 eMMC 和 U 盘**时，两块盘 p2 的 `PARTUUID` 相同，GRUB 的 `root=PARTUUID=` 会挂到先枚举到的 eMMC，看起来像"从 U 盘启动却进了旧系统、`edge610-install` 不存在"；这种开发自测场景用 `scripts/usb-prep.sh` 重新给 U 盘生成 UUID 即可（详见[排错表](#排错)）。
 
 > 必须用本仓库构建的镜像（已打 mke2fs 补丁）。用 OpenWrt 默认 `make_ext4fs` 生成的镜像，
 > 首启在线扩容会失败（openwrt/openwrt#7729）。

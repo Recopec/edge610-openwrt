@@ -461,6 +461,20 @@ jobs:
           fi
           echo "verification OK"
 
+      - name: Give the image its own rootfs PARTUUID
+        run: |
+          cd openwrt/bin/targets/x86/64
+          IMG="$(ls *-generic-ext4-combined-efi.img.gz | head -n1)"
+          # Every image of this tree otherwise shares the GUIDs derived from
+          # SOURCE_DATE_EPOCH + LINUX_VERMAGIC, and a stick written from it
+          # mounts the eMMC rootfs instead of its own (same root=PARTUUID).
+          gzip -dc "$IMG" > /tmp/img
+          python3 "$GITHUB_WORKSPACE/scripts/image-uuid.py" /tmp/img
+          gzip -9 -n -c /tmp/img > "$IMG"
+          rm -f /tmp/img
+          sed -i "s|^[0-9a-f]*  $IMG\$|$(sha256sum "$IMG")|" sha256sums
+          grep -E '^[0-9a-f]{64}' sha256sums | head -3
+
       - name: Stamp artifact names with build time
         run: |
           cd openwrt/bin/targets/x86/64

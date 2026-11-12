@@ -323,25 +323,7 @@ Writing an image file also works (handy for scripting): `edge610-install --yes /
 The growth no longer depends on the first-boot script (it happens during install); `zzz98-edge610-resize` stays for the plain `dd` path - it locates `/dev/mmcblk0p2` through sysfs, never looks at `PARTUUID`, and deliberately skips when the system booted from USB.
 
 
-### The stick needs its own `PARTUUID` before it will boot itself
-
-The image's partition UUIDs come from `md5(SOURCE_DATE_EPOCH + LINUX_VERMAGIC)`, so **the same image written to the eMMC and to a stick gives both disks the same p2 `PARTUUID`**. GRUB boots with `root=PARTUUID=`, so the kernel mounts whichever disk enumerates first - usually the eMMC. The symptom: you boot the stick but land in the old eMMC system and `edge610-install: not found` (`lsblk` shows `/` on `mmcblk0p2` while `/boot` is on `sdb1`).
-
-Fix it right after writing the stick, then boot from it:
-
-1. On any Linux box (**not** booted from that stick):
-   ```sh
-   sudo scripts/usb-prep.sh /dev/sdX        # the whole disk, not a partition
-   ```
-2. Or, when you are already in the eMMC system with the stick mounted at `/boot`:
-   ```sh
-   new=$(cat /proc/sys/kernel/random/uuid | tr a-f A-F)
-   sfdisk --part-uuid /dev/sdb 2 "$new"
-   low=$(echo "$new" | tr A-F a-f)
-   sed -i "s/<the root= UUID already in grub.cfg>/$low/Ig" /boot/grub/grub.cfg
-   sync && reboot
-   ```
-   After the reboot `/` is the stick's p2 and `ls -l /usr/sbin/edge610-install` finds the installer.
+> A first install, or a stick whose image differs from what the eMMC runs, just boots. Only when **the same image sits on both the eMMC and the stick** do both p2 partitions share a `PARTUUID`, and GRUB's `root=PARTUUID=` mounts whichever disk enumerates first (the eMMC) - the stick seems to boot the old system and `edge610-install` is missing. That is a repeat-development case; re-UUID the stick with `scripts/usb-prep.sh` when it happens (see the troubleshooting table).
 
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
 
