@@ -238,8 +238,12 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 ## Repository layout
 
 ```
-.github/workflows/build.yml       full-source build pipeline (14 steps, assertions + image checks)
-patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch  build the rootfs with mke2fs (online resize)
+.github/workflows/build.yml      full-source build pipeline (manual workflow_dispatch, 14 steps)
+patches/openwrt/
+├── 0001-image-mkfs-ext4-use-mke2fs.patch  build the rootfs with mke2fs (online resize)
+├── 0002-usb-serial-option-add-em7565.patch  option claims only the AT interfaces
+├── 0003-image-guid-salt.patch             GPT UUIDs salted with the commit, images stop colliding
+└── 0004-grub-search-by-fs-uuid.patch      grub finds /boot by filesystem UUID, not by label
 package/edge610-board/
 ├── Makefile                      three kernel packages + board package
 ├── src/
@@ -249,13 +253,25 @@ package/edge610-board/
 └── files/
     ├── etc/init.d/edge610           watchdog off + ordered bring-up (standalone -> ixgbe -> DSA)
     ├── etc/modprobe.d/edge610.conf  board module parameters
-    ├── etc/uci-defaults/zzz99-edge610-network  first-boot network (lan1..lan5 LAN, lan6 WAN)
-    ├── etc/uci-defaults/zzz99-edge610-network-modem  first-boot network.wwan (LTE)
+    ├── etc/uci-defaults/zzz98-edge610-resize         first-boot rootfs growth for the dd path
+    ├── etc/uci-defaults/zzz99-edge610-network        first-boot network (lan1..lan5 LAN, lan6 WAN)
+    ├── etc/uci-defaults/zzz99-edge610-network-modem  first-boot network.wwan in the wan zone
+    ├── etc/uci-defaults/zzz99-edge610-mwan3          first-boot wwan member + failover policy
+    ├── etc/uci-defaults/zzz99-edge610-password       first-boot root password (only when empty)
+    ├── usr/sbin/edge610-install    clone the running system onto the eMMC (table, growth, UUIDs, grub.cfg)
     ├── usr/bin/modem-at            AT port probe + flock
+    ├── usr/bin/modem-sms-send      PDU-mode SMS sender
     ├── usr/bin/modem-wan-watch     SIM / PDP address watchdog
-    ├── usr/lib/lua/luci/controller/modem.lua         modem page backend (AT/QMI)
-    ├── usr/lib/lua/luci/view/modem/                  Status / Settings / GPS / SMS / AT
-    └── etc/openhsalc/core/          hsalc_meta downloaded by CI (gitignored)
+    ├── usr/bin/verify-device       read-only self check (modules, scripts, pages)
+    ├── usr/lib/lua/luci/controller/modem.lua    modem page backend (AT/QMI)
+    ├── usr/lib/lua/luci/view/modem/             Status / Settings / GPS / SMS / AT
+    └── etc/openhsalc/core/         hsalc_meta downloaded by CI (gitignored)
+scripts/
+├── build-local.sh                local build, same seed as CI (incremental, ~75 min cold)
+├── serial-bridge.ps1             expose a Windows COM port as TCP :7001
+├── usb-prep.sh                   re-UUID a stick's p2 when both disks carry the image
+└── verify-device.sh              post-flash checks (same as verify-device in the image)
+docs/                              measurements: lte / lte-cell-info / lte-at-commands / bringup-log, screenshots
 ```
 
 ### Key design notes
@@ -326,7 +342,7 @@ Writing an image file also works (handy for scripting): `edge610-install --yes /
 The growth no longer depends on the first-boot script (it happens during install); `zzz98-edge610-resize` stays for the plain `dd` path - it locates `/dev/mmcblk0p2` through sysfs, never looks at `PARTUUID`, and deliberately skips when the system booted from USB.
 
 
-> A first install, or a stick whose image differs from what the eMMC runs, just boots. Only when **the same image sits on both the eMMC and the stick** do both p2 partitions share a `PARTUUID`, and GRUB's `root=PARTUUID=` mounts whichever disk enumerates first (the eMMC) - the stick seems to boot the old system and `edge610-install` is missing. That is a repeat-development case; re-UUID the stick with `scripts/usb-prep.sh` when it happens (see the troubleshooting table).
+> An eMMC installed by `edge610-install` has its own rootfs `PARTUUID` and cannot collide with the stick. What does collide is **the same image dd'ed onto two disks**: identical partition UUIDs and FAT serial, so GRUB's search may pick the wrong one and a stick seems to boot the old system. That is a self-test case - re-UUID the stick's p2 with `scripts/usb-prep.sh /dev/sdX` (see the troubleshooting table).
 
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
 
@@ -334,7 +350,7 @@ The growth no longer depends on the first-boot script (it happens during install
 
 1. Prepare a USB stick: one OpenWrt boot disk plus an exfat data partition, and put `edge610-*.img.gz` on the data partition.
 2. Remove the small rear cover to expose the Micro-USB console (CP210x); PuTTY: `115200 8N1`, no flow control.
-3. Boot from the USB stick (F12), then:
+3. Boot from the USB stick (the firmware prefers USB; F12 otherwise), then:
 
    ```sh
    lsblk                                   # /dev/mmcblk0 is the eMMC
@@ -346,21 +362,51 @@ The growth no longer depends on the first-boot script (it happens during install
 4. Remove the USB stick and `reboot`. On first boot `zzz98-edge610-resize` grows the rootfs to the whole disk;
    `df -h /` should show ~14.3G (log: `logread -e edge610-resize`).
 
+## Serial console
+
+This board has **no video output**; the serial line is the only local console (BIOS/POST output goes there too). Micro-USB behind the small metal plate, on-board CP210x:
+
+| Item | Value |
+| --- | --- |
+| Settings | `115200 8N1`, no flow control |
+| Device | Windows `COMx` (Silicon Labs CP210x) |
+| Exclusive | one program at a time - close any MobaXterm/PuTTY serial session before starting the bridge |
+| Remote | `powershell -ExecutionPolicy Bypass -File scripts/serial-bridge.ps1`, listens on `:7001` (`$env:EDGE610_COM="COM5"` to pick a port); watch locally with a raw TCP session to `127.0.0.1:7001` |
+| Across subnets | the bridge is plain TCP; with an HTTP proxy in between, `CONNECT host:7001` works (that is how this box is debugged remotely) |
+
+```powershell
+# once, elevated
+netsh advfirewall firewall add rule name="edge610-serial" dir=in action=allow protocol=TCP localport=7001
+```
+
+`root@OpenWrt:~#` means you have a shell; if Enter does nothing, send a newline or `Ctrl-C` first (you may be in the grub menu or mid-output).
+
 ## Post-flash checks
 
-On the serial console:
+On the serial console (read-only; the image also ships `verify-device`):
 
 ```sh
+verify-device               # modules / scripts / pages, one [ OK ] per check
 ip link                     # lan1..lan6 present (+ lo and the ethX ports)
 logread -e edge610          # watchdog cleared, conduit, port-up messages
-df -h /                     # ~14.3G when booted from eMMC (first-boot growth)
+df -h /                     # the installer grows it during install; the dd path relies on first boot
 sensors                     # Core 0 / Core 1 temperatures (kmod-hwmon-coretemp)
 /etc/openclash/core/clash_meta -v   # must print Mihomo Meta ... linux amd64 (amd64-v1)
 ```
 
+LTE and multi-WAN:
+
+```sh
+ip -br addr show wwan0      # carrier address + IPv6
+mwan3 status                # wwan online; the failover policy lists wwan (100%)
+ping -c 3 223.5.5.5         # default route (wired wins while it is up)
+ping6 -c 2 2400:3200::1     # IPv6 is not managed by mwan3, it follows netifd
+```
+
 - Idle for ≥10 minutes without a reboot → the watchdog is really off.
-- Plug a cable into **LAN1** and open `http://192.168.1.1` → LuCI.
+- Plug a cable into **LAN1** and open `http://192.168.1.1` → LuCI (`root` / first-boot password `edge610pass`).
 - Services → OpenHsalc: load a subscription and start the proxy.
+- Status → Modem: SIM shows "ready", the hero card has signal and live rates; an empty or red SIM line means the card was not read.
 
 ## Build-time pitfalls
 
@@ -382,10 +428,34 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 | Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openclash/core/clash_meta` |
 | No WAN / want a different WAN port | `lan6` is the WAN by default (DHCP client); `br-lan` contains `lan1..lan5` plus both SFP cages (`eth3`/`eth2`). To move it: LuCI → Network → Interfaces, change the `wan` device to `lanN` / `eth2` / `eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
 | Booting a USB stick still lands in the eMMC system | the image ships fixed partition UUIDs, so the eMMC and a stick written from the same image share `PARTUUID` and the kernel mounts whichever enumerates first. run `scripts/usb-prep.sh /dev/sdX` to re-UUID the stick's p2 and rewrite its `grub.cfg` (see `docs/bringup-log.en.md`), or edit the GRUB entry to `root=/dev/sdb2` |
+| Installed eMMC stops at a bare `grub>` prompt | `core.img` is built for the boot filesystem on **gpt1**. Hand-written tables that put a BIOS boot partition at 34..511 push the FAT to gpt2 and GRUB then loads neither menu nor `grub.cfg`. Let `edge610-install` write the table (FAT fixed at 512 = p1), or at the prompt `configfile (hd0,gptN)/boot/grub/grub.cfg` to boot and fix it |
+| `wwan0` has an address but `ping: Network unreachable` | mwan3 runs but `/etc/config/mwan3` has no `wwan` section, so it marks traffic into an empty policy. Add the interface + member + policy (first boot does this here) or `/etc/init.d/mwan3 disable && stop` and let netifd route |
+| A working WAN keeps being marked down | the mwan3 probe hosts are filtered. The package defaults (`1.1.1.1` / `1.0.0.1` / `114.114.114.114`) lose packets or do not answer here; first boot rewrites them to `9.9.9.9` / `8.8.8.8` / `223.5.5.5` - do not use ICMP-filtered addresses in custom sets |
+| `edge610-install` dies at `cannot find /dev/mmcblk0p2 after the write` | installer older than v2026.11.13: the cloned GPT described the stick's size and the kernel rejected it on a smaller eMMC. Use a newer image, or copy that image's `/usr/sbin/edge610-install` over |
+| `+CPIN?` answers `SIM failure` / a new card is not seen | the card-detect line is masked (`AT!CUSTOM="SIMHOTSWAPDIS",1`), so a hot-swapped card is never re-initialised: press **Reset modem** on the Settings tab (~50 s). The card must sit in the **top** slot (`AT!UIMS=0`) |
 | More `ethX` ports than expected | X553 has four MACs and the enumerated count depends on the BIOS; trust the `conduit:` line and the physical cabling |
 
 ## Modifying and rebuilding
 
-- To change the image: edit `package/edge610-board/` or the `.config` seed in the workflow → commit/push → re-run Actions.
+- To change the image: edit `package/edge610-board/` or the `.config` seed → commit. **CI only runs when triggered by hand** (`workflow_dispatch`): Actions → *Build Edge 610 OpenWrt Image* → *Run workflow*. For iteration use `PROXY=... ./scripts/build-local.sh` (incremental, usually 3–10 minutes per package change).
 - Key packages in the `.config` seed are asserted at build time (grep after defconfig); a missing package fails the build instead of producing a wrong image.
 - Final checks: the image exists and has a sane size, the manifest contains the key packages, the rootfs contains the modules and scripts, and `hsalc_meta` is executable and prints Mihomo.
+
+## Known limits
+
+| Item | Note |
+| --- | --- |
+| mwan3 manages IPv4 only | IPv6 follows netifd's default route (`wwan0` has a native `/128`, `default_rule_v6` is deleted); there is no IPv6 failover |
+| LTE tracking costs traffic | `wwan` sends two ICMP probes every 30 s ≈ 0.6 MB/day; on a metered SIM raise `mwan3.wwan.interval` or disable mwan3 |
+| Hot swap needs a reset | the card-detect line is masked, so an inserted card is not re-initialised (see troubleshooting) |
+| Top slot only | the lower slot is not wired on the Edge 610 and `AT!UIMS=2` answers `ERROR` on this firmware |
+| AT page has no whitelist | anyone with LuCI rights can send `AT!RESET` / `AT!USBCOMP` and lose the AT port |
+| Two disks, same image | the installer deliberately keeps the FAT serial (GRUB embeds it in `core.img`), so two disks written from the same image share it; `root=` stays per-disk, only the kernel file may come from the other disk. Use `scripts/usb-prep.sh` for self-tests |
+| OpenClash is not part of this repo | only the package and the core are shipped; subscriptions, rules and running state are the user's |
+
+## Versions and releases
+
+- Tags look like `v2026.11.13` (release date) and point at the commit the image was built from; README and `docs/` ship in the same commit.
+- Each release carries `edge610-YYYYMMDD-HHMM.img.gz`, its `.manifest`, the `edge610-board` and three kmod `.apk` (r2, for on-device upgrades and ImageBuilder), and `sha256sums`.
+- Minimum verification before publishing: `edge610-install --yes` onto the eMMC → power off, unplug the stick → unattended boot → `mwan3 status` shows `wwan online` + `failover` → ping once over IPv4 and once over IPv6 → the LuCI modem page answers 200.
+- Local build output lands in `~/work/artifacts/` (with the `.apk` files in `repo/`); the image sha256 goes into the release body and `sha256sums`.

@@ -1,11 +1,16 @@
 # OpenWrt's EFI/combined template locates the kernel with
 #   search -l kernel -s root
-# i.e. by FAT label, across every attached disk. Two disks written from the
-# same image both carry the label 'kernel', so whichever enumerates first
-# supplies /boot/vmlinuz - a stick can boot the eMMC's kernel. Search by the
-# boot partition's own filesystem UUID instead; edge610-install gives the
-# target a fresh serial and rewrites this line to match. 1234-ABCD is the
-# serial mkfs.fat --invariant puts in every image built here.
+# i.e. by FAT label, across every attached disk. Every disk written from the
+# same image carries the label 'kernel', so whichever enumerates first supplies
+# /boot/vmlinuz - a stick can boot the eMMC's kernel. Search by the boot
+# partition's own filesystem UUID instead. 1234-ABCD is the serial mkfs.fat
+# --invariant puts in every image built here.
+#
+# edge610-install deliberately leaves that serial alone: grub's core.img embeds
+# it as a binary search hint, and rewriting the BPB drops the firmware at a bare
+# "grub>" prompt. Two disks with the same image therefore share the serial; the
+# kernel file may come from either, but root=PARTUUID is per-disk (the installer
+# generates a fresh rootfs UUID), so the right root is still mounted.
 diff --git a/target/linux/x86/image/grub-efi.cfg b/target/linux/x86/image/grub-efi.cfg
 --- a/target/linux/x86/image/grub-efi.cfg
 +++ b/target/linux/x86/image/grub-efi.cfg

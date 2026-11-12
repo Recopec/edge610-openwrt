@@ -239,8 +239,12 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 ## 仓库结构
 
 ```
-.github/workflows/build.yml       全源码构建流水线（14 步，含断言与镜像校验）
-patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch  rootfs 改用 mke2fs（在线扩容）
+.github/workflows/build.yml      全源码构建流水线（workflow_dispatch 手动触发，14 步含断言与镜像校验）
+patches/openwrt/
+├── 0001-image-mkfs-ext4-use-mke2fs.patch   rootfs 改用 mke2fs（否则在线扩容失败）
+├── 0002-usb-serial-option-add-em7565.patch option 只认 AT 接口，把 QMI 接口留给 qmi_wwan
+├── 0003-image-guid-salt.patch              GPT UUID 混入提交号，不同版本镜像不再撞 UUID
+└── 0004-grub-search-by-fs-uuid.patch       grub 按 boot 分区的文件系统 UUID 找内核（不按 label）
 package/edge610-board/
 ├── Makefile                      三个内核包 + 板级包定义
 ├── src/
@@ -248,15 +252,27 @@ package/edge610-board/
 │   ├── edge610_dsa.c                 注册 88E6190 DSA（端口 lan1..lan6）
 │   └── Makefile
 └── files/
-    ├── etc/init.d/edge610           看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
-    ├── etc/modprobe.d/edge610.conf  板级模块参数
-    ├── etc/uci-defaults/zzz99-edge610-network  首启网络配置（lan1..lan5 为 LAN，lan6 为 WAN）
-    ├── etc/uci-defaults/zzz99-edge610-network-modem  首启建 LTE 接口 network.wwan
-    ├── usr/bin/modem-at            AT 口自动探测 + flock 互斥
-    ├── usr/bin/modem-wan-watch     SIM / PDP 地址看门狗
-    ├── usr/lib/lua/luci/controller/modem.lua         模组页面后端（AT/QMI 采集）
-    ├── usr/lib/lua/luci/view/modem/                  状态 / 设置 / GPS / 短信 / AT 五个页面
-    └── etc/openhsalc/core/          hsalc_meta 由 CI 下载（已 gitignore）
+    ├── etc/init.d/edge610            看门狗关闭 + 有序探测（standalone → ixgbe → DSA）
+    ├── etc/modprobe.d/edge610.conf   板级模块参数
+    ├── etc/uci-defaults/zzz98-edge610-resize          直接 dd 镜像后首启扩 rootfs
+    ├── etc/uci-defaults/zzz99-edge610-network         首启网络（lan1..lan5 为 LAN，lan6 为 WAN）
+    ├── etc/uci-defaults/zzz99-edge610-network-modem   首启建 network.wwan 并加进 wan zone
+    ├── etc/uci-defaults/zzz99-edge610-mwan3           首启给 mwan3 加 wwan 成员与 failover 策略
+    ├── etc/uci-defaults/zzz99-edge610-password        首启预置 root 密码（仅在密码为空时）
+    ├── usr/sbin/edge610-install      把当前系统克隆到 eMMC（分区表 + 扩容 + UUID + grub.cfg）
+    ├── usr/bin/modem-at              AT 口自动探测 + flock 互斥
+    ├── usr/bin/modem-sms-send        PDU 模式发短信
+    ├── usr/bin/modem-wan-watch       SIM 掉卡 / PDP 地址漂移看门狗
+    ├── usr/bin/verify-device         镜像内只读自检（模块、脚本、页面）
+    ├── usr/lib/lua/luci/controller/modem.lua   模组页面后端（AT/QMI 采集）
+    ├── usr/lib/lua/luci/view/modem/            状态 / 设置 / GPS / 短信 / AT 五个页面
+    └── etc/openhsalc/core/           hsalc_meta 由 CI 下载（已 gitignore）
+scripts/
+├── build-local.sh                 本机构建（与 CI 同源，增量，首次约 75 分钟）
+├── serial-bridge.ps1              把 Windows 串口桥成 TCP :7001，远程驱动串口控制台
+├── usb-prep.sh                    给 U 盘重新生成 p2 PARTUUID（两盘同镜像时用）
+└── verify-device.sh               对已启动设备跑一遍验收（与镜像内的 verify-device 同源）
+docs/                              实测记录：lte / lte-cell-info / lte-at-commands / bringup-log、截图
 ```
 
 ### 关键设计
@@ -327,7 +343,7 @@ edge610-install --yes    # 免确认
 扩容不再依赖首启脚本（安装时就地完成）；`zzz98-edge610-resize` 仍保留，用于"直接 dd 镜像到 eMMC"的老路径——它按 `/dev/mmcblk0p2` + sysfs 定位，与 `PARTUUID` 无关，并且从 U 盘启动时会主动跳过。
 
 
-> 第一次从 U 盘装、或 U 盘上的镜像和 eMMC 上的不是同一份，直接启动即可。只有**同一份镜像同时写进了 eMMC 和 U 盘**时，两块盘 p2 的 `PARTUUID` 相同，GRUB 的 `root=PARTUUID=` 会挂到先枚举到的 eMMC，看起来像"从 U 盘启动却进了旧系统、`edge610-install` 不存在"；这种开发自测场景用 `scripts/usb-prep.sh` 重新给 U 盘生成 UUID 即可（详见[排错表](#排错)）。
+> 走 `edge610-install` 装的 eMMC 有自己的 `rootfs PARTUUID`，和 U 盘不会撞。会撞的是**同一份镜像被 dd 到两块盘**：分区 UUID 和 FAT 序列号都一样，GRUB 的搜索可能认错盘，看起来像"从 U 盘启动却进了旧系统"；这种自测场景用 `scripts/usb-prep.sh /dev/sdX` 重新给 U 盘的 p2 生成 UUID 即可（详见[故障排查](#故障排查)）。
 
 > 必须用本仓库构建的镜像（已打 mke2fs 补丁）。用 OpenWrt 默认 `make_ext4fs` 生成的镜像，
 > 首启在线扩容会失败（openwrt/openwrt#7729）。
@@ -336,7 +352,7 @@ edge610-install --yes    # 免确认
 
 1. 准备 U 盘：一个 OpenWrt 启动盘 + 一个 exfat 数据分区，把 `edge610-*.img.gz` 放进数据分区。
 2. 拆背板小铁片露出 Micro-USB 串口（CP210x），PuTTY：`115200 8N1`、无流控。
-3. 插 U 盘开机，F12 选 USB 启动，进入 OpenWrt 后：
+3. 插 U 盘开机（固件默认优先 U 盘；没选中就 F12 手动选），进入 OpenWrt 后：
 
    ```sh
    lsblk                                   # 确认 /dev/mmcblk0 为 eMMC
@@ -348,21 +364,51 @@ edge610-install --yes    # 免确认
 4. 拔 U 盘，`reboot`。首启 `zzz98-edge610-resize` 自动把根分区扩到整盘，
    `df -h /` 应为 ~14.3G（日志：`logread -e edge610-resize`）。
 
+## 串口控制台
+
+这台机器**没有视频输出**，串口是唯一的本地入口（BIOS/POST 输出也走它）。背板小铁片后面是 Micro-USB，板载 CP210x：
+
+| 项 | 值 |
+| --- | --- |
+| 参数 | `115200 8N1`，无流控 |
+| 设备名 | Windows `COMx`（Silicon Labs CP210x） |
+| 独占 | 一个程序占用即锁死——开桥之前先关掉 MobaXterm/PuTTY 的串口会话 |
+| 远程使用 | `powershell -ExecutionPolicy Bypass -File scripts/serial-bridge.ps1`，默认监听 `:7001`（可 `$env:EDGE610_COM="COM5"` 指定口），本机可再用 raw TCP 连 `127.0.0.1:7001` 围观 |
+| 跨网段 | 桥是裸 TCP；对面有 HTTP 代理时用 `CONNECT host:7001` 也能打通（本项目远程调试就是这么做的） |
+
+```powershell
+# 一次性放行端口（管理员）
+netsh advfirewall firewall add rule name="edge610-serial" dir=in action=allow protocol=TCP localport=7001
+```
+
+串口里看到 `root@OpenWrt:~#` 即为可用 shell；`Enter` 无反应时先发一次换行或 `Ctrl-C`（可能在 grub 菜单/长输出里）。
+
 ## 开机验收
 
-串口执行：
+串口执行（只读检查，也可以直接跑镜像自带的 `verify-device`）：
 
 ```sh
+verify-device               # 模块 / 脚本 / 页面的自检，逐项 [ OK ]
 ip link                     # 应出现 lan1..lan6（+ lo 与若干 ethX）
 logread -e edge610          # 看门狗清除、conduit、端口 up 日志
-df -h /                     # 从 eMMC 启动应为 ~14.3G（首启扩容生效）
+df -h /                     # 安装器装的系统装完即 ~14.2G；dd 路径靠首启扩容
 sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-coretemp）
 /etc/openclash/core/clash_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
 ```
 
+LTE 与多 WAN：
+
+```sh
+ip -br addr show wwan0      # 应有运营商地址 + IPv6
+mwan3 status                # wwan online；failover 策略里应看到 wwan (100%)
+ping -c 3 223.5.5.5         # 走默认路由（有线在就优先有线）
+ping6 -c 2 2400:3200::1     # IPv6 不归 mwan3 管，走 netifd 默认路由
+```
+
 - 空闲运行 ≥10 分钟不重启 → 看门狗关闭生效。
-- 网线接 **LAN1**，浏览器打开 `http://192.168.1.1` → LuCI。
+- 网线接 **LAN1**，浏览器打开 `http://192.168.1.1` → LuCI（`root` / 首启密码 `edge610pass`）。
 - 服务 → OpenHsalc：载入订阅配置，启动代理。
+- 状态 → Modem：SIM 应显示「就绪」，首屏有信号与实时速率；`sim` 为空或红色文字说明卡没读到。
 
 ## 实现历程与关键发现
 
@@ -386,10 +432,34 @@ sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-corete
 | Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openclash/core/clash_meta` |
 | 没有 WAN / 想换 WAN 口 | 默认 `lan6` 是 WAN（DHCP 客户端），`br-lan` 含 `lan1..lan5` + 两个 SFP（`eth3`/`eth2`）。换口：LuCI「网络→接口」把 `wan` 的设备改成 `lanN` / `eth2` / `eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
 | 从 U 盘启动却进了 eMMC 系统 | 镜像的分区 UUID 固定，同一个镜像刷到 eMMC 和 U 盘后两块盘 `PARTUUID` 相同，内核会挂到先枚举到的 eMMC。用 `scripts/usb-prep.sh /dev/sdX` 重新生成 U 盘 p2 的 UUID 并同步改其 `grub.cfg`（详见 `docs/bringup-log.md`），或在 GRUB 里改成 `root=/dev/sdb2` |
+| 装到 eMMC 后停在裸 `grub>` 提示符 | `core.img` 是按"boot 文件系统在 **gpt1**"编的。手工分区把 FAT 放到 gpt2（例如在 34..511 先建一个 BIOS boot 分区）就会这样，菜单和 `grub.cfg` 都不加载。用 `edge610-install` 写表（FAT 固定在 512 = p1），或在 `grub>` 里 `configfile (hd0,gptN)/boot/grub/grub.cfg` 手工引导后改表 |
+| `wwan0` 有地址却 `ping: Network unreachable` | mwan3 在跑但 `/etc/config/mwan3` 里没有 `wwan`：它把流量标记进空策略。补 `wwan` 接口 + 成员 + 策略（本镜像首启已做），或 `/etc/init.d/mwan3 disable && stop` 交回 netifd |
+| 某条 WAN 明明通却被判 down | mwan3 探测点被墙。包默认的 `1.1.1.1` / `1.0.0.1` / `114.114.114.114` 在本地实测丢包或不回；首启脚本已改成 `9.9.9.9` / `8.8.8.8` / `223.5.5.5`，自定义时别用 ICMP 被过滤的地址 |
+| `edge610-install` 报 `cannot find /dev/mmcblk0p2 after the write` | v2026.11.13 之前的安装器：克隆来的 GPT 描述的是 U 盘大小，放到更小的 eMMC 上内核直接拒绝。换新镜像，或用新镜像里的安装器覆盖 `/usr/sbin/edge610-install` |
+| `+CPIN?` 回 `SIM failure` / 换卡后不识别 | SIM 检测线被 `AT!CUSTOM="SIMHOTSWAPDIS",1` 屏蔽，热插拔后模组不会自己重新初始化：点模组「设置」页的**复位模组**（约 50 秒恢复）。卡必须插**上槽**（`AT!UIMS=0`） |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建
 
-- 改镜像内容：编辑 `package/edge610-board/` 或 workflow 中的 `.config` 种子 → commit 推送 → Actions 重跑。
+- 改镜像内容：编辑 `package/edge610-board/` 或 workflow 中的 `.config` 种子 → commit。**CI 只在手动触发时跑**（`workflow_dispatch`）：Actions → *Build Edge 610 OpenWrt Image* → *Run workflow*；本地迭代用 `PROXY=... ./scripts/build-local.sh`（增量，改包通常 3~10 分钟）。
 - `.config` 种子中的关键包在构建时会被断言（defconfig 后 grep 校验），缺失即失败，避免“构建成功但内容不对”。
 - 构建末尾会校验：镜像存在且大小合理、manifest 含关键包、rootfs 内含模块与脚本、`hsalc_meta` 可执行且回显 Mihomo。
+
+## 已知限制
+
+| 项 | 说明 |
+| --- | --- |
+| mwan3 只管 IPv4 | IPv6 用 netifd 的默认路由（`wwan0` 原生 `/128`，`default_rule_v6` 已删），没有 IPv6 故障切换 |
+| LTE 探测有流量 | `wwan` 每 30 s 两个 ICMP ≈ 0.6 MB/天；计量卡可把 `mwan3.wwan.interval` 调大或停用 mwan3 |
+| 换卡 / 拔插要复位 | SIM 检测线被屏蔽，插入后不会自己重新初始化（见故障排查） |
+| 只能用上槽 | 下槽在 Edge 610 上没接线，`AT!UIMS=2` 该固件直接 `ERROR` |
+| AT 页无命令白名单 | 有 LuCI 权限即可发 `AT!RESET` / `AT!USBCOMP`，改错会丢 AT 口 |
+| 同镜像两盘共存 | 安装器刻意不改 FAT 序列号（GRUB 把它编进 `core.img`），两块同镜像的盘序列号相同；`root=` 各自独立，只有 `/boot` 的内核文件可能来自另一块盘。自测时用 `scripts/usb-prep.sh` |
+| OpenClash 不在本仓库 | 只预置包与内核，订阅/规则/运行状态由用户管理 |
+
+## 版本与发布
+
+- Tag 形如 `v2026.11.13`（发布日期），指向构成本镜像的提交；`README` 与 `docs/` 随同一提交发布。
+- 每个 release 附：`edge610-YYYYMMDD-HHMM.img.gz`、同名 `.manifest`、`edge610-board` 与三个 kmod 的 `.apk`（r2，供设备上升级 / ImageBuilder）、`sha256sums`。
+- 发版前的最低验证：`edge610-install --yes` 装到 eMMC → 断电拔盘 → 无人启动 → `mwan3 status` 里 `wwan online` + `failover` → IPv4/IPv6 各 ping 一次 → LuCI 模组页 200。
+- 本机构建产物在 `~/work/artifacts/`（含 `repo/` 下的 .apk），镜像 sha256 由 `sha256sum` 生成后写进 release 正文与 `sha256sums`。
