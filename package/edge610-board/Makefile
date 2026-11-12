@@ -73,6 +73,7 @@ define Package/edge610-board/install
 	$(INSTALL_BIN) ./files/etc/uci-defaults/zzz99-edge610-password $(1)/etc/uci-defaults/zzz99-edge610-password
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) ./files/usr/bin/verify-device $(1)/usr/bin/verify-device
+	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/usr/sbin/edge610-install $(1)/usr/sbin/edge610-install
 	$(INSTALL_BIN) ./files/usr/bin/modem-at $(1)/usr/bin/modem-at
 	$(INSTALL_BIN) ./files/usr/bin/modem-sms-send $(1)/usr/bin/modem-sms-send
