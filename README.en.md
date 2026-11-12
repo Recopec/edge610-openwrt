@@ -358,7 +358,7 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 | Reboots every 4–5 minutes | watchdog still armed: `logread -e edge610` should not contain `iSMT SMBus adapter not found`. Check manually: `modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`, then `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openclash/core/clash_meta` |
 | No WAN / want a different WAN port | `lan6` is the WAN by default (DHCP client); `br-lan` contains `lan1..lan5` plus both SFP cages (`eth3`/`eth2`). To move it: LuCI → Network → Interfaces, change the `wan` device to `lanN` / `eth2` / `eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
-| Booting a USB stick still lands in the eMMC system | the image ships fixed partition UUIDs, so the eMMC and a stick written from the same image share `PARTUUID` and the kernel mounts whichever enumerates first. Give the stick's p2 a new UUID and update `/boot/grub/grub.cfg` (see `docs/bringup-log.en.md`), or edit the GRUB entry to `root=/dev/sdb2` |
+| Booting a USB stick still lands in the eMMC system | the image ships fixed partition UUIDs, so the eMMC and a stick written from the same image share `PARTUUID` and the kernel mounts whichever enumerates first. run `scripts/usb-prep.sh /dev/sdX` to re-UUID the stick's p2 and rewrite its `grub.cfg` (see `docs/bringup-log.en.md`), or edit the GRUB entry to `root=/dev/sdb2` |
 | More `ethX` ports than expected | X553 has four MACs and the enumerated count depends on the BIOS; trust the `conduit:` line and the physical cabling |
 
 ## Modifying and rebuilding

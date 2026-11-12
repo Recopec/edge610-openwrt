@@ -394,6 +394,8 @@ sed -i "s/9d9c20b5-6446-8d11-bad8-7be847429b02/$LOWER/g" /boot/grub/grub.cfg   #
 sync && reboot                                 # 再在 BIOS 里选 U 盘
 ```
 
+仓库里的 `scripts/usb-prep.sh /dev/sdX` 把上面三步做成一条命令（会拒绝操作正在运行的那块盘）。
+
 一次性验证也可以省掉上面步骤：GRUB 菜单按 `e`，把 `root=PARTUUID=…` 改成 `root=/dev/sdb2` 再启动。
 
 注意 `sfdisk --part-uuid` 会提示 `Re-reading the partition table failed`（U 盘在跑、`/boot` 还挂着），属正常，重新插拔或重启即生效。

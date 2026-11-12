@@ -398,6 +398,8 @@ sed -i "s/9d9c20b5-6446-8d11-bad8-7be847429b02/$LOWER/g" /boot/grub/grub.cfg   #
 sync && reboot                                 # pick the USB in the BIOS again
 ```
 
+仓库里的 `scripts/usb-prep.sh /dev/sdX` 把上面三步做成一条命令（会拒绝操作正在运行的那块盘）。
+
 For a one-off test you can skip all of that: press `e` in the GRUB menu and set `root=/dev/sdb2`.
 
 Note `sfdisk --part-uuid` prints `Re-reading the partition table failed` while the stick is in use (`/boot` mounted) - that is expected; re-plug or reboot and it is in effect.
