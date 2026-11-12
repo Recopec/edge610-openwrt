@@ -1,0 +1,130 @@
+#!/bin/sh
+# edge610-install - write an Edge 610 image (.img.gz) onto the internal eMMC.
+#
+# Meant to be run from the USB stick image: it overwrites the whole eMMC with
+# the given image, gives the eMMC rootfs a fresh partition UUID and rewrites
+# the matching root= in the eMMC's grub.cfg, so the stick and the eMMC never
+# share a PARTUUID (see docs/bringup-log.md, "PARTUUID 撞车").
+#
+#   edge610-install /mnt/usb/edge610-20261112-0955.img.gz     # asks to confirm
+#   edge610-install --yes edge610-*.img.gz                    # unattended
+#   edge610-install --target /dev/loop9 --yes image.img.gz    # test with a loop file
+#
+# Refuses to touch a disk that carries the running / or /boot.
+
+set -eu
+
+usage() {
+	cat <<EOF
+usage: edge610-install [--yes] [--target DEV] <image.img.gz>
+
+  --yes          skip the confirmation prompt
+  --target DEV   write to DEV instead of /dev/mmcblk0 (for testing)
+EOF
+	exit 1
+}
+
+confirm=1
+target=/dev/mmcblk0
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--yes|-y) confirm=0; shift ;;
+	--target) [ $# -ge 2 ] || usage; target=$2; shift 2 ;;
+	-h|--help) usage ;;
+	-*) usage ;;
+	*) break ;;
+	esac
+done
+[ $# -eq 1 ] || usage
+img=$1
+
+[ -f "$img" ] || { echo "no such image: $img"; exit 1; }
+[ -b "$target" ] || { echo "$target is not a block device"; exit 1; }
+
+# --- the image must be a gzip'ed x86 disk image with our boot sector --------
+[ "$(dd if="$img" bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "1f8b" ] \
+	|| { echo "$img is not gzip'ed - expected an .img.gz"; exit 1; }
+magic=$(gzip -dc "$img" | dd bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
+case "$magic" in
+eb63|eb48) ;;
+*) echo "unexpected boot sector 0x$magic - not an Edge 610 image"; exit 1 ;;
+esac
+
+# --- refuse to overwrite the disk we are running from ----------------------
+part_of_disk() { # /dev/mmcblk0p2 -> /dev/mmcblk0, /dev/sdb2 -> /dev/sdb
+	case "$(basename "$1")" in
+	mmcblk*p[0-9]) echo "/dev/$(basename "$1" | sed 's/p[0-9]*$//')" ;;
+	mmcblk*)       echo "/dev/$(basename "$1")" ;;
+	*)             echo "/dev/$(basename "$1" | sed 's/[0-9]*$//')" ;;
+	esac
+}
+
+for mnt in / /boot; do
+	src=$(awk -v m="$mnt" '$2 == m {print $1}' /proc/mounts)
+	[ -n "$src" ] || continue
+	if [ "$(part_of_disk "$src")" = "$(readlink -f "$target")" ]; then
+		echo "$target carries the running $mnt; run this from another disk (e.g. the USB image)"
+		exit 1
+	fi
+done
+
+# --- no partition of the target may be mounted -----------------------------
+base=$(basename "$target")
+if awk -v b="$base" '$1 ~ b {print}' /proc/mounts | grep -q .; then
+	echo "$target has mounted partitions - unmount them first:"
+	awk -v b="$base" '$1 ~ b {print "  " $2}' /proc/mounts
+	exit 1
+fi
+
+raw=$(gzip -dc "$img" | wc -c)
+echo "image : $img"
+echo "raw   : $((raw / 1024 / 1024)) MiB"
+echo "target: $target"
+tgt=$(blockdev --getsize64 "$target" 2>/dev/null || echo 0)
+[ "$tgt" -ge "$raw" ] || { echo "target is smaller ($((tgt / 1024 / 1024)) MiB) than the image"; exit 1; }
+
+if [ "$confirm" = 1 ]; then
+	printf 'Everything on %s will be erased. Type YES to continue: ' "$target"
+	read -r ans
+	[ "$ans" = "YES" ] || { echo "aborted"; exit 1; }
+fi
+
+echo "writing..."
+gzip -dc "$img" | dd of="$target" bs=4M conv=fsync 2>/dev/null || { echo "write failed"; exit 1; }
+sync
+
+# Let the kernel see the new table, then give the copy its own rootfs UUID so
+# it does not collide with the disk we are running from.
+partx -d - "$target" >/dev/null 2>&1 || true
+partx -a - "$target" >/dev/null 2>&1 || true
+
+case "$base" in
+mmcblk*) p1="${target}p1"; p2="${target}p2" ;;
+*)       p1="${target}1"; p2="${target}2" ;;
+esac
+
+new=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
+old=$(sfdisk -d "$target" | grep "^$p2 " | sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p')
+if [ -n "$old" ]; then
+	sfdisk --part-uuid "$target" 2 "$new" >/dev/null 2>&1 && echo "rootfs UUID: $old -> $new"
+fi
+
+mnt=$(mktemp -d)
+if mount "$p1" "$mnt" 2>/dev/null; then
+	cfg=""
+	for c in "$mnt/boot/grub/grub.cfg" "$mnt/grub/grub.cfg"; do
+		[ -f "$c" ] && cfg=$c && break
+	done
+	if [ -n "$cfg" ] && [ -n "$old" ]; then
+		low=$(echo "$new" | tr 'A-F' 'a-f')
+		sed -i "s/$(echo "$old" | tr 'A-F' 'a-f')/$low/Ig" "$cfg"
+		echo "grub.cfg root= -> $low"
+	fi
+	sync
+	umount "$mnt"
+fi
+rmdir "$mnt" 2>/dev/null || true
+
+echo
+echo "done. power off, remove the USB stick, boot from $target."
+echo "first boot comes up with br-lan 192.168.1.1/24 and root password edge610pass."
