@@ -4,3 +4,6 @@ package/edge610-board/files/etc/openclash/core/clash_meta
 # Local-only notes (credentials, VM IPs) — never commit
 .secrets.local.md
 *.local.md
+
+# Local build output (images, manifests) - never commit
+/artifacts/
