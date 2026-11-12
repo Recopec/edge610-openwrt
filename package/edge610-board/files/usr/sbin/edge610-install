@@ -208,9 +208,9 @@ echo "rewriting the partition table for $target..."
 partx -a "$target" >/dev/null 2>&1 || true
 sleep 1
 
-# sfdisk numbers partitions in start order, so on the target the BIOS boot
-# partition is p1, the boot FAT is p2 and the rootfs is p3 - not the image's
-# p1/p2/p128. Resolve by offset instead of guessing numbers.
+# Resolve the two partitions by start sector rather than by number: the table
+# above is what guarantees the order, but the installer should not depend on a
+# numbering the image does not share (p128 there, absent here).
 p1=$(part_at_start "$target" 512)      # boot: FAT with grub.cfg
 p2=$(part_at_start "$target" 262656)   # rootfs
 [ -b "$p2" ] || { echo "cannot find the rootfs partition after the write"; exit 1; }
