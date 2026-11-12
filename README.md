@@ -362,6 +362,7 @@ sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-corete
 | 4~5 分钟自动重启 | 看门狗未关：`logread -e edge610` 应无 `iSMT SMBus adapter not found`。手动确认：`modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`，然后 `i2cset -y <bus> 0x22 0 0 b` |
 | Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openclash/core/clash_meta` |
 | 没有 WAN / 想换 WAN 口 | 默认 `lan6` 是 WAN（DHCP 客户端），`br-lan` 含 `lan1..lan5` + 两个 SFP（`eth3`/`eth2`）。换口：LuCI「网络→接口」把 `wan` 的设备改成 `lanN` / `eth2` / `eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
+| 从 U 盘启动却进了 eMMC 系统 | 镜像的分区 UUID 固定，同一个镜像刷到 eMMC 和 U 盘后两块盘 `PARTUUID` 相同，内核会挂到先枚举到的 eMMC。把 U 盘的 p2 重新生成 UUID 并同步改 `/boot/grub/grub.cfg`（详见 `docs/bringup-log.md`），或在 GRUB 里改成 `root=/dev/sdb2` |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建

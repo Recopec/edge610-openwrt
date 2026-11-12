@@ -374,3 +374,30 @@ dmesg | grep -i edge610           # shows P2SB BAR unavailable / insmod failed
 ```
 
 **Runtime workaround without reflashing**: pass the BAR explicitly (`fdc20000 - 0xc20000`) to both modules - add `p2sb_bar_addr=0xfd000000` to the two `load_module` calls in `/etc/init.d/edge610`; `lan1..lan6` come back after a reboot.
+
+## 2026-11-12 Booting the USB stick still landed in the eMMC system: PARTUUID collision
+
+Symptom: the USB was selected in the BIOS and GRUB plus the kernel really did come from the stick (`/boot` was mounted from `sdb1`), yet `/` was still the eMMC (`/dev/mmcblk0p2`) with the eMMC configuration.
+
+Cause: the image carries fixed partition UUIDs from build time, so **writing the same `.img.gz` to the eMMC and to a USB stick gives both disks identical partition UUIDs**:
+
+```
+mmcblk0p2 uuid=9D9C20B5-6446-8D11-BAD8-7BE847429B02
+sdb2       uuid=9D9C20B5-6446-8D11-BAD8-7BE847429B02
+```
+
+`grub.cfg` boots with `linux /boot/vmlinuz root=PARTUUID=9d9c20b5-...`; the kernel resolves that UUID to the first matching disk (the eMMC), so the stick's own rootfs is never used - it only looks like the configuration is shared.
+
+Fix (only touches the stick):
+
+```sh
+NEW=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
+sfdisk --part-uuid /dev/sdb 2 "$NEW"          # rootfs partition only
+LOWER=$(echo "$NEW" | tr 'A-F' 'a-f')
+sed -i "s/9d9c20b5-6446-8d11-bad8-7be847429b02/$LOWER/g" /boot/grub/grub.cfg   # /boot lives on the stick
+sync && reboot                                 # pick the USB in the BIOS again
+```
+
+For a one-off test you can skip all of that: press `e` in the GRUB menu and set `root=/dev/sdb2`.
+
+Note `sfdisk --part-uuid` prints `Re-reading the partition table failed` while the stick is in use (`/boot` mounted) - that is expected; re-plug or reboot and it is in effect.

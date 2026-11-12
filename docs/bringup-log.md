@@ -370,3 +370,30 @@ dmesg | grep -i edge610           # 会看到 P2SB BAR unavailable / insmod fail
 ```
 
 **不刷机的临时救急**：给两个模块显式传 BAR（值可由 `fdc20000 - 0xc20000` 推出），或直接改 `/etc/init.d/edge610` 里的两处 `load_module` 调用加上 `p2sb_bar_addr=0xfd000000`，重启后 `lan1..lan6` 会回来。
+
+## 2026-11-12 从 U 盘启动却进了 eMMC 系统：PARTUUID 撞车
+
+现象：BIOS 里选 U 盘启动，GRUB 和内核确实来自 U 盘（`/boot` 挂在 `sdb1` 上），但 `/` 仍是 eMMC（`/dev/mmcblk0p2`），配置也是 eMMC 那套。
+
+原因：镜像里的分区 UUID 是构建时固定写进 GPT 的，**同一个 `.img.gz` 写到 eMMC、又写到 U 盘，两块盘的分区 UUID 完全相同**：
+
+```
+mmcblk0p2 uuid=9D9C20B5-6446-8D11-BAD8-7BE847429B02
+sdb2       uuid=9D9C20B5-6446-8D11-BAD8-7BE847429B02
+```
+
+`grub.cfg` 里是 `linux /boot/vmlinuz root=PARTUUID=9d9c20b5-...`，内核按这个 UUID 找根，先枚举到 eMMC 就挂了 eMMC 的 rootfs——看起来像"配置共享"，其实是根本没从 U 盘的 rootfs 启动。
+
+处理（只动 U 盘，不动 eMMC）：
+
+```sh
+NEW=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
+sfdisk --part-uuid /dev/sdb 2 "$NEW"          # 只改 rootfs 分区
+LOWER=$(echo "$NEW" | tr 'A-F' 'a-f')
+sed -i "s/9d9c20b5-6446-8d11-bad8-7be847429b02/$LOWER/g" /boot/grub/grub.cfg   # /boot 在 U 盘上
+sync && reboot                                 # 再在 BIOS 里选 U 盘
+```
+
+一次性验证也可以省掉上面步骤：GRUB 菜单按 `e`，把 `root=PARTUUID=…` 改成 `root=/dev/sdb2` 再启动。
+
+注意 `sfdisk --part-uuid` 会提示 `Re-reading the partition table failed`（U 盘在跑、`/boot` 还挂着），属正常，重新插拔或重启即生效。
