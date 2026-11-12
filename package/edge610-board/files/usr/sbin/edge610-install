@@ -1,14 +1,15 @@
 #!/bin/sh
-# edge610-install - write an Edge 610 image (.img.gz) onto the internal eMMC.
+# edge610-install - put the running Edge 610 system onto the internal eMMC.
 #
-# Meant to be run from the USB stick image: it overwrites the whole eMMC with
-# the given image, gives the eMMC rootfs a fresh partition UUID and rewrites
-# the matching root= in the eMMC's grub.cfg, so the stick and the eMMC never
-# share a PARTUUID (see docs/bringup-log.md, "PARTUUID 撞车").
+# Typical use: boot the USB stick image, run `edge610-install`, confirm, done.
+# It copies the disk it booted from onto /dev/mmcblk0, grows the rootfs to the
+# whole eMMC and gives the copy its own PARTUUID (so the stick and the eMMC do
+# not collide at boot - see docs/bringup-log.md "PARTUUID 撞车").
 #
-#   edge610-install /mnt/usb/edge610-20261112-0955.img.gz     # asks to confirm
-#   edge610-install --yes edge610-*.img.gz                    # unattended
-#   edge610-install --target /dev/loop9 --yes image.img.gz    # test with a loop file
+#   edge610-install                          # clone the running stick to the eMMC
+#   edge610-install edge610-*.img.gz         # write an image file instead
+#   edge610-install --yes                    # unattended
+#   edge610-install --target /dev/loop9 --from /dev/loop8 --yes   # testing
 #
 # Refuses to touch a disk that carries the running / or /boot.
 
@@ -16,72 +17,110 @@ set -eu
 
 usage() {
 	cat <<EOF
-usage: edge610-install [--yes] [--target DEV] <image.img.gz>
+usage: edge610-install [--yes] [--target DEV] [--from DEV] [image.img.gz]
 
+  (no image)     clone the disk this system booted from onto the target
+  image.img.gz   write that image instead
   --yes          skip the confirmation prompt
-  --target DEV   write to DEV instead of /dev/mmcblk0 (for testing)
+  --target DEV   destination, default /dev/mmcblk0
+  --from DEV     source disk for the clone, default = the running root disk
 EOF
 	exit 1
 }
 
 confirm=1
 target=/dev/mmcblk0
+src=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--yes|-y) confirm=0; shift ;;
 	--target) [ $# -ge 2 ] || usage; target=$2; shift 2 ;;
+	--from)   [ $# -ge 2 ] || usage; src=$2; shift 2 ;;
 	-h|--help) usage ;;
 	-*) usage ;;
 	*) break ;;
 	esac
 done
-[ $# -eq 1 ] || usage
-img=$1
+img=${1:-}
 
-[ -f "$img" ] || { echo "no such image: $img"; exit 1; }
 [ -b "$target" ] || { echo "$target is not a block device"; exit 1; }
+target=$(readlink -f "$target")
 
-# --- the image must be a gzip'ed x86 disk image with our boot sector --------
-[ "$(dd if="$img" bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "1f8b" ] \
-	|| { echo "$img is not gzip'ed - expected an .img.gz"; exit 1; }
-magic=$(gzip -dc "$img" | dd bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
-case "$magic" in
-eb63|eb48) ;;
-*) echo "unexpected boot sector 0x$magic - not an Edge 610 image"; exit 1 ;;
-esac
-
-# --- refuse to overwrite the disk we are running from ----------------------
 part_of_disk() { # /dev/mmcblk0p2 -> /dev/mmcblk0, /dev/sdb2 -> /dev/sdb
 	case "$(basename "$1")" in
-	mmcblk*p[0-9]) echo "/dev/$(basename "$1" | sed 's/p[0-9]*$//')" ;;
-	mmcblk*)       echo "/dev/$(basename "$1")" ;;
-	*)             echo "/dev/$(basename "$1" | sed 's/[0-9]*$//')" ;;
+	mmcblk*p[0-9]*) echo "/dev/$(basename "$1" | sed 's/p[0-9]*$//')" ;;
+	mmcblk*)        echo "/dev/$(basename "$1")" ;;
+	loop*p[0-9]*)   echo "/dev/$(basename "$1" | sed 's/p[0-9]*$//')" ;;
+	nvme*p[0-9]*)   echo "/dev/$(basename "$1" | sed 's/p[0-9]*$//')" ;;
+	*)              echo "/dev/$(basename "$1" | sed 's/[0-9]*$//')" ;;
 	esac
 }
 
+part_dev() { # disk + index -> the partition node
+	case "$(basename "$1")" in
+	mmcblk*|loop*|nvme*|md*) echo "$1p$2" ;;
+	*)                       echo "$1$2" ;;
+	esac
+}
+
+# --- the target must not be the disk we are running from -------------------
 for mnt in / /boot; do
-	src=$(awk -v m="$mnt" '$2 == m {print $1}' /proc/mounts)
-	[ -n "$src" ] || continue
-	if [ "$(part_of_disk "$src")" = "$(readlink -f "$target")" ]; then
-		echo "$target carries the running $mnt; run this from another disk (e.g. the USB image)"
+	cur=$(awk -v m="$mnt" '$2 == m {print $1}' /proc/mounts)
+	[ -n "$cur" ] || continue
+	if [ "$(part_of_disk "$cur")" = "$target" ]; then
+		echo "$target carries the running $mnt - run this from another disk (the USB image)"
 		exit 1
 	fi
 done
 
 # --- no partition of the target may be mounted -----------------------------
-base=$(basename "$target")
-if awk -v b="$base" '$1 ~ b {print}' /proc/mounts | grep -q .; then
+if awk -v b="$(basename "$target")" '$1 ~ b {print}' /proc/mounts | grep -q .; then
 	echo "$target has mounted partitions - unmount them first:"
-	awk -v b="$base" '$1 ~ b {print "  " $2}' /proc/mounts
+	awk -v b="$(basename "$target")" '$1 ~ b {print "  " $2}' /proc/mounts
 	exit 1
 fi
 
-raw=$(gzip -dc "$img" | wc -c)
-echo "image : $img"
-echo "raw   : $((raw / 1024 / 1024)) MiB"
-echo "target: $target"
+# --- work out how many sectors to write ------------------------------------
+if [ -n "$img" ]; then
+	[ -f "$img" ] || { echo "no such image: $img"; exit 1; }
+	[ "$(dd if="$img" bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "1f8b" ] \
+		|| { echo "$img is not gzip'ed - expected an .img.gz"; exit 1; }
+	magic=$(gzip -dc "$img" | dd bs=2 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')
+	case "$magic" in
+	eb63|eb48) ;;
+	*) echo "unexpected boot sector 0x$magic - not an Edge 610 image"; exit 1 ;;
+	esac
+	bytes=$(gzip -dc "$img" | wc -c)
+	sectors=$(( (bytes + 511) / 512 ))
+	what="image $img"
+else
+	if [ -z "$src" ]; then
+		root=$(awk '$2 == "/" {print $1; exit}' /proc/mounts)
+		src=$(part_of_disk "$root")
+	fi
+	src=$(readlink -f "$src")
+	[ -b "$src" ] || { echo "cannot determine the source disk (use --from DEV)"; exit 1; }
+	[ "$src" != "$target" ] || { echo "source and target are the same disk"; exit 1; }
+	# highest partition end in sectors, plus the secondary GPT (33 sectors)
+	sectors=$(sfdisk -d "$src" | awk -v d="$(basename "$src")" '
+		index($1, "/" d) == 1 && $1 != "/" d {
+			for (i = 1; i <= NF; i++) {
+				if ($i ~ /^start=/) { s = substr($i, 7) + 0 }
+				if ($i ~ /^size=/)  { z = substr($i, 6) + 0 }
+			}
+			if (s + z > m) m = s + z
+		}
+		END { print m + 34 }')
+	case "$sectors" in ''|0|*[!0-9]*) echo "cannot read the partition table of $src"; exit 1 ;; esac
+	what="the running disk $src"
+fi
+
 tgt=$(blockdev --getsize64 "$target" 2>/dev/null || echo 0)
-[ "$tgt" -ge "$raw" ] || { echo "target is smaller ($((tgt / 1024 / 1024)) MiB) than the image"; exit 1; }
+[ "$tgt" -ge $((sectors * 512)) ] \
+	|| { echo "target ($((tgt / 1024 / 1024)) MiB) is smaller than the source ($((sectors / 2048)) MiB)"; exit 1; }
+
+echo "source: $what ($((sectors / 2048)) MiB)"
+echo "target: $target ($((tgt / 1024 / 1024)) MiB)"
 
 if [ "$confirm" = 1 ]; then
 	printf 'Everything on %s will be erased. Type YES to continue: ' "$target"
@@ -89,26 +128,61 @@ if [ "$confirm" = 1 ]; then
 	[ "$ans" = "YES" ] || { echo "aborted"; exit 1; }
 fi
 
-echo "writing..."
-gzip -dc "$img" | dd of="$target" bs=4M conv=fsync 2>/dev/null || { echo "write failed"; exit 1; }
+# --- write ----------------------------------------------------------------
+if [ -n "$img" ]; then
+	echo "writing image..."
+	gzip -dc "$img" | dd of="$target" bs=4M conv=fsync 2>/dev/null || { echo "write failed"; exit 1; }
+else
+	# When copying the live rootfs, make it read-only first so the copy is
+	# consistent. A source given with --from is left alone.
+	ro_restore=
+	live=$(part_of_disk "$(awk '$2 == "/" {print $1; exit}' /proc/mounts)")
+	if [ "$src" = "$live" ]; then
+		awk '$2 == "/" && $4 ~ /(^|,)ro(,|$)/ {found = 1} END {exit !found}' /proc/mounts \
+			|| { mount -o remount,ro / && ro_restore=1; }
+	fi
+	echo "cloning $src -> $target ..."
+	dd if="$src" of="$target" bs=4M count=$((sectors / 8192 + 1)) conv=fsync 2>/dev/null \
+		|| { echo "write failed"; [ -n "$ro_restore" ] && mount -o remount,rw /; exit 1; }
+	[ -n "$ro_restore" ] && mount -o remount,rw / || true
+fi
 sync
 
-# Let the kernel see the new table, then give the copy its own rootfs UUID so
-# it does not collide with the disk we are running from.
 partx -d - "$target" >/dev/null 2>&1 || true
 partx -a - "$target" >/dev/null 2>&1 || true
+sleep 1
 
-case "$base" in
-mmcblk*|loop*|nvme*|md*) p1="${target}p1"; p2="${target}p2" ;;
-*)                       p1="${target}1";  p2="${target}2"  ;;
+p1=$(part_dev "$target" 1)
+p2=$(part_dev "$target" 2)
+[ -b "$p2" ] || { echo "cannot find ${p2} after the write"; exit 1; }
+
+# --- make the copied rootfs fill the target, cleanly ----------------------
+echo "checking and growing the rootfs..."
+e2fsck -fy "$p2" >/dev/null 2>&1 || true
+
+start=$(cat "/sys/class/block/$(basename "$p2")/start")
+disk=$(cat "/sys/class/block/$(basename "$target")/size")
+label=$(sfdisk -d "$target" 2>/dev/null | head -n1 | awk '{print $2}')
+case "$label" in
+gpt) end=$((disk - 34)) ;;
+*)   end=$((disk - 1)) ;;
 esac
+newsize=$((end - start + 1))
+if [ "$newsize" -gt 0 ] && \
+   printf '%s,%s\n' "$start" "$newsize" | sfdisk --force --no-reread -N 2 "$target" >/dev/null 2>&1; then
+	partx -u "$target" >/dev/null 2>&1 || true
+	sleep 1
+	resize2fs "$p2" >/dev/null 2>&1 && echo "rootfs grown to $((newsize / 2048)) MiB" \
+		|| echo "WARNING: partition grown but resize2fs failed; run: resize2fs $p2"
+fi
 
+# --- give the copy its own UUID so it does not shadow the source ----------
 new=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
 old=$(sfdisk -d "$target" | grep "^$p2 " | sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p')
 if [ -z "$old" ]; then
 	echo "WARNING: cannot read the rootfs UUID from $target; grub.cfg left alone"
 elif ! sfdisk --force --part-uuid "$target" 2 "$new" >/dev/null 2>&1; then
-	echo "WARNING: could not re-UUID ${target}2; run scripts/usb-prep.sh from another machine"
+	echo "WARNING: could not re-UUID ${p2}; the copy will collide with the source disk"
 	old=""
 else
 	echo "rootfs UUID: $old -> $new"
@@ -132,4 +206,3 @@ rmdir "$mnt" 2>/dev/null || true
 
 echo
 echo "done. power off, remove the USB stick, boot from $target."
-echo "first boot comes up with br-lan 192.168.1.1/24 and root password edge610pass."
