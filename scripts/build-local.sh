@@ -399,7 +399,10 @@ for f in usr/sbin/edge610-install \
          etc/openclash/core/clash_meta; do
   grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
 done
-tar -tvzf "$TAR" | grep -q '^-rwxr-xr-x .*usr/sbin/edge610-install$' \
+# Listing into a file on purpose: `tar | grep -q` dies of SIGPIPE once grep
+# matches, and pipefail turns that into a false failure.
+tar -tvzf "$TAR" > /tmp/rootfs-modes.txt
+grep -q '^-rwxr-xr-x .*usr/sbin/edge610-install$' /tmp/rootfs-modes.txt \
   || { echo "edge610-install is missing or not executable"; exit 1; }
 for b in sfdisk partx resize2fs; do
   grep -qE "/$b$" /tmp/rootfs-files.txt || { echo "binary missing: $b"; exit 1; }
