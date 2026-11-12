@@ -8,6 +8,36 @@
 - 网络：2× **1G SFP**（SoC 原生 X553，`ixgbe`）+ 6× **1G RJ45**（板载 Marvell 88E6190，DSA `lan1..lan6`）——全部端口上限 1G，见[速率上限](#速率上限重要)
 - 看门狗：板载 PIC 硬件 WDT（iSMT SMBus `0x22/0x24`），开机由脚本清除，否则 4~5 分钟硬重启
 
+## 目录
+
+- [界面预览](#界面预览)
+  - [4G/LTE 模组（EM7565）](#4glte-模组em7565)
+- [实机照片](#实机照片)
+- [硬件实测（本机）](#硬件实测本机)
+- [CPU 性能实测](#cpu-性能实测)
+- [其他板载硬件（实测）](#其他板载硬件实测)
+- [速率上限（重要）](#速率上限重要)
+  - [SFP 口实测](#sfp-口实测)
+- [构建产物](#构建产物)
+- [一键构建](#一键构建)
+  - [本地构建（推荐用于迭代）](#本地构建推荐用于迭代)
+- [镜像内容](#镜像内容)
+- [仓库结构](#仓库结构)
+  - [关键设计](#关键设计)
+- [只装板级包（不刷机）](#只装板级包不刷机)
+- [刷机](#刷机)
+  - [从 U 盘一键装到 eMMC](#从-u-盘一键装到-emmc)
+  - [备用的 dd 路径](#备用的-dd-路径)
+  - [首启脚本顺序](#首启脚本顺序)
+- [升级](#升级)
+- [串口控制台](#串口控制台)
+- [开机验收](#开机验收)
+- [实现历程与关键发现](#实现历程与关键发现)
+- [故障排查](#故障排查)
+- [修改与重建](#修改与重建)
+- [已知限制](#已知限制)
+- [版本与发布](#版本与发布)
+
 ## 界面预览
 
 | 状态概览 |
@@ -22,7 +52,7 @@
 | --- | --- |
 | ![挂载点](docs/screenshots/05-mounts.png) | ![Docker](docs/screenshots/06-docker.png) |
 
-> 实机截图：Argon v3 主题 + 中文界面。该机 LAN 为 `10.1.2.3/24`，镜像默认 `192.168.1.1/24`。
+> 实机截图：Argon v3 主题 + 中文界面。**截图时**该机 LAN 是 `10.1.2.3/24`（旁路由部署）；镜像默认 `192.168.1.1/24`。
 
 ### 4G/LTE 模组（EM7565）
 
@@ -269,6 +299,7 @@ package/edge610-board/
     └── etc/openhsalc/core/           hsalc_meta 由 CI 下载（已 gitignore）
 scripts/
 ├── build-local.sh                 本机构建（与 CI 同源，增量，首次约 75 分钟）
+├── serial-console.py             串口控制台客户端（可走 HTTP 代理 CONNECT，便于跨网段）
 ├── serial-bridge.ps1              把 Windows 串口桥成 TCP :7001，远程驱动串口控制台
 ├── usb-prep.sh                    给 U 盘重新生成 p2 PARTUUID（两盘同镜像时用）
 └── verify-device.sh               对已启动设备跑一遍验收（与镜像内的 verify-device 同源）
@@ -364,6 +395,31 @@ edge610-install --yes    # 免确认
 4. 拔 U 盘，`reboot`。首启 `zzz98-edge610-resize` 自动把根分区扩到整盘，
    `df -h /` 应为 ~14.3G（日志：`logread -e edge610-resize`）。
 
+### 首启脚本顺序
+
+`/etc/uci-defaults` 里的脚本按文件名排序执行，跑完自删。本仓库的五个都在 `zzz*` 段，所以包的初始化脚本（`10-fstab`、`60_luci-mwan3` …）先于它们：
+
+| 顺序 | 脚本 | 作用 |
+| --- | --- | --- |
+| 1 | `zzz98-edge610-resize` | 把 `p2` 扩到整盘；`/` 不在 `mmcblk0p2` 上（从 U 盘启动）时主动跳过 |
+| 2 | `zzz99-edge610-mwan3` | 改探测点；建 `wwan` 成员 + `failover` 策略并改 IPv4 规则。已有 `mwan3.wwan` 就不动 |
+| 3 | `zzz99-edge610-network` | 写 `/etc/config/network`（`lan1..lan5` 桥接 + `lan6` 作 WAN）。已有 `network.lan` 就保持原样 |
+| 4 | `zzz99-edge610-network-modem` | 建 `network.wwan`（qmi / cmnet / ipv4v6 / metric 100）并加入防火墙 wan zone |
+| 5 | `zzz99-edge610-password` | root 密码**为空**时预置 `edge610pass`；已有密码绝不覆盖 |
+
+装好的系统里这些脚本已经消失（自删），要看行为就用 `logread -e edge610` 和 `uci show`。
+
+## 升级
+
+镜像本体**没有验证过** `sysupgrade -n`：eMMC 的布局（p1 boot / p2 rootfs）与 OpenWrt x86 组合镜像一致，但分区 UUID 和 `grub.cfg` 是安装器改写的，`/boot` 默认也不挂载（`/etc/config/fstab` 里 `enabled '0'`）。按现状走重装路径：
+
+1. 备份配置：`sysupgrade -b /tmp/cfg.tar.gz`（实测约 29 MB），再用 `scp` 或串口取出；只想要接口/拨号配置就 `tar -czf /tmp/net.tar.gz /etc/config`。
+2. 新镜像刷 U 盘 → 从 U 盘启动。
+3. `edge610-install --yes`。**它会整盘克隆 U 盘上的系统，eMMC 现有的 `/etc/config` 会被 U 盘那份覆盖**——这就是第 1 步必须备份的原因。
+4. 断电、拔 U 盘、上电，把备份放回去（`tar -xzf /tmp/cfg.tar.gz -C /`），再 `reboot`。
+
+如果将来要支持原地 `sysupgrade`，需要先验证它写内核/`grub.cfg` 的路径与新布局兼容，并把 `/boot` 的挂载打开。
+
 ## 串口控制台
 
 这台机器**没有视频输出**，串口是唯一的本地入口（BIOS/POST 输出也走它）。背板小铁片后面是 Micro-USB，板载 CP210x：
@@ -380,6 +436,15 @@ edge610-install --yes    # 免确认
 # 一次性放行端口（管理员）
 netsh advfirewall firewall add rule name="edge610-serial" dir=in action=allow protocol=TCP localport=7001
 ```
+
+跨网段的话，仓库里带一个客户端，省得记 CONNECT 细节：
+
+```sh
+python scripts/serial-console.py --host 10.1.2.222 --port 7001 --proxy 127.0.0.1:7897 \
+    --command "uptime" --command "mwan3 status"
+```
+
+它给每条命令补 `echo __RC__$?` 并检查退出码（卡在 grub 或半行输入不会被当成成功）；`--raw` 只看串口流。
 
 串口里看到 `root@OpenWrt:~#` 即为可用 shell；`Enter` 无反应时先发一次换行或 `Ctrl-C`（可能在 grub 菜单/长输出里）。
 

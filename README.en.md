@@ -8,6 +8,36 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 - Network: 2× **1G SFP** (native X553, `ixgbe`) + 6× **1G RJ45** (on-board Marvell 88E6190, DSA `lan1..lan6`) — every port is capped at 1G, see [Port speed limits](#port-speed-limits)
 - Watchdog: on-board PIC hardware WDT (iSMT SMBus `0x22/0x24`); the boot script clears it, otherwise the box reboots after 4–5 minutes
 
+## Contents
+
+- [Screenshots](#screenshots)
+  - [4G/LTE modem (EM7565)](#4glte-modem-em7565)
+- [Hardware photos](#hardware-photos)
+- [Hardware (measured)](#hardware-measured)
+- [CPU benchmark](#cpu-benchmark)
+- [Other onboard hardware (measured)](#other-onboard-hardware-measured)
+- [Port speed limits](#port-speed-limits)
+  - [SFP ports, as measured](#sfp-ports-as-measured)
+- [Build artifacts](#build-artifacts)
+- [Building](#building)
+  - [Local build (recommended for iteration)](#local-build-recommended-for-iteration)
+- [Image contents](#image-contents)
+- [Repository layout](#repository-layout)
+  - [Key design notes](#key-design-notes)
+- [Board packages only (no reflash)](#board-packages-only-no-reflash)
+- [Flashing](#flashing)
+  - [Install to the eMMC from the USB system](#install-to-the-emmc-from-the-usb-system)
+  - [The plain dd route](#the-plain-dd-route)
+  - [First-boot order](#first-boot-order)
+- [Upgrading](#upgrading)
+- [Serial console](#serial-console)
+- [Post-flash checks](#post-flash-checks)
+- [Build-time pitfalls](#build-time-pitfalls)
+- [Troubleshooting](#troubleshooting)
+- [Modifying and rebuilding](#modifying-and-rebuilding)
+- [Known limits](#known-limits)
+- [Versions and releases](#versions-and-releases)
+
 ## Screenshots
 
 | Status overview |
@@ -22,7 +52,7 @@ A full-source OpenWrt image for the **VMware SD-WAN Edge 610** (same hardware as
 | --- | --- |
 | ![Mount points](docs/screenshots/05-mounts.png) | ![Docker](docs/screenshots/06-docker.png) |
 
-> Captured on real hardware: Argon v3 theme, Chinese UI. The box in the screenshots uses `10.1.2.3/24`; the image defaults to `192.168.1.1/24`.
+> Captured on real hardware: Argon v3 theme, Chinese UI. **At capture time** the box ran `10.1.2.3/24` (side-router deployment); the image defaults to `192.168.1.1/24`.
 
 ### 4G/LTE modem (EM7565)
 
@@ -268,6 +298,7 @@ package/edge610-board/
     └── etc/openhsalc/core/         hsalc_meta downloaded by CI (gitignored)
 scripts/
 ├── build-local.sh                local build, same seed as CI (incremental, ~75 min cold)
+├── serial-console.py             serial console client (tunnels through an HTTP proxy)
 ├── serial-bridge.ps1             expose a Windows COM port as TCP :7001
 ├── usb-prep.sh                   re-UUID a stick's p2 when both disks carry the image
 └── verify-device.sh              post-flash checks (same as verify-device in the image)
@@ -362,6 +393,31 @@ The growth no longer depends on the first-boot script (it happens during install
 4. Remove the USB stick and `reboot`. On first boot `zzz98-edge610-resize` grows the rootfs to the whole disk;
    `df -h /` should show ~14.3G (log: `logread -e edge610-resize`).
 
+### First-boot order
+
+Scripts in `/etc/uci-defaults` run in filename order and delete themselves afterwards. All five of ours live in the `zzz*` range, so the package defaults (`10-fstab`, `60_luci-mwan3`, ...) run first:
+
+| # | Script | What it does |
+| --- | --- | --- |
+| 1 | `zzz98-edge610-resize` | grow `p2` to the whole disk; skipped when `/` is not on `mmcblk0p2` (booting from a stick) |
+| 2 | `zzz99-edge610-mwan3` | rewrite the probe hosts; add the `wwan` member, the `failover` policy and the IPv4 rules. Does nothing if `mwan3.wwan` exists |
+| 3 | `zzz99-edge610-network` | write `/etc/config/network` (`lan1..lan5` bridge + `lan6` as WAN); left alone if `network.lan` exists |
+| 4 | `zzz99-edge610-network-modem` | create `network.wwan` (qmi / cmnet / ipv4v6 / metric 100) and add it to the wan firewall zone |
+| 5 | `zzz99-edge610-password` | preset `edge610pass` **only** while the root password is empty |
+
+On an installed system these scripts are already gone; inspect the result with `logread -e edge610` and `uci show`.
+
+## Upgrading
+
+`sysupgrade -n` is **not verified** on this image: the eMMC layout (p1 boot / p2 rootfs) matches OpenWrt's x86 combined image, but the partition UUIDs and `grub.cfg` are rewritten by the installer and `/boot` is not mounted by default (`enabled '0'` in `/etc/config/fstab`). Reinstall instead:
+
+1. Back up the config: `sysupgrade -b /tmp/cfg.tar.gz` (about 29 MB measured), then copy it off with `scp` or over the serial console; `tar -czf /tmp/net.tar.gz /etc/config` is enough for interfaces and dial-up settings.
+2. Write the new image to the stick and boot from it.
+3. `edge610-install --yes`. **It clones the stick's system onto the whole disk, so the eMMC's `/etc/config` is replaced by the stick's** - which is why step 1 matters.
+4. Power off, remove the stick, boot, restore the backup (`tar -xzf /tmp/cfg.tar.gz -C /`) and reboot.
+
+Supporting in-place `sysupgrade` later means verifying that it writes the kernel and `grub.cfg` the way this layout expects, and mounting `/boot`.
+
 ## Serial console
 
 This board has **no video output**; the serial line is the only local console (BIOS/POST output goes there too). Micro-USB behind the small metal plate, on-board CP210x:
@@ -378,6 +434,15 @@ This board has **no video output**; the serial line is the only local console (B
 # once, elevated
 netsh advfirewall firewall add rule name="edge610-serial" dir=in action=allow protocol=TCP localport=7001
 ```
+
+The repo ships a client so the CONNECT details stay out of the way:
+
+```sh
+python scripts/serial-console.py --host 10.1.2.222 --port 7001 --proxy 127.0.0.1:7897 \
+    --command "uptime" --command "mwan3 status"
+```
+
+Each command is followed by `echo __RC__$?` and the exit status is checked, so a console stuck in grub or a half-typed line is not mistaken for success; `--raw` just reads the stream.
 
 `root@OpenWrt:~#` means you have a shell; if Enter does nothing, send a newline or `Ctrl-C` first (you may be in the grub menu or mid-output).
 
