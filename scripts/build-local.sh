@@ -437,9 +437,11 @@ cp "$MAN" "$ART/edge610-$STAMP.manifest"
 ln -sfn "$ART/edge610-$STAMP.img.gz" "$ART/edge610-latest.img.gz"
 # Board packages (kmods + files) for ImageBuilder / on-device apk upgrades.
 mkdir -p "$ART/repo"
-find bin -name 'edge610*.apk' -o -name 'kmod-edge610-*.apk' | while read -r a; do
-  cp -f "$a" "$ART/repo/"
-done
+# Clear the previous run so an old revision cannot be published alongside the
+# new one. i2c-ismt is part of this package's build but not named edge610*.
+rm -f "$ART/repo"/*.apk
+find bin \( -name 'edge610*.apk' -o -name 'kmod-edge610-*.apk' -o -name 'kmod-i2c-ismt-*.apk' \) \
+  -exec cp -f {} "$ART/repo/" \;
 ls -l "$ART/repo"
 echo "artifact: $ART/edge610-$STAMP.img.gz"
 echo "$IMG"
