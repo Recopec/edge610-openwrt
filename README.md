@@ -308,6 +308,20 @@ reboot
 
 ## 刷机
 
+### 从 U 盘一键装到 eMMC
+
+U 盘里的系统带 `edge610-install`（`/usr/sbin/`）：
+
+```sh
+edge610-install /mnt/usb/edge610-20261112-0955.img.gz   # 会要求输入 YES 确认
+edge610-install --yes edge610-*.img.gz                   # 免确认
+```
+
+它会：校验镜像（gzip + `eb63` 引导扇区）→ 拒绝操作正在运行的那块盘 → 整盘写入 → 给新 rootfs 分区换一个新的 `PARTUUID` 并同步改 eMMC 的 `grub.cfg`（避免和 U 盘撞车）→ 提示关机拔盘。
+
+首启仍由 `zzz98-edge610-resize` 把 1 GiB rootfs 扩到整块 eMMC——它按 `/dev/mmcblk0p2` 和 sysfs 定位，与 `PARTUUID` 无关，所以换 UUID 不影响扩容；但**必须从 eMMC 启动**才会扩容（从 U 盘启动时脚本会主动跳过）。
+
+
 > 必须用本仓库构建的镜像（已打 mke2fs 补丁）。用 OpenWrt 默认 `make_ext4fs` 生成的镜像，
 > 首启在线扩容会失败（openwrt/openwrt#7729）。
 

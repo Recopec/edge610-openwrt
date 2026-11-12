@@ -307,6 +307,20 @@ Notes:
 
 ## Flashing
 
+### Install to the eMMC from the USB system
+
+The stick's system ships `edge610-install` (`/usr/sbin/`):
+
+```sh
+edge610-install /mnt/usb/edge610-20261112-0955.img.gz   # asks you to type YES
+edge610-install --yes edge610-*.img.gz                   # unattended
+```
+
+It validates the image (gzip + the `eb63` boot sector), refuses to touch the disk it is running from, writes the whole image, gives the new rootfs partition a fresh `PARTUUID` and rewrites the eMMC `grub.cfg` (so the stick and the eMMC stop colliding), then tells you to power off and remove the stick.
+
+The first boot from the eMMC still grows the 1 GiB rootfs to the whole disk via `zzz98-edge610-resize` - that script locates `/dev/mmcblk0p2` through sysfs and never looks at `PARTUUID`, and it deliberately skips when the system booted from USB, so boot from the eMMC to get the resize.
+
+
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
 
 1. Prepare a USB stick: one OpenWrt boot disk plus an exfat data partition, and put `edge610-*.img.gz` on the data partition.
