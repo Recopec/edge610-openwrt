@@ -131,7 +131,11 @@ else
 	what="disk $src"
 fi
 
-tgt=$(blockdev --getsize64 "$target" 2>/dev/null || echo 0)
+# busybox blockdev has no --getsize64; sysfs always has the sector count.
+tgt=$(blockdev --getsize64 "$target" 2>/dev/null || true)
+case "$tgt" in
+''|0|*[!0-9]*) tgt=$(( $(cat "/sys/class/block/$(basename "$target")/size") * 512 )) ;;
+esac
 [ "$tgt" -ge $((sectors * 512)) ] \
 	|| { echo "target ($((tgt / 1024 / 1024)) MiB) is smaller than the source ($((sectors / 2048)) MiB)"; exit 1; }
 
