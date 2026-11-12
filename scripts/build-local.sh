@@ -53,6 +53,19 @@ if grep -q 'make_ext4fs' include/image.mk 2>/dev/null; then
 fi
 ! grep -q 'make_ext4fs' include/image.mk || { echo "make_ext4fs still present"; exit 1; }
 
+# Salt the image GUIDs with the source revision (image.mk patch 0003). OpenWrt
+# derives IMG_PART_SIGNATURE and IMG_PART_DISKGUID from
+# md5(SOURCE_DATE_EPOCH + LINUX_VERMAGIC), so without the salt every build of
+# this tree ships the same root=PARTUUID and a stick written from one release
+# mounts the eMMC rootfs of another instead of its own.
+if ! grep -q 'EDGE610_IMAGE_SALT' include/image.mk; then
+  log "patch include/image.mk (GUID salt)"
+  git apply "$REPO/patches/openwrt/0003-image-guid-salt.patch" \
+    || { echo "image.mk GUID salt patch failed"; exit 1; }
+fi
+grep -q 'EDGE610_IMAGE_SALT' include/image.mk || { echo "GUID salt missing"; exit 1; }
+export EDGE610_IMAGE_SALT="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo 0)"
+
 # 1c. EM7565 (1199:9091) is missing from option's device table; without it
 # the modem exposes no AT ports (qmi_wwan still works).
 cp "$REPO/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \
