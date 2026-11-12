@@ -167,6 +167,7 @@ else
 		fi
 	fi
 	echo "cloning $src -> $target ..."
+	sync        # the source is live; get as much of it on disk as possible
 	dd if="$src" of="$target" bs=4M count=$((sectors / 8192 + 1)) conv=fsync 2>/dev/null \
 		|| { echo "write failed"; [ -n "$ro_restore" ] && mount -o remount,rw /; exit 1; }
 	[ -n "$ro_restore" ] && mount -o remount,rw / || true
