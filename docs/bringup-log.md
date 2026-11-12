@@ -341,11 +341,17 @@ edge610-switch: P2SB BAR unavailable (device hidden by BIOS and no iomem hint); 
 insmod: failed to insert .../edge610_switch_standalone.ko
 ```
 
-根因：模块只在 `iomem_resource.child`（第一层）里找名字含 `INTC3000`、大小 `0x10000`、`start - 0xc20000` 16MB 对齐的资源。这台机器这次启动时该资源挂在 PCI host bridge 窗口**下面一层**：
+根因：模块只在 `iomem_resource.child`（第一层）里找名字含 `INTC3000`、大小 `0x10000`、`start - 0xc20000` 16MB 对齐的资源。这台机器这次启动时该资源挂在根级的 `Reserved` 区域**下面一层**（`/proc/iomem` 原文，注意缩进）：
 
 ```
-fdc20000-fdc2ffff : INTC3000:00          ← 实际在这里（depth 2）
+fd000000-fe7fffff : Reserved
+  fdc20000-fdc2ffff : INTC3000:00
+    fdc20000-fdc2ffff : INTC3000:00 INTC3000:00
+  fdc50000-fdc5ffff : INTC3000:00
+    fdc50000-fdc5ffff : INTC3000:00 INTC3000:00
 ```
+
+`0xfdc20000 - 0xc20000 = 0xfd000000`，正是模块一直使用的 BAR。
 
 于是扫描为空，模块 `return -ENODEV`，init 脚本随之中止，连 `ixgbe` 都没加载。
 

@@ -345,11 +345,17 @@ edge610-switch: P2SB BAR unavailable (device hidden by BIOS and no iomem hint); 
 insmod: failed to insert .../edge610_switch_standalone.ko
 ```
 
-Cause: the module only scanned `iomem_resource.child` (depth 1) for a resource named `INTC3000`, size `0x10000`, whose `start - 0xc20000` is 16 MB aligned. On this boot the firmware nested that window one level deeper, under a PCI host bridge window:
+Cause: the module only scanned `iomem_resource.child` (depth 1) for a resource named `INTC3000`, size `0x10000`, whose `start - 0xc20000` is 16 MB aligned. On this boot the firmware nested that window one level deeper, under the root-level `Reserved` region (verbatim `/proc/iomem`, note the indent):
 
 ```
-fdc20000-fdc2ffff : INTC3000:00          <- actually at depth 2
+fd000000-fe7fffff : Reserved
+  fdc20000-fdc2ffff : INTC3000:00
+    fdc20000-fdc2ffff : INTC3000:00 INTC3000:00
+  fdc50000-fdc5ffff : INTC3000:00
+    fdc50000-fdc5ffff : INTC3000:00 INTC3000:00
 ```
+
+`0xfdc20000 - 0xc20000 = 0xfd000000`, exactly the BAR the module always used.
 
 so the scan came back empty, the module returned -ENODEV, the init script aborted and even `ixgbe` never loaded.
 
