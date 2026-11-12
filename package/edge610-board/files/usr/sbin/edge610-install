@@ -245,7 +245,7 @@ if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
 	x=$(echo "$new_print" | tr a-f A-F)
 	boot_serial="${x%????}-${x#????}"
 	old_serial=$(print_serial "$old_disk")
-	echo "boot serial: ${old_serial%????}-${old_serial#????} -> ${boot_serial%????}-${boot_serial#????}"
+	echo "boot serial: ${old_serial%????}-${old_serial#????} -> $boot_serial"
 else
 	boot_serial=
 	echo "WARNING: could not generate a boot-partition serial"
