@@ -246,6 +246,8 @@ CONFIG_PACKAGE_uqmi=y
 # qmicli: QMI NAS "get PLMN name" — the network (NITZ/MM info) operator name
 CONFIG_PACKAGE_qmi-utils=y
 CONFIG_PACKAGE_e2fsprogs=y
+# gdisk: edge610-install rebuilds the GPT for the target disk (sgdisk)
+CONFIG_PACKAGE_gdisk=y
 CONFIG_PACKAGE_smartmontools=y
 CONFIG_PACKAGE_hdparm=y
 CONFIG_PACKAGE_luci-app-chrony=y

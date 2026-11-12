@@ -76,6 +76,7 @@ part_dev() { # disk + index -> the partition node
 }
 
 # --- the target must not be the disk we are running from -------------------
+command -v sgdisk >/dev/null || { echo "sgdisk not found (opkg/apk package: gdisk)"; exit 1; }
 for mnt in / /boot; do
 	cur=$(mount_source "$mnt")
 	[ -n "$cur" ] || continue
@@ -175,38 +176,44 @@ fi
 sync
 
 partx -d - "$target" >/dev/null 2>&1 || true
-partx -a - "$target" >/dev/null 2>&1 || true
+
+# --- give the copy a table that describes this disk -----------------------
+# A clone carries the source's GPT, backup table included. When the target is
+# smaller than the source the backup lands past the end, the kernel rejects the
+# table and falls back to the protective MBR: no partitions, no ${target}p2.
+# Rebuild the table with the image's layout instead - p1 boot (128 MiB, legacy
+# bootable), p2 rootfs (the rest), p128 BIOS boot - and let sgdisk generate
+# fresh GUIDs, so the copy cannot collide with the disk it came from.
+echo "rewriting the partition table for $target..."
+sgdisk --zap-all "$target" >/dev/null 2>&1 \
+	|| { echo "sgdisk --zap-all failed"; exit 1; }
+sgdisk --set-alignment=1 \
+	-n 128:34:511 -t 128:21686148-6449-6E6F-744E-656564454649 \
+	-n 1:512:262655 -t 1:0FC63DAF-8483-4772-8E79-3D69D8477DE4 -A 1:set:2 \
+	-n 2:262656:0 -t 2:0FC63DAF-8483-4772-8E79-3D69D8477DE4 \
+	"$target" >/dev/null 2>&1 \
+	|| { echo "sgdisk could not create the partitions"; exit 1; }
+partx -a "$target" >/dev/null 2>&1 || true
 sleep 1
 
 p1=$(part_dev "$target" 1)
 p2=$(part_dev "$target" 2)
 [ -b "$p2" ] || { echo "cannot find ${p2} after the write"; exit 1; }
 
-# --- make the copied rootfs fill the target, cleanly ----------------------
+# --- repair and grow ------------------------------------------------------
+# The clone was taken from a live filesystem (busybox cannot always remount /
+# read-only while the stick is in use), so fsck it before it is ever mounted.
 echo "checking and growing the rootfs..."
 e2fsck -fy "$p2" >/dev/null 2>&1 || true
-
-start=$(cat "/sys/class/block/$(basename "$p2")/start")
-disk=$(cat "/sys/class/block/$(basename "$target")/size")
-label=$(sfdisk -d "$target" 2>/dev/null | head -n1 | awk '{print $2}')
-case "$label" in
-gpt) end=$((disk - 34)) ;;
-*)   end=$((disk - 1)) ;;
-esac
-newsize=$((end - start + 1))
-if [ "$newsize" -gt 0 ] && \
-   printf '%s,%s\n' "$start" "$newsize" | sfdisk --force --no-reread -N 2 "$target" >/dev/null 2>&1; then
-	partx -u "$target" >/dev/null 2>&1 || true
-	sleep 1
-	resize2fs "$p2" >/dev/null 2>&1 && echo "rootfs grown to $((newsize / 2048)) MiB" \
-		|| echo "WARNING: partition grown but resize2fs failed; run: resize2fs $p2"
-fi
+resize2fs "$p2" >/dev/null 2>&1 \
+	&& echo "rootfs grown to $(( $(cat "/sys/class/block/$(basename "$p2")/size") / 2048 )) MiB" \
+	|| echo "WARNING: resize2fs failed; run: resize2fs $p2"
 
 # --- give the copy its own identity ---------------------------------------
-# A clone carries the source's GPT UUIDs, its FAT volume serial and its ext4
-# UUID. root= makes the two disks fight over the kernel command line, the
-# grub search line over the kernel itself.
-rnd_uuid() { cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F'; }
+# root= makes the two disks fight over the kernel command line, and the grub
+# search line over the kernel itself, so the boot filesystem serial has to
+# differ from the source too. (Partition GUIDs are already fresh: sgdisk
+# above created every partition.)
 gpt_uuid() { sfdisk -d "$1" 2>/dev/null | grep "^$2 " \
 	| sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p'; }
 
@@ -252,17 +259,9 @@ else
 	echo "WARNING: could not generate a boot-partition serial"
 fi
 
-for idx in 1 2; do
-	dev=$p1; [ "$idx" = 2 ] && dev=$p2
-	old=$(gpt_uuid "$target" "$dev")
-	[ -n "$old" ] || { echo "WARNING: cannot read the UUID of $dev"; continue; }
-	if sfdisk --force --part-uuid "$target" "$idx" "$(rnd_uuid)" >/dev/null 2>&1; then
-		echo "partition $idx UUID: $old -> $(gpt_uuid "$target" "$dev")"
-	else
-		echo "WARNING: could not re-UUID $dev; it collides with the source disk"
-	fi
-done
 root_uuid=$(gpt_uuid "$target" "$p2")
+[ -n "$root_uuid" ] || echo "WARNING: cannot read the UUID of $p2"
+echo "root partition UUID: ${root_uuid:-unknown}"
 
 mnt=$(mktemp -d)
 if mount "$p1" "$mnt" 2>/dev/null; then
@@ -271,9 +270,8 @@ if mount "$p1" "$mnt" 2>/dev/null; then
 		[ -f "$c" ] && cfg=$c && break
 	done
 	if [ -n "$cfg" ]; then
-		# Rewrite whatever is there instead of substituting values read before
-		# the write: after a clone the target's GPT is the source's, and what
-		# is read back is not what the file holds.
+		# Read the values above, after the table was rebuilt: what the source
+		# disk had is not what this copy now carries.
 		if [ -n "$root_uuid" ]; then
 			low=$(echo "$root_uuid" | tr 'A-F' 'a-f')
 			sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"

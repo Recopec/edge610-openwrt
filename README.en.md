@@ -316,7 +316,7 @@ edge610-install          # type YES, then clone + grow + re-UUID
 edge610-install --yes    # unattended
 ```
 
-It confirms the target is `/dev/mmcblk0` and not the disk it is running from, tries to remount `/` read-only (that fails under overlayfs - `e2fsck` covers it) and clones the stick, runs `e2fsck` and grows the copied rootfs to the whole eMMC offline, gives the eMMC's p2 a fresh `PARTUUID` and rewrites its `grub.cfg` (so the stick and the eMMC stop colliding), then tells you to power off, remove the stick and boot from the eMMC.
+It confirms the target is `/dev/mmcblk0` and not the disk it is running from, tries to remount `/` read-only (that fails under overlayfs — `e2fsck` covers it) and clones the stick. It then **rebuilds the target's partition table with `sgdisk`** in the image's layout (p1 boot / p2 rootfs / p128 BIOS boot, all partition GUIDs fresh: a cloned table describes the stick's size and the kernel rejects it on a smaller eMMC), runs `e2fsck` and grows the rootfs to the whole disk, replaces the boot partition's FAT serial and rewrites `grub.cfg`'s `root=` / `--fs-uuid`, then tells you to power off, remove the stick and boot from the eMMC.
 
 Writing an image file also works (handy for scripting): `edge610-install --yes /path/edge610-*.img.gz`, with the same grow + re-UUID steps.
 

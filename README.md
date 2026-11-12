@@ -317,7 +317,7 @@ edge610-install          # 提示输入 YES，然后克隆 + 扩容 + 换 UUID
 edge610-install --yes    # 免确认
 ```
 
-流程：确认目标是 `/dev/mmcblk0` 且不是正在运行的盘 → 尝试把 `/` 挂成只读并整盘克隆当前 U 盘（overlayfs 下只读挂载会失败，此时靠随后的 `e2fsck` 兜底）→ `e2fsck` + 把 rootfs 扩到整块 eMMC（离线 `resize2fs`）→ 给 eMMC 的 p2 换新 `PARTUUID` 并同步改它的 `grub.cfg`（避免和 U 盘撞车）→ 提示关机拔盘、从 eMMC 启动。
+流程：确认目标是 `/dev/mmcblk0` 且不是正在运行的盘 → 尝试把 `/` 挂成只读并整盘克隆当前 U 盘（overlayfs 下只读挂载会失败，此时靠随后的 `e2fsck` 兜底）→ **用 `sgdisk` 按镜像布局重建目标盘的分区表**（p1 boot / p2 rootfs / p128 BIOS boot，所有分区 GUID 重新生成；克隆带来的表描述的是 U 盘大小，放到更小的 eMMC 上内核会直接拒绝）→ `e2fsck` + 把 rootfs 扩到整块 eMMC → 换掉 boot 分区的 FAT 序列号并同步改 `grub.cfg` 的 `root=` / `--fs-uuid` → 提示关机拔盘、从 eMMC 启动。
 
 也可以直接写镜像文件（适合脚本化）：`edge610-install --yes /path/edge610-*.img.gz`，同样会扩容和换 UUID。
 
