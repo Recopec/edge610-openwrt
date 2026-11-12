@@ -220,9 +220,16 @@ if mount "$p1" "$mnt" 2>/dev/null; then
 		[ -f "$c" ] && cfg=$c && break
 	done
 	if [ -n "$cfg" ] && [ -n "$old" ]; then
+		# Rewrite whatever root= value is there instead of substituting the
+		# UUID that was read before the write: after a clone the target's GPT
+		# is the source's, and the value read back is not what the file holds.
 		low=$(echo "$new" | tr 'A-F' 'a-f')
-		sed -i "s/$(echo "$old" | tr 'A-F' 'a-f')/$low/Ig" "$cfg"
-		echo "grub.cfg root= -> $low"
+		sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"
+		if grep -q "root=PARTUUID=$low" "$cfg"; then
+			echo "grub.cfg root= -> $low"
+		else
+			echo "WARNING: grub.cfg was not updated - fix root= by hand before booting"
+		fi
 	fi
 	sync
 	umount "$mnt"
