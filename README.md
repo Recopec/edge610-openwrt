@@ -209,7 +209,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | OpenWrt | 25.12.6（x86_64，kernel 6.12.112） |
 | LuCI | 官方 feed |
 | OpenHsalc | 0.48.002（官方稳定 release tag） |
-| Mihomo 内核 | v1.19.33 `linux-amd64-v1`（**无 AVX2**，预置于 `/etc/openhsalc/core/hsalc_meta`） |
+| Mihomo 内核 | v1.19.33 `linux-amd64-v1`（**无 AVX2**，预置于 `/etc/openclash/core/clash_meta`） |
 | DNS | `dnsmasq-full`（替换默认 dnsmasq） |
 | 交换 | `kmod-dsa` + `kmod-dsa-mv88e6xxx` + 本仓库 `edge610_dsa`（端口名 `lan1..lan6`） |
 | 网卡 | `kmod-ixgbe`（**autoload 已剥离**，由 init 脚本按序加载） |
@@ -334,7 +334,7 @@ ip link                     # 应出现 lan1..lan6（+ lo 与若干 ethX）
 logread -e edge610          # 看门狗清除、conduit、端口 up 日志
 df -h /                     # 从 eMMC 启动应为 ~14.3G（首启扩容生效）
 sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-coretemp）
-/etc/openhsalc/core/hsalc_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
+/etc/openclash/core/clash_meta -v   # 必须回显 Mihomo Meta ... linux amd64（amd64-v1）
 ```
 
 - 空闲运行 ≥10 分钟不重启 → 看门狗关闭生效。
@@ -358,10 +358,10 @@ sensors                     # 应看到 Core 0/Core 1 温度（kmod-hwmon-corete
 | 现象 | 处理 |
 | --- | --- |
 | `ip link` 无 `lan1..lan6` | `logread -e edge610` 看 `edge610_switch_standalone` / `edge610_dsa` 报错；`dmesg \| grep -i -E 'dsa\|mv88e'`；`lsmod \| grep -E 'edge610\|mv88e\|dsa'` |
-| 日志 `P2SB BAR unavailable` | 该机 BIOS 隐藏了 P2SB（`8086:19dd` 不在 `lspci` 里）。模块会从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（通常 `0xfd000000`）；仍失败时手动指定：`modprobe edge610_switch_standalone p2sb_bar_addr=0xfd000000 ...` 和 `modprobe edge610_dsa conduit_name=ethX p2sb_bar_addr=0xfd000000` |
+| 日志 `P2SB BAR unavailable` | 该机 BIOS 隐藏了 P2SB（`8086:19dd` 不在 `lspci` 里），模块从 `/proc/iomem` 的 `INTC3000:00` 反推 BAR（通常 `0xfd000000`）。注意该窗口有时在根层、有时套在根级 `Reserved` 下（`grep -n INTC3000 /proc/iomem` 看缩进），模块已改为递归扫描；仍失败时手动指定：`modprobe ... p2sb_bar_addr=0xfd000000`（详见 `docs/bringup-log.md`） |
 | 4~5 分钟自动重启 | 看门狗未关：`logread -e edge610` 应无 `iSMT SMBus adapter not found`。手动确认：`modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`，然后 `i2cset -y <bus> 0x22 0 0 b` |
-| Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openhsalc/core/hsalc_meta` |
-| 没有 WAN / 想换 WAN 口 | 默认 `lan6` 是 WAN（DHCP 客户端），`br-lan` 只含 `lan1..lan5`，`eth2`/`eth3`（SFP）保持未配置。换口：LuCI「网络→接口」把 `wan` 的设备改成 `lanN` / `eth2` / `eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
+| Mihomo 报 `Illegal instruction` | 核被替换成了 v2/v3（AVX）。只可用 `linux-amd64-v1`，重新放回 `/etc/openclash/core/clash_meta` |
+| 没有 WAN / 想换 WAN 口 | 默认 `lan6` 是 WAN（DHCP 客户端），`br-lan` 含 `lan1..lan5` + 两个 SFP（`eth3`/`eth2`）。换口：LuCI「网络→接口」把 `wan` 的设备改成 `lanN` / `eth2` / `eth3`（`logread -e edge610` 里的 `conduit:` 是交换 uplink，**不要**配地址） |
 | eth 口数量不止 eth0/eth1 | X553 共 4 个 MAC，枚举数量随 BIOS 变化；以日志中 `conduit:` 行与实际插线为准 |
 
 ## 修改与重建
