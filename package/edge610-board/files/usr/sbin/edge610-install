@@ -220,10 +220,8 @@ esac
 # blkid prints the 4 BPB bytes little endian, i.e. reversed: the disk holds
 # cd ab 34 12 for the serial 1234-ABCD.
 print_serial() { # 8 hex chars as stored on disk -> "XXXXYYYY"
-	echo "$1" | cut -c7-8 | tr a-f A-F
-	echo "$1" | cut -c5-6 | tr a-f A-F
-	echo "$1" | cut -c3-4 | tr a-f A-F
-	echo "$1" | cut -c1-2 | tr a-f A-F
+	echo "$(echo "$1" | cut -c7-8)$(echo "$1" | cut -c5-6)$(echo "$1" | cut -c3-4)$(echo "$1" | cut -c1-2)" \
+		| tr a-f A-F | tr -d ' \n'
 }
 disk_bytes() { # "XXXXYYYY" -> the byte order the BPB wants
 	echo "$1" | cut -c7-8 | tr A-F a-f
