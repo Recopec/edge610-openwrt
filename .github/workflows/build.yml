@@ -87,6 +87,11 @@ jobs:
           # make_ext4fs rootfs cannot be grown online (openwrt#7729); use mke2fs
           git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0001-image-mkfs-ext4-use-mke2fs.patch"
           ! grep -q make_ext4fs openwrt/include/image.mk
+          # Image GUIDs get a per-revision salt, so a stick written from a newer
+          # build never shares root=PARTUUID with an older eMMC install.
+          git -C openwrt apply "$GITHUB_WORKSPACE/patches/openwrt/0003-image-guid-salt.patch"
+          grep -q EDGE610_IMAGE_SALT openwrt/include/image.mk
+          echo "EDGE610_IMAGE_SALT=${GITHUB_SHA:0:8}" >> "$GITHUB_ENV"
           # EM7565 (1199:9091) is missing from option's table; without it the
           # modem has no AT ports (qmi_wwan still works).
           cp "$GITHUB_WORKSPACE/patches/openwrt/0002-usb-serial-option-add-em7565.patch" \
@@ -460,20 +465,6 @@ jobs:
             echo "::warning::kernel .config not located; relying on module presence checks"
           fi
           echo "verification OK"
-
-      - name: Give the image its own rootfs PARTUUID
-        run: |
-          cd openwrt/bin/targets/x86/64
-          IMG="$(ls *-generic-ext4-combined-efi.img.gz | head -n1)"
-          # Every image of this tree otherwise shares the GUIDs derived from
-          # SOURCE_DATE_EPOCH + LINUX_VERMAGIC, and a stick written from it
-          # mounts the eMMC rootfs instead of its own (same root=PARTUUID).
-          gzip -dc "$IMG" > /tmp/img
-          python3 "$GITHUB_WORKSPACE/scripts/image-uuid.py" /tmp/img
-          gzip -9 -n -c /tmp/img > "$IMG"
-          rm -f /tmp/img
-          sed -i "s|^[0-9a-f]*  $IMG\$|$(sha256sum "$IMG")|" sha256sums
-          grep -E '^[0-9a-f]{64}' sha256sums | head -3
 
       - name: Stamp artifact names with build time
         run: |
