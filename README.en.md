@@ -323,7 +323,29 @@ Writing an image file also works (handy for scripting): `edge610-install --yes /
 The growth no longer depends on the first-boot script (it happens during install); `zzz98-edge610-resize` stays for the plain `dd` path - it locates `/dev/mmcblk0p2` through sysfs, never looks at `PARTUUID`, and deliberately skips when the system booted from USB.
 
 
+### The stick needs its own `PARTUUID` before it will boot itself
+
+The image's partition UUIDs come from `md5(SOURCE_DATE_EPOCH + LINUX_VERMAGIC)`, so **the same image written to the eMMC and to a stick gives both disks the same p2 `PARTUUID`**. GRUB boots with `root=PARTUUID=`, so the kernel mounts whichever disk enumerates first - usually the eMMC. The symptom: you boot the stick but land in the old eMMC system and `edge610-install: not found` (`lsblk` shows `/` on `mmcblk0p2` while `/boot` is on `sdb1`).
+
+Fix it right after writing the stick, then boot from it:
+
+1. On any Linux box (**not** booted from that stick):
+   ```sh
+   sudo scripts/usb-prep.sh /dev/sdX        # the whole disk, not a partition
+   ```
+2. Or, when you are already in the eMMC system with the stick mounted at `/boot`:
+   ```sh
+   new=$(cat /proc/sys/kernel/random/uuid | tr a-f A-F)
+   sfdisk --part-uuid /dev/sdb 2 "$new"
+   low=$(echo "$new" | tr A-F a-f)
+   sed -i "s/<the root= UUID already in grub.cfg>/$low/Ig" /boot/grub/grub.cfg
+   sync && reboot
+   ```
+   After the reboot `/` is the stick's p2 and `ls -l /usr/sbin/edge610-install` finds the installer.
+
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
+
+### The plain dd route
 
 1. Prepare a USB stick: one OpenWrt boot disk plus an exfat data partition, and put `edge610-*.img.gz` on the data partition.
 2. Remove the small rear cover to expose the Micro-USB console (CP210x); PuTTY: `115200 8N1`, no flow control.
