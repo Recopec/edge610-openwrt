@@ -229,9 +229,10 @@ disk_bytes() { # "XXXXYYYY" -> the byte order the BPB wants
 	echo "$1" | cut -c3-4 | tr A-F a-f
 	echo "$1" | cut -c1-2 | tr A-F a-f
 }
+# hexdump, not od: busybox OpenWrt ships the former
 old_disk=$(dd if="$p1" bs=1 skip=$serial_off count=4 2>/dev/null \
-	| od -An -tx1 | tr -d ' \n')
-new_print=$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n' | tr a-f A-F)
+	| hexdump -v -e '1/1 "%02x"')
+new_print=$(head -c4 /dev/urandom | hexdump -v -e '1/1 "%02x"' | tr a-f A-F)
 if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
 	# printf octal escapes, not \x: dash and busybox printf only agree on \NNN
 	bytes=""
