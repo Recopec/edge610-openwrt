@@ -68,15 +68,16 @@ mount_source() { # $1 = mount point -> the block device, or empty
 	printf '%s' "$cur"
 }
 
-part_dev() { # disk + index -> the partition node
-	case "$(basename "$1")" in
-	mmcblk*|loop*|nvme*|md*) echo "$1p$2" ;;
-	*)                       echo "$1$2" ;;
-	esac
+part_at_start() { # disk + start sector -> the partition node holding it
+	sfdisk -d "$1" 2>/dev/null | awk -v dev="$1" -v s="$2" '
+		$1 != dev && $1 ~ /^\/dev\// {
+			start = ""
+			for (i = 1; i <= NF; i++) if ($i == "start=") start = $(i + 1) + 0
+			if (start == s) { sub(/,$/, "", $1); print $1; exit }
+		}'
 }
 
 # --- the target must not be the disk we are running from -------------------
-command -v sgdisk >/dev/null || { echo "sgdisk not found (opkg/apk package: gdisk)"; exit 1; }
 for mnt in / /boot; do
 	cur=$(mount_source "$mnt")
 	[ -n "$cur" ] || continue
@@ -179,26 +180,41 @@ partx -d - "$target" >/dev/null 2>&1 || true
 
 # --- give the copy a table that describes this disk -----------------------
 # A clone carries the source's GPT, backup table included. When the target is
-# smaller than the source the backup lands past the end, the kernel rejects the
-# table and falls back to the protective MBR: no partitions, no ${target}p2.
-# Rebuild the table with the image's layout instead - p1 boot (128 MiB, legacy
-# bootable), p2 rootfs (the rest), p128 BIOS boot - and let sgdisk generate
-# fresh GUIDs, so the copy cannot collide with the disk it came from.
+# smaller than the source that backup lands past the end, so the kernel
+# rejects the table and falls back to the protective MBR: no partitions, no
+# ${target}p2. Write the image's layout instead - 512..262655 boot (legacy
+# bootable), 262656..end rootfs - and let sfdisk generate fresh disk and
+# partition GUIDs so the copy cannot collide with its source.
+#
+# No BIOS boot partition here, on purpose. The image carries one at 34..511
+# (p128) but the partition *numbers* matter to grub: its core.img is built for
+# the boot filesystem on gpt1, so any layout that pushes the FAT to gpt2 drops
+# the firmware at a bare "grub>" prompt. sfdisk numbers partitions in start
+# order, so keeping the FAT at 512 makes it p1, exactly like the image.
+#
+# core.img itself still sits at 34..511 in the unallocated gap: boot.img loads
+# it from that absolute sector, not through a partition. Measured on the
+# device - boots unattended with this table.
+sectors_total=$(cat "/sys/class/block/$(basename "$target")/size")
+[ "$sectors_total" -gt 262656 ] || { echo "$target is too small"; exit 1; }
 echo "rewriting the partition table for $target..."
-sgdisk --zap-all "$target" >/dev/null 2>&1 \
-	|| { echo "sgdisk --zap-all failed"; exit 1; }
-sgdisk --set-alignment=1 \
-	-n 128:34:511 -t 128:21686148-6449-6E6F-744E-656564454649 \
-	-n 1:512:262655 -t 1:0FC63DAF-8483-4772-8E79-3D69D8477DE4 -A 1:set:2 \
-	-n 2:262656:0 -t 2:0FC63DAF-8483-4772-8E79-3D69D8477DE4 \
-	"$target" >/dev/null 2>&1 \
-	|| { echo "sgdisk could not create the partitions"; exit 1; }
+{
+	echo "label: gpt"
+	echo "first-lba: 34"
+	echo "start=512, size=262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, attrs=LegacyBIOSBootable"
+	echo "start=262656, size=$((sectors_total - 34 - 262656)), type=0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+} | sfdisk --force --no-reread "$target" >/dev/null 2>&1 \
+	|| { echo "sfdisk could not write the partition table"; exit 1; }
 partx -a "$target" >/dev/null 2>&1 || true
 sleep 1
 
-p1=$(part_dev "$target" 1)
-p2=$(part_dev "$target" 2)
-[ -b "$p2" ] || { echo "cannot find ${p2} after the write"; exit 1; }
+# sfdisk numbers partitions in start order, so on the target the BIOS boot
+# partition is p1, the boot FAT is p2 and the rootfs is p3 - not the image's
+# p1/p2/p128. Resolve by offset instead of guessing numbers.
+p1=$(part_at_start "$target" 512)      # boot: FAT with grub.cfg
+p2=$(part_at_start "$target" 262656)   # rootfs
+[ -b "$p2" ] || { echo "cannot find the rootfs partition after the write"; exit 1; }
+[ -b "$p1" ] || { echo "cannot find the boot partition after the write"; exit 1; }
 
 # --- repair and grow ------------------------------------------------------
 # The clone was taken from a live filesystem (busybox cannot always remount /
@@ -209,55 +225,19 @@ resize2fs "$p2" >/dev/null 2>&1 \
 	&& echo "rootfs grown to $(( $(cat "/sys/class/block/$(basename "$p2")/size") / 2048 )) MiB" \
 	|| echo "WARNING: resize2fs failed; run: resize2fs $p2"
 
-# --- give the copy its own identity ---------------------------------------
-# root= makes the two disks fight over the kernel command line, and the grub
-# search line over the kernel itself, so the boot filesystem serial has to
-# differ from the source too. (Partition GUIDs are already fresh: sgdisk
-# above created every partition.)
+# --- point the boot config at this copy's rootfs --------------------------
+# The rootfs PARTUUID is fresh (the table was rewritten above), so grub.cfg
+# has to follow or it would mount the source disk's /.
+#
+# The FAT serial is deliberately left alone. grub's core.img carries the boot
+# filesystem's uuid as a binary search hint; renaming the volume means patching
+# a four-byte value inside a packed binary, and a hint that no longer matches
+# drops the firmware at a bare "grub>" prompt with no menu (observed). Keeping
+# the serial means an eMMC-only boot resolves the hint exactly like the stick
+# did. Two disks with the same serial only matter when both are attached - the
+# development case that scripts/usb-prep.sh exists for.
 gpt_uuid() { sfdisk -d "$1" 2>/dev/null | grep "^$2 " \
 	| sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p'; }
-
-# boot partition: FAT volume serial (4 bytes in the BPB; FAT32 at 0x43,
-# FAT12/16 at 0x27) and the GPT UUID.
-bootfs=$(dd if="$p1" bs=1 skip=54 count=8 2>/dev/null | tr -d '\0')
-case "$bootfs" in
-FAT32*) serial_off=67 ;;
-*)      serial_off=39 ;;
-esac
-# blkid prints the 4 BPB bytes little endian, i.e. reversed: the disk holds
-# cd ab 34 12 for the serial 1234-ABCD.
-print_serial() { # 8 hex chars as stored on disk -> "XXXXYYYY"
-	echo "$(echo "$1" | cut -c7-8)$(echo "$1" | cut -c5-6)$(echo "$1" | cut -c3-4)$(echo "$1" | cut -c1-2)" \
-		| tr a-f A-F | tr -d ' \n'
-}
-disk_bytes() { # "XXXXYYYY" -> the byte order the BPB wants
-	echo "$1" | cut -c7-8 | tr A-F a-f
-	echo "$1" | cut -c5-6 | tr A-F a-f
-	echo "$1" | cut -c3-4 | tr A-F a-f
-	echo "$1" | cut -c1-2 | tr A-F a-f
-}
-# hexdump, not od: busybox OpenWrt ships the former
-old_disk=$(dd if="$p1" bs=1 skip=$serial_off count=4 2>/dev/null \
-	| hexdump -v -e '1/1 "%02x"')
-new_print=$(head -c4 /dev/urandom | hexdump -v -e '1/1 "%02x"' | tr a-f A-F)
-if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
-	# printf octal escapes, not \x: dash and busybox printf only agree on \NNN
-	bytes=""
-	for b in $(disk_bytes "$new_print"); do
-		bytes="$bytes\\$(printf '%03o' $((0x$b)))"
-	done
-	printf "$bytes" | dd of="$p1" bs=1 seek=$serial_off conv=notrunc 2>/dev/null
-	# blkid (and grub) print the BPB bytes reversed; the bytes on disk are the
-	# reverse of the printed form, which is what disk_bytes() writes.
-	# GRUB prints the vfat uuid dashed ("1234-ABCD"), blkid too.
-	x=$(echo "$new_print" | tr a-f A-F)
-	boot_serial="${x%????}-${x#????}"
-	old_serial=$(print_serial "$old_disk")
-	echo "boot serial: ${old_serial%????}-${old_serial#????} -> $boot_serial"
-else
-	boot_serial=
-	echo "WARNING: could not generate a boot-partition serial"
-fi
 
 root_uuid=$(gpt_uuid "$target" "$p2")
 [ -n "$root_uuid" ] || echo "WARNING: cannot read the UUID of $p2"
@@ -269,22 +249,12 @@ if mount "$p1" "$mnt" 2>/dev/null; then
 	for c in "$mnt/boot/grub/grub.cfg" "$mnt/grub/grub.cfg"; do
 		[ -f "$c" ] && cfg=$c && break
 	done
-	if [ -n "$cfg" ]; then
-		# Read the values above, after the table was rebuilt: what the source
-		# disk had is not what this copy now carries.
-		if [ -n "$root_uuid" ]; then
-			low=$(echo "$root_uuid" | tr 'A-F' 'a-f')
-			sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"
-			grep -q "root=PARTUUID=$low" "$cfg" \
-				&& echo "grub.cfg root= -> $low" \
-				|| echo "WARNING: grub.cfg root= not updated"
-		fi
-		if [ -n "$boot_serial" ]; then
-			sed -i -E "s|(--fs-uuid +)[0-9A-Fa-f-]+|\\1$boot_serial|Ig" "$cfg"
-			grep -q -- "--fs-uuid $boot_serial" "$cfg" \
-				&& echo "grub.cfg fs-uuid -> $boot_serial" \
-				|| echo "WARNING: grub.cfg does not search by fs-uuid; label-based search left alone"
-		fi
+	if [ -n "$cfg" ] && [ -n "$root_uuid" ]; then
+		low=$(echo "$root_uuid" | tr 'A-F' 'a-f')
+		sed -i -E "s|root=PARTUUID=[0-9A-Fa-f-]+|root=PARTUUID=$low|Ig" "$cfg"
+		grep -q "root=PARTUUID=$low" "$cfg" \
+			&& echo "grub.cfg root= -> $low" \
+			|| echo "WARNING: grub.cfg root= not updated"
 	fi
 	sync
 	umount "$mnt"

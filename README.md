@@ -317,7 +317,10 @@ edge610-install          # 提示输入 YES，然后克隆 + 扩容 + 换 UUID
 edge610-install --yes    # 免确认
 ```
 
-流程：确认目标是 `/dev/mmcblk0` 且不是正在运行的盘 → 尝试把 `/` 挂成只读并整盘克隆当前 U 盘（overlayfs 下只读挂载会失败，此时靠随后的 `e2fsck` 兜底）→ **用 `sgdisk` 按镜像布局重建目标盘的分区表**（p1 boot / p2 rootfs / p128 BIOS boot，所有分区 GUID 重新生成；克隆带来的表描述的是 U 盘大小，放到更小的 eMMC 上内核会直接拒绝）→ `e2fsck` + 把 rootfs 扩到整块 eMMC → 换掉 boot 分区的 FAT 序列号并同步改 `grub.cfg` 的 `root=` / `--fs-uuid` → 提示关机拔盘、从 eMMC 启动。
+流程：确认目标是 `/dev/mmcblk0` 且不是正在运行的盘 → 尝试把 `/` 挂成只读并整盘克隆当前 U 盘（overlayfs 下只读挂载会失败，此时靠随后的 `e2fsck` 兜底）→ **按镜像布局重写目标盘的分区表**（512..262655 boot、262656..盘尾 rootfs，磁盘与分区 GUID 重新生成；克隆带来的表描述的是 U 盘大小，放到更小的 eMMC 上内核会直接拒绝）→ `e2fsck` + 把 rootfs 扩到整块 eMMC → 改 `grub.cfg` 的 `root=PARTUUID` 指向新根分区 → 提示关机拔盘、从 eMMC 启动。
+
+> 安装后的 eMMC 只有 **p1（128 M boot）＋ p2（rootfs）** 两个分区，不像镜像那样带 p128。这不是省的：GRUB 的 `core.img` 是按"boot 文件系统在 gpt1"编的，`sfdisk` 按起始扇区编号，只有让 FAT 落在 512 才是 p1；`core.img` 本体仍留在 34..511 的空隙里，`boot.img` 按绝对扇区加载它，不经过分区表。实测这张表可以无人干预启动。
+> boot 分区的 FAT 序列号也**故意不动**：GRUB 把它作为二进制搜索提示编进了 `core.img`，改了就得去改压缩过的二进制，提示对不上会停在裸 `grub>` 提示符（踩过）。两盘同时在场时的冲突用 `scripts/usb-prep.sh` 处理。
 
 也可以直接写镜像文件（适合脚本化）：`edge610-install --yes /path/edge610-*.img.gz`，同样会扩容和换 UUID。
 

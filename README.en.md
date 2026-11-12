@@ -316,7 +316,10 @@ edge610-install          # type YES, then clone + grow + re-UUID
 edge610-install --yes    # unattended
 ```
 
-It confirms the target is `/dev/mmcblk0` and not the disk it is running from, tries to remount `/` read-only (that fails under overlayfs — `e2fsck` covers it) and clones the stick. It then **rebuilds the target's partition table with `sgdisk`** in the image's layout (p1 boot / p2 rootfs / p128 BIOS boot, all partition GUIDs fresh: a cloned table describes the stick's size and the kernel rejects it on a smaller eMMC), runs `e2fsck` and grows the rootfs to the whole disk, replaces the boot partition's FAT serial and rewrites `grub.cfg`'s `root=` / `--fs-uuid`, then tells you to power off, remove the stick and boot from the eMMC.
+It confirms the target is `/dev/mmcblk0` and not the disk it is running from, tries to remount `/` read-only (that fails under overlayfs — `e2fsck` covers it) and clones the stick. It then **rewrites the target's partition table in the image's layout** (512..262655 boot, 262656..end rootfs, fresh disk and partition GUIDs; a cloned table describes the stick's size and the kernel rejects it on a smaller eMMC), runs `e2fsck` and grows the rootfs to the whole disk, rewrites `grub.cfg`'s `root=PARTUUID` to the new root partition, then tells you to power off, remove the stick and boot from the eMMC.
+
+> The installed eMMC carries **p1 (128 M boot) + p2 (rootfs)** only, without the image's p128. That is deliberate: GRUB's `core.img` is built for the boot filesystem on gpt1, and `sfdisk` numbers partitions in start order, so only a FAT at sector 512 lands on p1. `core.img` itself stays in the unallocated 34..511 gap — `boot.img` loads it by absolute sector, not through a partition. Measured: this table boots unattended.
+> The boot partition's FAT serial is left alone on purpose: GRUB embeds it in `core.img` as a binary search hint, and a hint that no longer matches drops the firmware at a bare `grub>` prompt (observed). Use `scripts/usb-prep.sh` when both disks are in play.
 
 Writing an image file also works (handy for scripting): `edge610-install --yes /path/edge610-*.img.gz`, with the same grow + re-UUID steps.
 
