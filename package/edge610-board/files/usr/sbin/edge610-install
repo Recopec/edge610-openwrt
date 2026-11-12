@@ -219,8 +219,11 @@ FAT32*) serial_off=67 ;;
 esac
 # blkid prints the 4 BPB bytes little endian, i.e. reversed: the disk holds
 # cd ab 34 12 for the serial 1234-ABCD.
-print_serial() { # 8 hex chars as stored on disk -> "XXXX-YYYY"
-	printf '%s' "$(echo "$1" | cut -c7-8)$(echo "$1" | cut -c5-6)$(echo "$1" | cut -c3-4)$(echo "$1" | cut -c1-2 | tr a-f A-F)"
+print_serial() { # 8 hex chars as stored on disk -> "XXXXYYYY"
+	echo "$1" | cut -c7-8 | tr a-f A-F
+	echo "$1" | cut -c5-6 | tr a-f A-F
+	echo "$1" | cut -c3-4 | tr a-f A-F
+	echo "$1" | cut -c1-2 | tr a-f A-F
 }
 disk_bytes() { # "XXXXYYYY" -> the byte order the BPB wants
 	echo "$1" | cut -c7-8 | tr A-F a-f
@@ -232,13 +235,15 @@ old_disk=$(dd if="$p1" bs=1 skip=$serial_off count=4 2>/dev/null \
 	| od -An -tx1 | tr -d ' \n')
 new_print=$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n' | tr a-f A-F)
 if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
+	# printf octal escapes, not \x: dash and busybox printf only agree on \NNN
 	bytes=""
 	for b in $(disk_bytes "$new_print"); do
-		bytes="$bytes\\x$b"
+		bytes="$bytes\\$(printf '%03o' $((0x$b)))"
 	done
 	printf "$bytes" | dd of="$p1" bs=1 seek=$serial_off conv=notrunc 2>/dev/null
-	boot_serial=$(print_serial "$new_print" | cut -c1-4)-$(print_serial "$new_print" | cut -c5-8)
-	echo "boot serial: $(print_serial "$old_disk" | cut -c1-4)-$(print_serial "$old_disk" | cut -c5-8) -> $boot_serial"
+	boot_serial=$(print_serial "$new_print")
+	old_serial=$(print_serial "$old_disk")
+	echo "boot serial: ${old_serial%????}-${old_serial#????} -> ${boot_serial%????}-${boot_serial#????}"
 else
 	boot_serial=
 	echo "WARNING: could not generate a boot-partition serial"
