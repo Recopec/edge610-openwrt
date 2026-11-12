@@ -208,7 +208,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | OpenWrt | 25.12.6 (x86_64, kernel 6.12.112) |
 | LuCI | official feed |
 | OpenHsalc | 0.48.002 (official stable release tag) |
-| Mihomo core | v1.19.33 `linux-amd64-v1` (**no AVX2**, preinstalled at `/etc/openhsalc/core/hsalc_meta`) |
+| Mihomo core | v1.19.33 `linux-amd64-v1` (**no AVX2**, preinstalled at `/etc/openclash/core/clash_meta`) |
 | DNS | `dnsmasq-full` (replaces the default dnsmasq) |
 | Switching | `kmod-dsa` + `kmod-dsa-mv88e6xxx` + this repo's `edge610_dsa` (ports named `lan1..lan6`) |
 | NIC driver | `kmod-ixgbe` (**autoload stripped**, loaded in order by the init script) |
@@ -332,7 +332,7 @@ ip link                     # lan1..lan6 present (+ lo and the ethX ports)
 logread -e edge610          # watchdog cleared, conduit, port-up messages
 df -h /                     # ~14.3G when booted from eMMC (first-boot growth)
 sensors                     # Core 0 / Core 1 temperatures (kmod-hwmon-coretemp)
-/etc/openhsalc/core/hsalc_meta -v   # must print Mihomo Meta ... linux amd64 (amd64-v1)
+/etc/openclash/core/clash_meta -v   # must print Mihomo Meta ... linux amd64 (amd64-v1)
 ```
 
 - Idle for ≥10 minutes without a reboot → the watchdog is really off.
@@ -356,8 +356,9 @@ The full debug timeline (evidence, serial logs, build times) is in [`docs/bringu
 | `ip link` shows no `lan1..lan6` | check `logread -e edge610` for `edge610_switch_standalone` / `edge610_dsa` errors; `dmesg \| grep -i -E 'dsa\|mv88e'`; `lsmod \| grep -E 'edge610\|mv88e\|dsa'` |
 | `P2SB BAR unavailable` in the log | this BIOS hides P2SB (`8086:19dd` is not in `lspci`). The module derives the BAR from `/proc/iomem` (`INTC3000:00`, usually `0xfd000000`). That window is sometimes at the root and sometimes nested under the root `Reserved` region (`grep -n INTC3000 /proc/iomem`, look at the indent); the module now walks the whole tree. If it still fails, pass it manually: `modprobe ... p2sb_bar_addr=0xfd000000` (details in `docs/bringup-log.en.md`) |
 | Reboots every 4–5 minutes | watchdog still armed: `logread -e edge610` should not contain `iSMT SMBus adapter not found`. Check manually: `modprobe i2c-ismt; grep . /sys/bus/i2c/devices/*/name`, then `i2cset -y <bus> 0x22 0 0 b` |
-| Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openhsalc/core/hsalc_meta` |
-| No WAN / want a different WAN port | `lan6` is the WAN by default (DHCP client); `br-lan` only contains `lan1..lan5`, and `eth2`/`eth3` (SFP) stay unconfigured. To move it: LuCI → Network → Interfaces, change the `wan` device to `lanN` / `eth2` / `eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
+| Mihomo prints `Illegal instruction` | the core was replaced with a v2/v3 (AVX) build. Only `linux-amd64-v1` works; put it back at `/etc/openclash/core/clash_meta` |
+| No WAN / want a different WAN port | `lan6` is the WAN by default (DHCP client); `br-lan` contains `lan1..lan5` plus both SFP cages (`eth3`/`eth2`). To move it: LuCI → Network → Interfaces, change the `wan` device to `lanN` / `eth2` / `eth3` (the `conduit:` port from `logread -e edge610` is the switch uplink — **never** assign it an address) |
+| Booting a USB stick still lands in the eMMC system | the image ships fixed partition UUIDs, so the eMMC and a stick written from the same image share `PARTUUID` and the kernel mounts whichever enumerates first. Give the stick's p2 a new UUID and update `/boot/grub/grub.cfg` (see `docs/bringup-log.en.md`), or edit the GRUB entry to `root=/dev/sdb2` |
 | More `ethX` ports than expected | X553 has four MACs and the enumerated count depends on the BIOS; trust the `conduit:` line and the physical cabling |
 
 ## Modifying and rebuilding
