@@ -115,7 +115,7 @@ else
 		}
 		END { print m + 34 }')
 	case "$sectors" in ''|0|*[!0-9]*) echo "cannot read the partition table of $src"; exit 1 ;; esac
-	what="the running disk $src"
+	what="disk $src"
 fi
 
 tgt=$(blockdev --getsize64 "$target" 2>/dev/null || echo 0)

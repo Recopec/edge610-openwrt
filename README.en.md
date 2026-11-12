@@ -309,16 +309,18 @@ Notes:
 
 ### Install to the eMMC from the USB system
 
-The stick's system ships `edge610-install` (`/usr/sbin/`):
+The stick's system ships `edge610-install` (`/usr/sbin/`); **with no argument it clones the running system onto the eMMC**:
 
 ```sh
-edge610-install /mnt/usb/edge610-20261112-0955.img.gz   # asks you to type YES
-edge610-install --yes edge610-*.img.gz                   # unattended
+edge610-install          # type YES, then clone + grow + re-UUID
+edge610-install --yes    # unattended
 ```
 
-It validates the image (gzip + the `eb63` boot sector), refuses to touch the disk it is running from, writes the whole image, gives the new rootfs partition a fresh `PARTUUID` and rewrites the eMMC `grub.cfg` (so the stick and the eMMC stop colliding), then tells you to power off and remove the stick.
+It confirms the target is `/dev/mmcblk0` and not the disk it is running from, remounts `/` read-only and clones the stick, runs `e2fsck` and grows the copied rootfs to the whole eMMC offline, gives the eMMC's p2 a fresh `PARTUUID` and rewrites its `grub.cfg` (so the stick and the eMMC stop colliding), then tells you to power off, remove the stick and boot from the eMMC.
 
-The first boot from the eMMC still grows the 1 GiB rootfs to the whole disk via `zzz98-edge610-resize` - that script locates `/dev/mmcblk0p2` through sysfs and never looks at `PARTUUID`, and it deliberately skips when the system booted from USB, so boot from the eMMC to get the resize.
+Writing an image file also works (handy for scripting): `edge610-install --yes /path/edge610-*.img.gz`, with the same grow + re-UUID steps.
+
+The growth no longer depends on the first-boot script (it happens during install); `zzz98-edge610-resize` stays for the plain `dd` path - it locates `/dev/mmcblk0p2` through sysfs, never looks at `PARTUUID`, and deliberately skips when the system booted from USB.
 
 
 > Use an image built from this repo (mke2fs patch applied). Images built with OpenWrt's default `make_ext4fs` fail the first-boot online resize (openwrt/openwrt#7729).
