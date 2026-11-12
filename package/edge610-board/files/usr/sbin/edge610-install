@@ -56,6 +56,18 @@ part_of_disk() { # /dev/mmcblk0p2 -> /dev/mmcblk0, /dev/sdb2 -> /dev/sdb
 	esac
 }
 
+mount_source() { # $1 = mount point -> the block device, or empty
+	# /proc/mounts on OpenWrt reports the root as the synthetic /dev/root,
+	# which has no device node; findmnt resolves it through sysfs.
+	cur=$(findmnt -no SOURCE "$1" 2>/dev/null || true)
+	[ -n "$cur" ] || cur=$(awk -v m="$1" '$2 == m {print $1; exit}' /proc/mounts)
+	case "$cur" in
+	/dev/root) cur=$(readlink -f /dev/root 2>/dev/null || true)
+	           [ -b "$cur" ] || cur= ;;
+	esac
+	printf '%s' "$cur"
+}
+
 part_dev() { # disk + index -> the partition node
 	case "$(basename "$1")" in
 	mmcblk*|loop*|nvme*|md*) echo "$1p$2" ;;
@@ -65,7 +77,7 @@ part_dev() { # disk + index -> the partition node
 
 # --- the target must not be the disk we are running from -------------------
 for mnt in / /boot; do
-	cur=$(awk -v m="$mnt" '$2 == m {print $1}' /proc/mounts)
+	cur=$(mount_source "$mnt")
 	[ -n "$cur" ] || continue
 	if [ "$(part_of_disk "$cur")" = "$target" ]; then
 		echo "$target carries the running $mnt - run this from another disk (the USB image)"
@@ -95,7 +107,8 @@ if [ -n "$img" ]; then
 	what="image $img"
 else
 	if [ -z "$src" ]; then
-		root=$(awk '$2 == "/" {print $1; exit}' /proc/mounts)
+		root=$(mount_source /)
+		[ -n "$root" ] || { echo "cannot resolve the root device (use --from DEV)"; exit 1; }
 		src=$(part_of_disk "$root")
 	fi
 	src=$(readlink -f "$src")
@@ -139,7 +152,7 @@ else
 	# When copying the live rootfs, make it read-only first so the copy is
 	# consistent. A source given with --from is left alone.
 	ro_restore=
-	live=$(part_of_disk "$(awk '$2 == "/" {print $1; exit}' /proc/mounts)")
+	live=$(part_of_disk "$(mount_source /)")
 	if [ "$src" = "$live" ]; then
 		if ! awk '$2 == "/" && $4 ~ /(^|,)ro(,|$)/ {found = 1} END {exit !found}' /proc/mounts; then
 			if mount -o remount,ro / 2>/dev/null; then
