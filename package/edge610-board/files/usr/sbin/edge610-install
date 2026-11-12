@@ -105,8 +105,13 @@ esac
 
 new=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
 old=$(sfdisk -d "$target" | grep "^$p2 " | sed -n 's/.*uuid=\([0-9A-Fa-f-]*\).*/\1/p')
-if [ -n "$old" ]; then
-	sfdisk --part-uuid "$target" 2 "$new" >/dev/null 2>&1 && echo "rootfs UUID: $old -> $new"
+if [ -z "$old" ]; then
+	echo "WARNING: cannot read the rootfs UUID from $target; grub.cfg left alone"
+elif ! sfdisk --force --part-uuid "$target" 2 "$new" >/dev/null 2>&1; then
+	echo "WARNING: could not re-UUID ${target}2; run scripts/usb-prep.sh from another machine"
+	old=""
+else
+	echo "rootfs UUID: $old -> $new"
 fi
 
 mnt=$(mktemp -d)
