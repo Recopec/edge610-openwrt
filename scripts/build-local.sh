@@ -391,13 +391,16 @@ for p in luci-i18n-base-zh-cn; do
   grep -q "^$p " "$MAN" || { echo "manifest missing translation: $p (CONFIG_LUCI_LANG_zh_Hans not applied?)"; exit 1; }
 done
 tar -tzf "$TAR" | sed 's|^\./||' > /tmp/rootfs-files.txt
-for f in etc/init.d/edge610 etc/modprobe.d/edge610.conf \
+for f in usr/sbin/edge610-install \
+         etc/init.d/edge610 etc/modprobe.d/edge610.conf \
          etc/uci-defaults/zzz99-edge610-network etc/uci-defaults/zzz98-edge610-resize \
          etc/uci-defaults/zzz99-edge610-network-modem \
          etc/uci-defaults/zzz99-edge610-mwan3 \
          etc/openclash/core/clash_meta; do
   grep -qx "$f" /tmp/rootfs-files.txt || { echo "rootfs missing: $f"; exit 1; }
 done
+tar -tvzf "$TAR" | grep -q '^-rwxr-xr-x .*usr/sbin/edge610-install$' \
+  || { echo "edge610-install is missing or not executable"; exit 1; }
 for b in sfdisk partx resize2fs; do
   grep -qE "/$b$" /tmp/rootfs-files.txt || { echo "binary missing: $b"; exit 1; }
 done

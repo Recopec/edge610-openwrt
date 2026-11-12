@@ -141,8 +141,13 @@ else
 	ro_restore=
 	live=$(part_of_disk "$(awk '$2 == "/" {print $1; exit}' /proc/mounts)")
 	if [ "$src" = "$live" ]; then
-		awk '$2 == "/" && $4 ~ /(^|,)ro(,|$)/ {found = 1} END {exit !found}' /proc/mounts \
-			|| { mount -o remount,ro / && ro_restore=1; }
+		if ! awk '$2 == "/" && $4 ~ /(^|,)ro(,|$)/ {found = 1} END {exit !found}' /proc/mounts; then
+			if mount -o remount,ro / 2>/dev/null; then
+				ro_restore=1
+			else
+				echo "WARNING: cannot remount / read-only; relying on e2fsck afterwards"
+			fi
+		fi
 	fi
 	echo "cloning $src -> $target ..."
 	dd if="$src" of="$target" bs=4M count=$((sectors / 8192 + 1)) conv=fsync 2>/dev/null \
