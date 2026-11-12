@@ -241,7 +241,9 @@ if [ -n "$new_print" ] && [ ${#new_print} -eq 8 ]; then
 	printf "$bytes" | dd of="$p1" bs=1 seek=$serial_off conv=notrunc 2>/dev/null
 	# blkid (and grub) print the BPB bytes reversed; the bytes on disk are the
 	# reverse of the printed form, which is what disk_bytes() writes.
-	boot_serial=$(echo "$new_print" | tr a-f A-F)
+	# GRUB prints the vfat uuid dashed ("1234-ABCD"), blkid too.
+	x=$(echo "$new_print" | tr a-f A-F)
+	boot_serial="${x%????}-${x#????}"
 	old_serial=$(print_serial "$old_disk")
 	echo "boot serial: ${old_serial%????}-${old_serial#????} -> ${boot_serial%????}-${boot_serial#????}"
 else
