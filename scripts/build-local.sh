@@ -427,6 +427,18 @@ echo
 echo "=== BUILD OK $(date -u) ==="
 ls -la "$IMG"
 
+# Give this image its own rootfs PARTUUID. OpenWrt derives every GUID from
+# md5(SOURCE_DATE_EPOCH + LINUX_VERMAGIC), so without this step a stick written
+# from any release mounts the eMMC rootfs (same root=PARTUUID) instead of its
+# own, and edge610-install never runs.
+log "re-UUID the image"
+TMPUUID="$(mktemp -d)"
+gzip -dc "$IMG" > "$TMPUUID/img"
+python3 "$REPO/scripts/image-uuid.py" "$TMPUUID/img"
+gzip -9 -n -c "$TMPUUID/img" > "$IMG"
+rm -rf "$TMPUUID"
+( cd "$(dirname "$IMG")" && sed -i "s|^[0-9a-f]*  $(basename "$IMG")\$|$(sha256sum "$(basename "$IMG")")|" sha256sums )
+
 # Timestamped copy for archiving (the build output keeps its canonical name
 # so sha256sums and scripted paths stay valid). GMT+8, machine TZ independent.
 STAMP="$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)"
