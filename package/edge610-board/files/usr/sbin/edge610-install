@@ -99,8 +99,8 @@ partx -d - "$target" >/dev/null 2>&1 || true
 partx -a - "$target" >/dev/null 2>&1 || true
 
 case "$base" in
-mmcblk*) p1="${target}p1"; p2="${target}p2" ;;
-*)       p1="${target}1"; p2="${target}2" ;;
+mmcblk*|loop*|nvme*|md*) p1="${target}p1"; p2="${target}p2" ;;
+*)                       p1="${target}1";  p2="${target}2"  ;;
 esac
 
 new=$(cat /proc/sys/kernel/random/uuid | tr 'a-f' 'A-F')
