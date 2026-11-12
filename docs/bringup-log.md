@@ -331,3 +331,24 @@ fi
 第一版修复用 `[ "$ipaddr" != "192.168.1.1" ]` 判断"用户改过"，但 board.d 在新版 OpenWrt 里写的是 `list ipaddr '192.168.1.1/24'`，`uci get` 返回 `192.168.1.1/24`，于是出厂配置被误判成用户配置，脚本又直接退出（现象同前：`br-lan` 只有 `eth0`）。改成 `case` 同时接受 `192.168.1.1` 和 `192.168.1.1/24`。
 
 另外 `PKG_RELEASE` 提到 2：OpenWrt 的包构建按目录 mtime 判定是否需要重装文件，新增的 `zzz99-edge610-password` 没进到已缓存的 apk 里，干净刷机后 root 仍然是空密码。
+
+## 2026-11-12 开关模块找不到 P2SB BAR：ACPI 资源嵌到了 PCI 窗口下面
+
+现象：某次开机后 `/sys/class/net` 只剩 `lo/docker0/wwan0`，6 个 RJ45 + 2 个 SFP 全没了；dmesg 报
+
+```
+edge610-switch: P2SB BAR unavailable (device hidden by BIOS and no iomem hint); pass p2sb_bar_addr=
+insmod: failed to insert .../edge610_switch_standalone.ko
+```
+
+根因：模块只在 `iomem_resource.child`（第一层）里找名字含 `INTC3000`、大小 `0x10000`、`start - 0xc20000` 16MB 对齐的资源。这台机器这次启动时该资源挂在 PCI host bridge 窗口**下面一层**：
+
+```
+fdc20000-fdc2ffff : INTC3000:00          ← 实际在这里（depth 2）
+```
+
+于是扫描为空，模块 `return -ENODEV`，init 脚本随之中止，连 `ixgbe` 都没加载。
+
+手工验证：`insmod edge610_switch_standalone.ko p2sb_bar_addr=0xfd000000` 立刻成功（`north window ... padbar=0x400`、`88E6190 rev 1`、`cpu10 link=up`），确认 BAR 值本身没变。
+
+修复：`p2sb_bar_from_iomem()` 改为**递归**遍历资源树（两个模块同样修改），不再假设资源在第一层。

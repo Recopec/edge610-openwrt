@@ -69,26 +69,32 @@ MODULE_PARM_DESC(p2sb_bar_addr,
  * "INTC3000:00" covers exactly P2SB_BAR + NORTH_OFFSET, so the BAR can be
  * derived from the iomem resource tree instead of PCI enumeration.
  */
-static resource_size_t p2sb_bar_from_iomem(void)
+static resource_size_t p2sb_scan(struct resource *r)
 {
-	struct resource *r;
+	resource_size_t bar;
 
-	for (r = iomem_resource.child; r; r = r->sibling) {
-		if (!r->name || !strstr(r->name, "INTC3000"))
-			continue;
-		if (resource_size(r) != NORTH_SIZE)
-			continue;
-		if ((r->start & (NORTH_SIZE - 1)) !=
-		    (NORTH_OFFSET & (NORTH_SIZE - 1)))
-			continue;
-		/* The P2SB MMIO BAR is 16MB aligned; anything else is a
-		 * different P2SB port window, not the BAR base.
+	for (; r; r = r->sibling) {
+		if (r->name && strstr(r->name, "INTC3000") &&
+		    resource_size(r) == NORTH_SIZE &&
+		    ((r->start & (NORTH_SIZE - 1)) ==
+		     (NORTH_OFFSET & (NORTH_SIZE - 1))) &&
+		    !((r->start - NORTH_OFFSET) & (NORTH_BAR_SIZE - 1)))
+			return r->start - NORTH_OFFSET;
+		/* The ACPI window sits under a PCI host bridge window on some
+		 * boots (firmware dependent), so walk the whole tree instead of
+		 * only iomem_resource.child - otherwise autodetect silently
+		 * fails and the switch never initialises.
 		 */
-		if ((r->start - NORTH_OFFSET) & (NORTH_BAR_SIZE - 1))
-			continue;
-		return r->start - NORTH_OFFSET;
+		bar = r->child ? p2sb_scan(r->child) : 0;
+		if (bar)
+			return bar;
 	}
 	return 0;
+}
+
+static resource_size_t p2sb_bar_from_iomem(void)
+{
+	return p2sb_scan(iomem_resource.child);
 }
 
 static void __iomem *padcfg(unsigned int pin)

@@ -335,3 +335,24 @@ A fresh install has no root password, dropbear refuses blank-password logins, so
 The first version compared `[ "$ipaddr" != "192.168.1.1" ]`, but current OpenWrt board.d writes `list ipaddr '192.168.1.1/24'`, so `uci get` returns `192.168.1.1/24` and the factory config looked user-modified - the script exited again (`br-lan` with only `eth0`). Use a `case` that accepts both spellings.
 
 Also bumped `PKG_RELEASE` to 2: the package build keyed off directory mtimes, so the freshly added `zzz99-edge610-password` never made it into the cached apk and a clean flash still had an empty root password.
+
+## 2026-11-12 The switch module stopped finding the P2SB BAR
+
+Symptom: after one boot `/sys/class/net` only had `lo/docker0/wwan0` - all six RJ45 ports and both SFP cages were gone, and dmesg said
+
+```
+edge610-switch: P2SB BAR unavailable (device hidden by BIOS and no iomem hint); pass p2sb_bar_addr=
+insmod: failed to insert .../edge610_switch_standalone.ko
+```
+
+Cause: the module only scanned `iomem_resource.child` (depth 1) for a resource named `INTC3000`, size `0x10000`, whose `start - 0xc20000` is 16 MB aligned. On this boot the firmware nested that window one level deeper, under a PCI host bridge window:
+
+```
+fdc20000-fdc2ffff : INTC3000:00          <- actually at depth 2
+```
+
+so the scan came back empty, the module returned -ENODEV, the init script aborted and even `ixgbe` never loaded.
+
+Verified by hand: `insmod edge610_switch_standalone.ko p2sb_bar_addr=0xfd000000` succeeds immediately (`north window ... padbar=0x400`, `88E6190 rev 1`, `cpu10 link=up`), so the BAR value itself is unchanged.
+
+Fix: make `p2sb_bar_from_iomem()` walk the resource tree recursively in both modules.
