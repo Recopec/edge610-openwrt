@@ -84,6 +84,40 @@ ping -c 3 223.5.5.5
 PING 223.5.5.5: 4 packets transmitted, 4 received, 0% packet loss, time 32 ms
 ```
 
+## 出口与故障切换（mwan3）
+
+首启脚本已经把 LTE 接进 mwan3（`zzz99-edge610-mwan3`，写 `/etc/config/mwan3`）：
+
+| 项 | 值 |
+| --- | --- |
+| `mwan3.wan` | 有线 WAN（`network.wan` = lan6，DHCP），member `wan_m1_w3`，metric 1 |
+| `mwan3.wwan` | LTE（`network.wwan`），member `wwan_m2_w1`，metric 2 |
+| 策略 `failover` | `wan_m1_w3` + `wwan_m2_w1`；IPv4 规则 `default_rule_v4` / `https` 都指向它 |
+| 探测 | `wan`：9.9.9.9 / 8.8.8.8 / 223.5.5.5，reliability 2；`wwan`：223.5.5.5 / 9.9.9.9，interval 30 s，reliability 1 |
+| IPv6 | 不归 mwan3 管（`default_rule_v6` 已删），走 netifd 的默认路由 |
+
+有线没插时的 `mwan3 status`：
+
+```
+interface wan is disabled and tracking is paused (31)
+interface wwan is online and tracking is active (online 00h:00m:10s, uptime ...)
+failover:
+ wwan (100%)
+```
+
+> ⚠️ **只开 mwan3 而不配 `wwan` 比不开还糟**：mwan3 只为自己认识的接口建策略，LTE 那条默认路由会被标记流量绕过，结果是 `ping: sendto: Network unreachable`——而 `wwan` 明明 online。本机实测过（全新镜像、只有 LTE 时）。
+
+探测成本：`wwan` 每 30 s 两个 ICMP，约 0.6 MB/天（3 个探测点是约 0.9 MB/天）。把 `interval` 调大能再省，代价是切换更慢：`down 3` × 30 s ≈ 1.5 分钟才判定掉线。
+
+不想要 mwan3（长期单 LTE、想省掉探测流量）：
+
+```sh
+/etc/init.d/mwan3 disable
+/etc/init.d/mwan3 stop
+```
+
+关掉后路由回到 netifd：有 `lan6` 的默认路由就走有线，没有就走 LTE（`network.wwan` 的 metric 100），只是没有主动探测。
+
 ## 频段锁定
 
 自定义频段集（Extended 格式：`Index,"Name",GWmask,L1,L2,TDS,L3,L4`）：

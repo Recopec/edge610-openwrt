@@ -86,6 +86,44 @@ Measured (Unicom SIM):
 PING 223.5.5.5: 4 packets transmitted, 4 received, 0% packet loss, time 32 ms
 ```
 
+## Egress and failover (mwan3)
+
+The first-boot script already wires LTE into mwan3 (`zzz99-edge610-mwan3`, which
+writes `/etc/config/mwan3`):
+
+| Item | Value |
+| --- | --- |
+| `mwan3.wan` | wired WAN (`network.wan` = lan6, DHCP), member `wan_m1_w3`, metric 1 |
+| `mwan3.wwan` | LTE (`network.wwan`), member `wwan_m2_w1`, metric 2 |
+| policy `failover` | `wan_m1_w3` + `wwan_m2_w1`; the IPv4 rules `default_rule_v4` and `https` both use it |
+| tracking | `wan`: 9.9.9.9 / 8.8.8.8 / 223.5.5.5, reliability 2; `wwan`: 223.5.5.5 / 9.9.9.9, interval 30 s, reliability 1 |
+| IPv6 | not managed by mwan3 (`default_rule_v6` is deleted), so it follows netifd's default route |
+
+`mwan3 status` with no cable in the wired port:
+
+```
+interface wan is disabled and tracking is paused (31)
+interface wwan is online and tracking is active (online 00h:00m:10s, uptime ...)
+failover:
+ wwan (100%)
+```
+
+> ⚠️ **mwan3 running without a `wwan` section is worse than not running it**: mwan3 only installs policies for interfaces it knows, so LTE's default route is bypassed for marked traffic and every packet dies with `ping: sendto: Network unreachable` while `wwan` reports online. Measured on this box with a fresh image and no wired WAN.
+
+Tracking cost: `wwan` sends two ICMP probes every 30 s, roughly 0.6 MB/day (three
+hosts would be ~0.9 MB/day). A longer `interval` saves more but slows detection:
+`down 3` × 30 s ≈ 1.5 minutes before a link is declared dead.
+
+To drop mwan3 (single LTE link, no probe traffic):
+
+```sh
+/etc/init.d/mwan3 disable
+/etc/init.d/mwan3 stop
+```
+
+Routing then falls back to netifd: the `lan6` default route when it exists, LTE
+(`network.wwan`, metric 100) otherwise — just without active probing.
+
 ## Band locking
 
 Custom band set (Extended format: `Index,"Name",GWmask,L1,L2,TDS,L3,L4`):

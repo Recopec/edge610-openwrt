@@ -51,7 +51,7 @@
 页面之外，镜像还带这些：
 
 - **首启建接口**：`zzz99-edge610-network-modem` 创建 `network.wwan`（qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`）并加入防火墙 `wan` zone；已有 `lan` 配置时不重写 `/etc/config/network`。
-- **出口顺序**：有线 `lan6`（WAN，DHCP，metric 0）优先，LTE 是 metric 100 的备用，只有有线的默认路由消失时 netifd 才回落；没有健康检查，要做主动切换就启用 mwan3（默认关闭）。
+- **出口顺序**：有线 `lan6`（WAN，DHCP）优先，LTE 是 mwan3 的 failover 成员（member metric 2）；mwan3 默认启用，IPv4 规则（`default_rule_v4` / `https`）走 `failover` 策略，探测 30 s 一次，故障切换约 1.5 分钟。IPv6 不由 mwan3 管理，走 netifd 的默认路由。
 - **`modem-at`**：自动探测 AT 口（option 驱动的序号随 USB 组合变化，可能是 `ttyUSB1` 或 `ttyUSB2`），用 `flock` 与页面轮询互斥。
 - **`modem-wan-watch`**：30 s 循环。SIM 每 60 s 用 QMI 查一次槽 1，连续两次非 `present` → `ifdown wwan` + `AT+CFUN=1,1`（10 分钟节流），卡可读且 `auto=1` → `ifup`；同时比对 `AT+CGPADDR` 与 `wwan0` 地址，PDP 地址漂移就重拨（退避 120→900 s）。
 - **速率的口径**：QMI WDS 只给会话参数（IP / 网关 / DNS / MTU），没有“协商速率”这种字段；空口能力看 `AT!GSTATUS?`（频段 / 带宽 / CA），实际吞吐看 `wwan0` 计数差分——首屏的“下行 / 上行”是相邻两次轮询的平均值，刷新间隔越大越平滑。
@@ -226,7 +226,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | 虚拟化 | `lxc`（LXC 容器） |
 | 加速/组网 | `kmod-tcp-bbr`（BBR 拥塞控制）、`zerotier`（组网，GUI 走 iStore）、`luci-app-wifischedule`（无线定时） |
 | 对时/测速/流量 | `chrony`（精准对时）、`librespeed`（内网测速，可验证千兆线速）、`vnstat2`（流量历史） |
-| 网络 | `mwan3`（多 WAN，配合双 SFP）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`lldpd` |
+| 网络 | `mwan3`（多 WAN：lan6 → LTE 故障切换，含探测与策略）、`pbr`（策略路由）、`upnp`、`nlbwmon`（流量统计）、`wol`、`udpxy`（IPTV 组播转单播）、`omcproxy`、`lldpd` |
 | DNS/去广告 | **不预置**（按需 `apk add luci-app-adguardhome` / `luci-app-smartdns` / `luci-app-adblock-fast`） |
 | 存储/共享 | `ksmbd`（SMB）、`hd-idle`、`filebrowser`（aria2/transmission 按需 `apk add`） |
 | 磁盘/文件系统 | `kmod-fs-exfat` / `vfat` / `ntfs3`、`kmod-usb-printer`、`e2fsprogs`、`smartmontools`、`hdparm` |

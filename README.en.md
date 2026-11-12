@@ -51,7 +51,7 @@ Status → **Modem** has five tabs, all supplied by this repo's `edge610-board` 
 Beyond the pages, the image also ships:
 
 - **Interface on first boot**: `zzz99-edge610-network-modem` creates `network.wwan` (qmi / `/dev/cdc-wdm0` / `apn cmnet` / `pdptype ipv4v6` / `metric 100`) and adds it to the firewall `wan` zone; `/etc/config/network` is left alone when a `lan` interface already exists.
-- **Egress order**: the wired `lan6` (WAN, DHCP, metric 0) wins and LTE is the metric 100 fallback — netifd only falls back when the wired default route disappears. There are no health checks; enable mwan3 (off by default) if you want active failover.
+- **Egress order**: the wired `lan6` (WAN, DHCP) wins; LTE is the mwan3 failover member (member metric 2). mwan3 is enabled by default and the IPv4 rules (`default_rule_v4` / `https`) point at the `failover` policy, probed every 30 s — failover takes about 1.5 minutes. IPv6 is not managed by mwan3 and just uses netifd's default route.
 - **`modem-at`**: probes for the AT port (the option driver's index follows the USB composition — `ttyUSB1` or `ttyUSB2`) and takes a `flock` so it never races the page.
 - **`modem-wan-watch`**: 30 s loop. Every 60 s it reads slot 1 over QMI; two consecutive non-`present` readings → `ifdown wwan` + `AT+CFUN=1,1` (throttled to 10 min), and `ifup` once the card is readable and `auto=1`. It also compares `AT+CGPADDR` with the `wwan0` address and redials when the PDP address drifts (backoff 120→900 s).
 - **What "rate" means**: QMI WDS only reports session parameters (IP / gateway / DNS / MTU) — there is no negotiated-rate field. Radio capability comes from `AT!GSTATUS?` (band / bandwidth / CA), throughput from `wwan0` counters — the headline down/up rate is the average between two polls, so a longer refresh interval is smoother.
@@ -225,7 +225,7 @@ PROXY=http://192.168.68.1:7897 ./scripts/build-local.sh
 | Virtualization | `lxc` |
 | Acceleration / mesh | `kmod-tcp-bbr` (BBR congestion control), `zerotier` (via iStore GUI), `luci-app-wifischedule` |
 | Time / speed / traffic | `chrony` (precise time), `librespeed` (LAN speed test, verifies gigabit line rate), `vnstat2` (traffic history) |
-| Networking | `mwan3` (multi-WAN, pairs with the two SFP ports), `pbr` (policy routing), `upnp`, `nlbwmon`, `wol`, `udpxy` (IPTV multicast-to-unicast), `omcproxy`, `lldpd` |
+| Networking | `mwan3` (multi-WAN: lan6 → LTE failover with tracking and policies), `pbr` (policy routing), `upnp`, `nlbwmon`, `wol`, `udpxy` (IPTV multicast-to-unicast), `omcproxy`, `lldpd` |
 | DNS / ad blocking | **not preset** (`apk add luci-app-adguardhome` / `luci-app-smartdns` / `luci-app-adblock-fast` as needed) |
 | Storage / sharing | `ksmbd` (SMB), `hd-idle`, `filebrowser` (aria2/transmission via `apk add`) |
 | Disks / filesystems | `kmod-fs-exfat` / `vfat` / `ntfs3`, `kmod-usb-printer`, `e2fsprogs`, `smartmontools`, `hdparm` |

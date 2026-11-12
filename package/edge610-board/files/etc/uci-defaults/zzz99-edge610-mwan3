@@ -1,13 +1,27 @@
 #!/bin/sh
-# mwan3 ships with 1.0.0.1 / 1.1.1.1 / 208.67.x.x as its health probes, and
-# reachability of any given host is route dependent. Measured on this box over
-# both the LAN uplink and the LTE link: 9.9.9.9, 8.8.8.8 and 223.5.5.5 answer
-# on both, 1.1.1.1 loses ~50% over LTE, 1.0.0.1 loses ~50% on both, and
-# 114.114.114.114 is dropped entirely. Probe three diverse hosts so one being
-# blocked later does not report a healthy link as down.
+# mwan3 defaults for the Edge 610: the LTE link is a failover member behind the
+# wired WAN (lan6).
 #
-# This only rewrites the probe list; whether mwan3 runs, and which interfaces
-# it balances, stays with the user (LuCI -> Network -> MultiWAN Manager).
+# Two things are fixed here.
+#
+# 1. Probes. mwan3 ships with 1.0.0.1 / 1.1.1.1 / 208.67.x.x, and reachability
+#    of any given host is route dependent. Measured on this box over both the
+#    LAN uplink and the LTE link: 9.9.9.9, 8.8.8.8 and 223.5.5.5 answer on
+#    both, 1.1.1.1 loses ~50% over LTE, 1.0.0.1 loses ~50% on both, and
+#    114.114.114.114 is dropped entirely. Probe three diverse hosts so one
+#    being blocked later does not report a healthy link as down.
+#
+# 2. The LTE interface. mwan3 only routes for interfaces it knows about, so a
+#    wwan0 that is up but missing from /etc/config/mwan3 is not merely unused:
+#    its default route is bypassed and, with no wired WAN plugged in, every
+#    packet is marked into an empty policy and dies with "Network unreachable".
+#    Add wwan as member metric 2 behind wan metric 1, point the IPv4 rules at
+#    that policy, and leave IPv6 to netifd - wwan0 has a native /128 and there
+#    is no IPv6 member worth tracking.
+#
+#    wwan is probed every 30 s with two hosts at reliability 1. The link is
+#    metered: three hosts every 30 s would be ~0.9 MB/day of pure ICMP, two is
+#    ~0.6 MB/day. Failover detection is therefore ~1.5 min, not instant.
 
 [ -f /etc/config/mwan3 ] || exit 0
 
@@ -18,6 +32,37 @@ for sec in wan wanb; do
 	uci add_list "mwan3.$sec.track_ip=8.8.8.8"
 	uci add_list "mwan3.$sec.track_ip=223.5.5.5"
 done
+
+# Only seed the LTE side once: after that it belongs to the user.
+if ! uci -q get mwan3.wwan >/dev/null; then
+	uci set mwan3.wwan=interface
+	uci set mwan3.wwan.enabled='1'
+	uci set mwan3.wwan.family='ipv4'
+	uci set mwan3.wwan.reliability='1'
+	uci set mwan3.wwan.count='1'
+	uci set mwan3.wwan.timeout='2'
+	uci set mwan3.wwan.interval='30'
+	uci set mwan3.wwan.down='3'
+	uci set mwan3.wwan.up='3'
+	uci add_list mwan3.wwan.track_ip='223.5.5.5'
+	uci add_list mwan3.wwan.track_ip='9.9.9.9'
+
+	uci set mwan3.wwan_m2_w1=member
+	uci set mwan3.wwan_m2_w1.interface='wwan'
+	uci set mwan3.wwan_m2_w1.metric='2'
+	uci set mwan3.wwan_m2_w1.weight='1'
+
+	uci set mwan3.failover=policy
+	uci add_list mwan3.failover.use_member='wan_m1_w3'
+	uci add_list mwan3.failover.use_member='wwan_m2_w1'
+
+	uci -q get mwan3.https >/dev/null &&
+		uci set mwan3.https.use_policy='failover'
+	uci -q get mwan3.default_rule_v4 >/dev/null &&
+		uci set mwan3.default_rule_v4.use_policy='failover'
+	# No IPv6 member: hand v6 back to netifd instead of an empty policy.
+	uci -q delete mwan3.default_rule_v6
+fi
 
 uci commit mwan3
 exit 0
