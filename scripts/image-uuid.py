@@ -18,7 +18,7 @@ fixed-length byte substitution inside p1, so the FAT filesystem is untouched.
 """
 
 import os
-import struct
+import re
 import subprocess
 import sys
 import uuid
@@ -26,15 +26,22 @@ import uuid
 SECTOR = 512
 
 
+def part_index(name):
+    """'/dev/sdb2' -> '2', '/tmp/t.img2' -> '2', '/dev/mmcblk0p2' -> '2'."""
+    found = re.search(r"(\d+)$", name)
+    return found.group(1) if found else ""
+
+
 def read_gpt(path):
-    """Return (p1_uuid, p2_uuid) as upper-case strings."""
+    """Return {partition index: UUID} as upper-case strings."""
     out = subprocess.run(["sfdisk", "-d", path], capture_output=True, text=True, check=True).stdout
     uuids = {}
     for line in out.splitlines():
-        if not line.startswith("/") and "uuid=" not in line:
+        fields = line.split()
+        if not fields or not fields[0].startswith("/"):
             continue
-        idx = line.split()[0].rsplit("p", 1)[-1]
-        for token in line.split():
+        idx = part_index(fields[0])
+        for token in fields:
             if token.startswith("uuid="):
                 uuids[idx] = token[5:].rstrip(",").upper()
     return uuids
@@ -45,7 +52,7 @@ def partition_extent(path, index):
     out = subprocess.run(["sfdisk", "-d", path], capture_output=True, text=True, check=True).stdout
     for line in out.splitlines():
         fields = line.split()
-        if not fields or not fields[0].endswith(f"p{index}"):
+        if not fields or not fields[0].startswith("/") or part_index(fields[0]) != str(index):
             continue
         start = size = None
         for i, token in enumerate(fields):
