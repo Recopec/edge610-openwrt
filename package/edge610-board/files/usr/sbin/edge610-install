@@ -102,8 +102,8 @@ else
 	[ -b "$src" ] || { echo "cannot determine the source disk (use --from DEV)"; exit 1; }
 	[ "$src" != "$target" ] || { echo "source and target are the same disk"; exit 1; }
 	# highest partition end in sectors, plus the secondary GPT (33 sectors)
-	sectors=$(sfdisk -d "$src" | awk -v d="$(basename "$src")" '
-		index($1, "/" d) == 1 && $1 != "/" d {
+	sectors=$(sfdisk -d "$src" | awk -v d="$src" '
+		index($1, d) == 1 && $1 != d {
 			for (i = 1; i <= NF; i++) {
 				if ($i ~ /^start=/) { s = substr($i, 7) + 0 }
 				if ($i ~ /^size=/)  { z = substr($i, 6) + 0 }
